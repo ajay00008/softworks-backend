@@ -4,6 +4,12 @@ export interface ITeacher extends Document {
   userId: mongoose.Types.ObjectId; // references User with role TEACHER
   subjectIds: mongoose.Types.ObjectId[]; // references Subject model
   classIds: mongoose.Types.ObjectId[]; // references Class model - classes teacher is assigned to
+  permissions: {
+    createQuestions: boolean;
+    viewResults: boolean;
+    manageStudents: boolean;
+    accessAnalytics: boolean;
+  };
   phone?: string;
   address?: string;
   qualification?: string;
@@ -22,10 +28,15 @@ const TeacherSchema = new Schema<ITeacher>(
       type: Schema.Types.ObjectId, 
       ref: "Class"
     }],
+    permissions: {
+      createQuestions: { type: Boolean, default: false },
+      viewResults: { type: Boolean, default: false },
+      manageStudents: { type: Boolean, default: false },
+      accessAnalytics: { type: Boolean, default: false }
+    },
     phone: { 
       type: String,
-      trim: true,
-      match: [/^\+?[\d\s\-\(\)]+$/, "Invalid phone number format"]
+      trim: true
     },
     address: { 
       type: String,
@@ -42,14 +53,7 @@ const TeacherSchema = new Schema<ITeacher>(
   { timestamps: true }
 );
 
-// Pre-save validation to ensure at least one subject is assigned
-TeacherSchema.pre('save', function(next) {
-  if (this.subjectIds && this.subjectIds.length === 0) {
-    next(new Error('Teacher must be assigned to at least one subject'));
-  } else {
-    next();
-  }
-});
+// Pre-save validation removed - teachers can now be created without subjects or classes
 
 export const Teacher: Model<ITeacher> = mongoose.models.Teacher || mongoose.model<ITeacher>("Teacher", TeacherSchema);
 

@@ -32,18 +32,69 @@ const CreateStudentSchema = z.object({
   password: z.string().min(8),
   name: z.string().min(2),
   rollNumber: z.string().min(1),
-  className: z.string().min(1),
+  classId: z.string().min(1),
+  fatherName: z.string().optional(),
+  motherName: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  parentsPhone: z.string().optional(),
+  parentsEmail: z.string().email().optional(),
+  address: z.string().optional(),
+  whatsappNumber: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export async function createStudent(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password, name, rollNumber, className } = CreateStudentSchema.parse(req.body);
+    const { 
+      email, 
+      password, 
+      name, 
+      rollNumber, 
+      classId, 
+      fatherName, 
+      motherName, 
+      dateOfBirth, 
+      parentsPhone, 
+      parentsEmail, 
+      address, 
+      whatsappNumber, 
+      isActive 
+    } = CreateStudentSchema.parse(req.body);
+    
     const exists = await User.findOne({ email });
     if (exists) throw new createHttpError.Conflict("Email already in use");
+    
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ email, passwordHash, name, role: "STUDENT" });
-    await Student.create({ userId: user._id, rollNumber, className });
-    res.status(201).json({ success: true, student: { id: user._id, email: user.email, name: user.name } });
+    const user = await User.create({ 
+      email, 
+      passwordHash, 
+      name, 
+      role: "STUDENT",
+      isActive: isActive !== undefined ? isActive : true
+    });
+    
+    await Student.create({ 
+      userId: user._id, 
+      rollNumber, 
+      classId,
+      fatherName,
+      motherName,
+      dateOfBirth,
+      parentsPhone,
+      parentsEmail,
+      address,
+      whatsappNumber
+    });
+    
+    res.status(201).json({ 
+      success: true, 
+      student: { 
+        id: user._id, 
+        email: user.email, 
+        name: user.name,
+        isActive: user.isActive
+      } 
+    });
   } catch (err) {
     next(err);
   }

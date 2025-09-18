@@ -28,8 +28,19 @@ import {
   deleteTeacher, 
   activateTeacher,
   assignSubjects,
-  assignClasses 
+  assignClasses,
+  assignPermissions,
+  getTeacherPermissions
 } from "../controllers/teacherController";
+import {
+  getMyStudents,
+  getMySubjects,
+  getMyClasses,
+  getMyExams,
+  getMyQuestions,
+  getMyExamResults,
+  getMyDashboard
+} from "../controllers/teacherDataController";
 import { 
   getClassSubjectMappings,
   getSubjectsForLevel,
@@ -844,6 +855,287 @@ router.patch("/admin/teachers/:id/subjects", requireAuth, requireRoles("ADMIN", 
  *         description: Classes assigned
  */
 router.patch("/admin/teachers/:id/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), assignClasses);
+
+/**
+ * @openapi
+ * /api/admin/teachers/{id}/permissions:
+ *   patch:
+ *     tags: [Admin - Teachers]
+ *     summary: Assign comprehensive permissions to teacher (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               subjectIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               classIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               permissions:
+ *                 type: object
+ *                 properties:
+ *                   createQuestions:
+ *                     type: boolean
+ *                     description: Allow teacher to create and manage questions
+ *                   viewResults:
+ *                     type: boolean
+ *                     description: Allow teacher to view student results
+ *                   manageStudents:
+ *                     type: boolean
+ *                     description: Allow teacher to manage student data
+ *                   accessAnalytics:
+ *                     type: boolean
+ *                     description: Allow teacher to view performance analytics
+ *     responses:
+ *       200:
+ *         description: Teacher permissions updated successfully
+ */
+router.patch("/admin/teachers/:id/permissions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), assignPermissions);
+
+/**
+ * @openapi
+ * /api/admin/teachers/{id}/permissions:
+ *   get:
+ *     tags: [Admin - Teachers]
+ *     summary: Get teacher's current permissions (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Teacher permissions retrieved successfully
+ */
+router.get("/admin/teachers/:id/permissions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTeacherPermissions);
+
+// ==================== TEACHER DATA ACCESS ROUTES ====================
+
+/**
+ * @openapi
+ * /api/teacher/students:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get students assigned to teacher's classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of assigned students
+ */
+router.get("/teacher/students", requireAuth, requireRoles("TEACHER"), getMyStudents);
+
+/**
+ * @openapi
+ * /api/teacher/subjects:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get subjects assigned to teacher
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of assigned subjects
+ */
+router.get("/teacher/subjects", requireAuth, requireRoles("TEACHER"), getMySubjects);
+
+/**
+ * @openapi
+ * /api/teacher/classes:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get classes assigned to teacher
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of assigned classes
+ */
+router.get("/teacher/classes", requireAuth, requireRoles("TEACHER"), getMyClasses);
+
+/**
+ * @openapi
+ * /api/teacher/exams:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get exams for teacher's assigned subjects/classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examType
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of assigned exams
+ */
+router.get("/teacher/exams", requireAuth, requireRoles("TEACHER"), getMyExams);
+
+/**
+ * @openapi
+ * /api/teacher/questions:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get questions for teacher's assigned subjects/classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: unit
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: bloomsTaxonomyLevel
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: difficulty
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isTwisted
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: language
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of assigned questions
+ */
+router.get("/teacher/questions", requireAuth, requireRoles("TEACHER"), getMyQuestions);
+
+/**
+ * @openapi
+ * /api/teacher/exams/{examId}/results:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get exam results for teacher's assigned exam
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *     responses:
+ *       200:
+ *         description: Exam results for assigned exam
+ *       403:
+ *         description: No permission to view this exam's results
+ */
+router.get("/teacher/exams/:examId/results", requireAuth, requireRoles("TEACHER"), getMyExamResults);
+
+/**
+ * @openapi
+ * /api/teacher/dashboard:
+ *   get:
+ *     tags: [Teacher - Data Access]
+ *     summary: Get teacher's dashboard data
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Teacher dashboard data
+ */
+router.get("/teacher/dashboard", requireAuth, requireRoles("TEACHER"), getMyDashboard);
 
 // ==================== CLASS-SUBJECT MAPPING ROUTES ====================
 

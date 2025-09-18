@@ -98,21 +98,21 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
         id: user._id, 
         email: user.email, 
         name: user.name,
-        subjects: populatedTeacher!.subjectIds.map((subject: any) => ({
+        subjects: populatedTeacher!.subjectIds ? populatedTeacher!.subjectIds.map((subject: any) => ({
           id: subject._id,
           code: subject.code,
           name: subject.name,
           shortName: subject.shortName,
           category: subject.category,
           level: subject.level
-        })),
-        classes: populatedTeacher!.classIds.map((classItem: any) => ({
+        })) : [],
+        classes: populatedTeacher!.classIds ? populatedTeacher!.classIds.map((classItem: any) => ({
           id: classItem._id,
           name: classItem.name,
           displayName: classItem.displayName,
           level: classItem.level,
           section: classItem.section
-        })),
+        })) : [],
         phone: teacher.phone,
         address: teacher.address,
         qualification: teacher.qualification,
@@ -158,21 +158,21 @@ export async function getTeachers(req: Request, res: Response, next: NextFunctio
       id: teacher.userId._id,
       email: (teacher.userId as any).email,
       name: (teacher.userId as any).name,
-      subjects: teacher.subjectIds.map((subject: any) => ({
+      subjects: teacher.subjectIds ? teacher.subjectIds.map((subject: any) => ({
         id: subject._id,
         code: subject.code,
         name: subject.name,
         shortName: subject.shortName,
         category: subject.category,
         level: subject.level
-      })),
-      classes: teacher.classIds.map((classItem: any) => ({
+      })) : [],
+      classes: teacher.classIds ? teacher.classIds.map((classItem: any) => ({
         id: classItem._id,
         name: classItem.name,
         displayName: classItem.displayName,
         level: classItem.level,
         section: classItem.section
-      })),
+      })) : [],
       phone: teacher.phone,
       address: teacher.address,
       qualification: teacher.qualification,
@@ -215,21 +215,21 @@ export async function getTeacher(req: Request, res: Response, next: NextFunction
       id: teacher.userId._id,
       email: (teacher.userId as any).email,
       name: (teacher.userId as any).name,
-      subjects: teacher.subjectIds.map((subject: any) => ({
+      subjects: teacher.subjectIds ? teacher.subjectIds.map((subject: any) => ({
         id: subject._id,
         code: subject.code,
         name: subject.name,
         shortName: subject.shortName,
         category: subject.category,
         level: subject.level
-      })),
-      classes: teacher.classIds.map((classItem: any) => ({
+      })) : [],
+      classes: teacher.classIds ? teacher.classIds.map((classItem: any) => ({
         id: classItem._id,
         name: classItem.name,
         displayName: classItem.displayName,
         level: classItem.level,
         section: classItem.section
-      })),
+      })) : [],
       phone: teacher.phone,
       address: teacher.address,
       qualification: teacher.qualification,
@@ -317,21 +317,21 @@ export async function updateTeacher(req: Request, res: Response, next: NextFunct
       id: updatedTeacher!.userId._id,
       email: (updatedTeacher!.userId as any).email,
       name: (updatedTeacher!.userId as any).name,
-      subjects: updatedTeacher!.subjectIds.map((subject: any) => ({
+      subjects: updatedTeacher!.subjectIds ? updatedTeacher!.subjectIds.map((subject: any) => ({
         id: subject._id,
         code: subject.code,
         name: subject.name,
         shortName: subject.shortName,
         category: subject.category,
         level: subject.level
-      })),
-      classes: updatedTeacher!.classIds.map((classItem: any) => ({
+      })) : [],
+      classes: updatedTeacher!.classIds ? updatedTeacher!.classIds.map((classItem: any) => ({
         id: classItem._id,
         name: classItem.name,
         displayName: classItem.displayName,
         level: classItem.level,
         section: classItem.section
-      })),
+      })) : [],
       phone: updatedTeacher!.phone,
       address: updatedTeacher!.address,
       qualification: updatedTeacher!.qualification,
@@ -418,21 +418,21 @@ export async function assignSubjects(req: Request, res: Response, next: NextFunc
       id: updatedTeacher!.userId._id,
       email: (updatedTeacher!.userId as any).email,
       name: (updatedTeacher!.userId as any).name,
-      subjects: updatedTeacher!.subjectIds.map((subject: any) => ({
+      subjects: updatedTeacher!.subjectIds ? updatedTeacher!.subjectIds.map((subject: any) => ({
         id: subject._id,
         code: subject.code,
         name: subject.name,
         shortName: subject.shortName,
         category: subject.category,
         level: subject.level
-      })),
-      classes: updatedTeacher!.classIds.map((classItem: any) => ({
+      })) : [],
+      classes: updatedTeacher!.classIds ? updatedTeacher!.classIds.map((classItem: any) => ({
         id: classItem._id,
         name: classItem.name,
         displayName: classItem.displayName,
         level: classItem.level,
         section: classItem.section
-      })),
+      })) : [],
       phone: updatedTeacher!.phone,
       address: updatedTeacher!.address,
       qualification: updatedTeacher!.qualification,
@@ -483,21 +483,21 @@ export async function assignClasses(req: Request, res: Response, next: NextFunct
       id: updatedTeacher!.userId._id,
       email: (updatedTeacher!.userId as any).email,
       name: (updatedTeacher!.userId as any).name,
-      subjects: updatedTeacher!.subjectIds.map((subject: any) => ({
+      subjects: updatedTeacher!.subjectIds ? updatedTeacher!.subjectIds.map((subject: any) => ({
         id: subject._id,
         code: subject.code,
         name: subject.name,
         shortName: subject.shortName,
         category: subject.category,
         level: subject.level
-      })),
-      classes: updatedTeacher!.classIds.map((classItem: any) => ({
+      })) : [],
+      classes: updatedTeacher!.classIds ? updatedTeacher!.classIds.map((classItem: any) => ({
         id: classItem._id,
         name: classItem.name,
         displayName: classItem.displayName,
         level: classItem.level,
         section: classItem.section
-      })),
+      })) : [],
       phone: updatedTeacher!.phone,
       address: updatedTeacher!.address,
       qualification: updatedTeacher!.qualification,
@@ -509,6 +509,154 @@ export async function assignClasses(req: Request, res: Response, next: NextFunct
     };
     
     res.json({ success: true, teacher: transformedTeacher });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Assign Permissions to Teacher (Comprehensive Assignment)
+export async function assignPermissions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { subjectIds, classIds, permissions } = z.object({ 
+      subjectIds: z.array(z.string()).optional(),
+      classIds: z.array(z.string()).optional(),
+      permissions: z.object({
+        createQuestions: z.boolean().optional(),
+        viewResults: z.boolean().optional(),
+        manageStudents: z.boolean().optional(),
+        accessAnalytics: z.boolean().optional()
+      }).optional()
+    }).parse(req.body);
+    
+    const teacher = await Teacher.findOne({ userId: id });
+    if (!teacher) throw new createHttpError.NotFound("Teacher not found");
+    
+    // Validate subjects if provided
+    if (subjectIds && subjectIds.length > 0) {
+      const subjects = await Subject.find({ 
+        _id: { $in: subjectIds }, 
+        isActive: true 
+      });
+      
+      if (subjects.length !== subjectIds.length) {
+        throw new createHttpError.BadRequest("One or more subjects not found or inactive");
+      }
+    }
+    
+    // Validate classes if provided
+    if (classIds && classIds.length > 0) {
+      const { Class } = await import("../models/Class");
+      const classes = await Class.find({ 
+        _id: { $in: classIds }, 
+        isActive: true 
+      });
+      
+      if (classes.length !== classIds.length) {
+        throw new createHttpError.BadRequest("One or more classes not found or inactive");
+      }
+    }
+    
+    // Update teacher permissions
+    const updateData: any = {};
+    if (subjectIds !== undefined) updateData.subjectIds = subjectIds;
+    if (classIds !== undefined) updateData.classIds = classIds;
+    if (permissions !== undefined) updateData.permissions = permissions;
+    
+    await Teacher.findByIdAndUpdate(teacher._id, updateData);
+    
+    const updatedTeacher = await Teacher.findOne({ userId: id })
+      .populate('userId', 'name email isActive')
+      .populate('subjectIds', 'code name shortName category level')
+      .populate('classIds', 'name displayName level section');
+    
+    // Transform the data to include all form fields
+    const transformedTeacher = {
+      id: updatedTeacher!.userId._id,
+      email: (updatedTeacher!.userId as any).email,
+      name: (updatedTeacher!.userId as any).name,
+      subjects: updatedTeacher!.subjectIds ? updatedTeacher!.subjectIds.map((subject: any) => ({
+        id: subject._id,
+        code: subject.code,
+        name: subject.name,
+        shortName: subject.shortName,
+        category: subject.category,
+        level: subject.level
+      })) : [],
+      classes: updatedTeacher!.classIds ? updatedTeacher!.classIds.map((classItem: any) => ({
+        id: classItem._id,
+        name: classItem.name,
+        displayName: classItem.displayName,
+        level: classItem.level,
+        section: classItem.section
+      })) : [],
+      permissions: updatedTeacher!.permissions || {
+        createQuestions: false,
+        viewResults: false,
+        manageStudents: false,
+        accessAnalytics: false
+      },
+      phone: updatedTeacher!.phone,
+      address: updatedTeacher!.address,
+      qualification: updatedTeacher!.qualification,
+      experience: updatedTeacher!.experience,
+      department: updatedTeacher!.department,
+      isActive: (updatedTeacher!.userId as any).isActive,
+      createdAt: (updatedTeacher!.userId as any).createdAt,
+      updatedAt: (updatedTeacher as any).updatedAt
+    };
+    
+    res.json({ 
+      success: true, 
+      message: "Teacher permissions updated successfully",
+      teacher: transformedTeacher 
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Get Teacher's Assigned Data (for teachers to see their permissions)
+export async function getTeacherPermissions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    
+    const teacher = await Teacher.findOne({ userId: id })
+      .populate('userId', 'name email isActive')
+      .populate('subjectIds', 'code name shortName category level')
+      .populate('classIds', 'name displayName level section');
+    
+    if (!teacher) throw new createHttpError.NotFound("Teacher not found");
+    
+    const permissions = {
+      id: teacher.userId._id,
+      email: (teacher.userId as any).email,
+      name: (teacher.userId as any).name,
+      subjects: teacher.subjectIds ? teacher.subjectIds.map((subject: any) => ({
+        id: subject._id,
+        code: subject.code,
+        name: subject.name,
+        shortName: subject.shortName,
+        category: subject.category,
+        level: subject.level
+      })) : [],
+      classes: teacher.classIds ? teacher.classIds.map((classItem: any) => ({
+        id: classItem._id,
+        name: classItem.name,
+        displayName: classItem.displayName,
+        level: classItem.level,
+        section: classItem.section
+      })) : [],
+      permissions: teacher.permissions || {
+        createQuestions: false,
+        viewResults: false,
+        manageStudents: false,
+        accessAnalytics: false
+      },
+      isActive: (teacher.userId as any).isActive
+    };
+    
+    res.json({ success: true, permissions });
   } catch (err) {
     next(err);
   }

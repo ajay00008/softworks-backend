@@ -154,7 +154,7 @@ async function run() {
         phone: "9876543210",
         address: "456 Oak Avenue, City, State 12345",
         qualification: "M.Sc. Mathematics, B.Ed.",
-        experience: "5 years",
+        experience: 5,
         department: "MATHEMATICS"
       },
       {
@@ -165,7 +165,7 @@ async function run() {
         phone: "9876543211",
         address: "789 Pine Street, City, State 12345",
         qualification: "M.Sc. Chemistry, B.Ed.",
-        experience: "7 years",
+        experience: 7,
         department: "SCIENCE"
       },
       {
@@ -176,7 +176,7 @@ async function run() {
         phone: "9876543212",
         address: "321 Elm Street, City, State 12345",
         qualification: "M.A. English Literature, B.Ed.",
-        experience: "4 years",
+        experience: 4,
         department: "LANGUAGES"
       }
     ];

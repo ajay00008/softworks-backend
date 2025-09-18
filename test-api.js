@@ -1,13 +1,13 @@
 // Simple API test script for School Management System
 // Run with: node test-api.js
 
-const BASE_URL = 'http://localhost:3000/api';
+const BASE_URL = 'http://localhost:4000/api';
 
 // Test data
 const testData = {
   superAdmin: {
-    email: 'superadmin@school.com',
-    password: 'superadmin123'
+    email: 'super@softworks.local',
+    password: 'ChangeMe123!'
   },
   admin: {
     email: 'admin@school.com',
@@ -33,6 +33,16 @@ const testData = {
     qualification: 'M.Sc Mathematics',
     experience: 5,
     department: 'Science'
+  },
+  teacherWithoutSubjects: {
+    email: 'teacher2@school.com',
+    password: 'teacher123',
+    name: 'John Doe',
+    subjectIds: [],
+    classIds: [],
+    qualification: 'B.Ed',
+    experience: 3,
+    department: 'General'
   }
 };
 
@@ -103,6 +113,11 @@ async function testCreateTeacher() {
   await apiCall('POST', '/admin/teachers', testData.teacher, authToken);
 }
 
+async function testCreateTeacherWithoutSubjects() {
+  console.log('\n=== Testing Create Teacher Without Subjects/Classes ===');
+  await apiCall('POST', '/admin/teachers', testData.teacherWithoutSubjects, authToken);
+}
+
 async function testGetStudents() {
   console.log('\n=== Testing Get Students ===');
   await apiCall('GET', '/admin/students', null, authToken);
@@ -126,7 +141,7 @@ async function testHealthCheck() {
 // Main test runner
 async function runTests() {
   console.log('Starting API Tests...');
-  console.log('Make sure the server is running on http://localhost:3000');
+  console.log('Make sure the server is running on http://localhost:4000');
   
   try {
     await testHealthCheck();
@@ -137,6 +152,7 @@ async function runTests() {
       await testGetAdmins();
       await testCreateStudent();
       await testCreateTeacher();
+      await testCreateTeacherWithoutSubjects();
       await testGetStudents();
       await testGetTeachers();
       await testGetStudentsByClass();
@@ -149,16 +165,17 @@ async function runTests() {
 }
 
 // Run tests if this file is executed directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   runTests();
 }
 
-module.exports = {
+export {
   apiCall,
   testLogin,
   testCreateAdmin,
   testCreateStudent,
   testCreateTeacher,
+  testCreateTeacherWithoutSubjects,
   testGetStudents,
   testGetTeachers,
   runTests

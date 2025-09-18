@@ -44,8 +44,7 @@ const StudentSchema = new Schema<IStudent>(
     },
     parentsPhone: { 
       type: String,
-      trim: true,
-      match: [/^\+?[\d\s\-\(\)]+$/, "Invalid phone number format"]
+      trim: true
     },
     parentsEmail: { 
       type: String,
@@ -59,8 +58,7 @@ const StudentSchema = new Schema<IStudent>(
     },
     whatsappNumber: { 
       type: String,
-      trim: true,
-      match: [/^\+?[\d\s\-\(\)]+$/, "Invalid WhatsApp number format"]
+      trim: true
     },
   },
   { timestamps: true }
