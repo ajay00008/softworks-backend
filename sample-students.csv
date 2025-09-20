@@ -1,0 +1,9 @@
+email,password,name,rollNumber,className,fatherName,motherName,dateOfBirth,parentsPhone,parentsEmail,address
+john.doe@example.com,password123,John Doe,001,10A,Robert Doe,Jane Doe,2008-05-15,9876543210,robert.doe@example.com,123 Main St
+jane.smith@example.com,password123,Jane Smith,002,10A,Michael Smith,Sarah Smith,,9876543211,sarah.smith@example.com,456 Oak Ave
+alice.johnson@example.com,password123,Alice Johnson,001,10B,David Johnson,Lisa Johnson,2008-03-10,9876543212,lisa.johnson@example.com,789 Pine Rd
+bob.wilson@example.com,password123,Bob Wilson,002,10B,James Wilson,Mary Wilson,,9876543213,mary.wilson@example.com,321 Elm St
+charlie.brown@example.com,password123,Charlie Brown,001,11A,Tom Brown,Emma Brown,2007-12-05,9876543214,emma.brown@example.com,654 Maple Dr
+diana.davis@example.com,password123,Diana Davis,002,11A,Paul Davis,Anna Davis,,9876543215,anna.davis@example.com,987 Cedar Ln
+eve.miller@example.com,password123,Eve Miller,001,12A,John Miller,Kate Miller,2006-08-30,9876543216,kate.miller@example.com,147 Birch St
+frank.garcia@example.com,password123,Frank Garcia,002,12A,Carlos Garcia,Maria Garcia,,9876543217,maria.garcia@example.com,258 Spruce Ave

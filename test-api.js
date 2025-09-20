@@ -133,6 +133,38 @@ async function testGetStudentsByClass() {
   await apiCall('GET', '/admin/students/class/11th%20A', null, authToken);
 }
 
+async function testBulkTeacherUpload() {
+  console.log('\n=== Testing Bulk Teacher Upload ===');
+  
+  // Create FormData for file upload
+  const { default: FormData } = await import('form-data');
+  const { createReadStream } = await import('fs');
+  
+  const form = new FormData();
+  form.append('file', createReadStream('./sample-teachers.csv'));
+  
+  try {
+    const response = await fetch(`${BASE_URL}/admin/teachers/bulk-upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        ...form.getHeaders()
+      },
+      body: form
+    });
+    
+    const result = await response.json();
+    console.log(`POST /admin/teachers/bulk-upload: ${response.status}`);
+    if (!response.ok) {
+      console.error('Error:', result);
+    } else {
+      console.log('Success:', result);
+    }
+  } catch (error) {
+    console.error('Network error:', error.message);
+  }
+}
+
 async function testHealthCheck() {
   console.log('\n=== Testing Health Check ===');
   await apiCall('GET', '/health');
@@ -156,6 +188,7 @@ async function runTests() {
       await testGetStudents();
       await testGetTeachers();
       await testGetStudentsByClass();
+      await testBulkTeacherUpload();
     }
     
     console.log('\n=== All Tests Completed ===');
@@ -178,5 +211,6 @@ export {
   testCreateTeacherWithoutSubjects,
   testGetStudents,
   testGetTeachers,
+  testBulkTeacherUpload,
   runTests
 };

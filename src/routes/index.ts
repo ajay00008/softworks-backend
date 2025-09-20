@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { upload } from "../config/multer";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
@@ -18,7 +19,8 @@ import {
   updateStudent, 
   deleteStudent, 
   activateStudent,
-  getStudentsByClass 
+  getStudentsByClass,
+  bulkCreateStudents
 } from "../controllers/studentController";
 import { 
   createTeacher as createTeacherNew, 
@@ -30,7 +32,8 @@ import {
   assignSubjects,
   assignClasses,
   assignPermissions,
-  getTeacherPermissions
+  getTeacherPermissions,
+  bulkCreateTeachers
 } from "../controllers/teacherController";
 import {
   getMyStudents,
@@ -596,6 +599,98 @@ router.patch("/admin/students/:id/activate", requireAuth, requireRoles("ADMIN", 
  */
 router.get("/admin/students/class/:classId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getStudentsByClass);
 
+/**
+ * @openapi
+ * /api/admin/students/bulk-upload:
+ *   post:
+ *     tags: [Admin - Students]
+ *     summary: Bulk create students from CSV file (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: CSV file containing student data
+ *     responses:
+ *       201:
+ *         description: Students created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalRows:
+ *                       type: number
+ *                     created:
+ *                       type: number
+ *                     errors:
+ *                       type: number
+ *                     students:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           rollNumber:
+ *                             type: string
+ *                           className:
+ *                             type: string
+ *                           isActive:
+ *                             type: boolean
+ *                           rowNumber:
+ *                             type: number
+ *       400:
+ *         description: Validation errors in CSV file
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       row:
+ *                         type: number
+ *                       errors:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                 totalRows:
+ *                   type: number
+ *                 errorRows:
+ *                   type: number
+ *                 validRows:
+ *                   type: number
+ */
+router.post("/admin/students/bulk-upload", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), upload.single('file'), bulkCreateStudents);
+
 // ==================== ADMIN ROUTES FOR TEACHERS ====================
 
 /**
@@ -925,6 +1020,102 @@ router.patch("/admin/teachers/:id/permissions", requireAuth, requireRoles("ADMIN
  *         description: Teacher permissions retrieved successfully
  */
 router.get("/admin/teachers/:id/permissions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTeacherPermissions);
+
+/**
+ * @openapi
+ * /api/admin/teachers/bulk-upload:
+ *   post:
+ *     tags: [Admin - Teachers]
+ *     summary: Bulk create teachers from CSV file (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [file]
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: CSV file containing teacher data
+ *     responses:
+ *       201:
+ *         description: Teachers created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalRows:
+ *                       type: number
+ *                     created:
+ *                       type: number
+ *                     errors:
+ *                       type: number
+ *                     teachers:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           email:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           qualification:
+ *                             type: string
+ *                           experience:
+ *                             type: number
+ *                           phone:
+ *                             type: string
+ *                           address:
+ *                             type: string
+ *                           isActive:
+ *                             type: boolean
+ *                           rowNumber:
+ *                             type: number
+ *       400:
+ *         description: Validation errors in CSV file
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                 errors:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       row:
+ *                         type: number
+ *                       errors:
+ *                         type: array
+ *                         items:
+ *                           type: string
+ *                 totalRows:
+ *                   type: number
+ *                 errorRows:
+ *                   type: number
+ *                 validRows:
+ *                   type: number
+ */
+router.post("/admin/teachers/bulk-upload", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), upload.single('file'), bulkCreateTeachers);
 
 // ==================== TEACHER DATA ACCESS ROUTES ====================
 

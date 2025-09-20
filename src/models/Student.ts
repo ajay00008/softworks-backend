@@ -40,7 +40,13 @@ const StudentSchema = new Schema<IStudent>(
     dateOfBirth: { 
       type: String,
       trim: true,
-      match: [/^\d{4}-\d{2}-\d{2}$/, "Date of birth must be in YYYY-MM-DD format"]
+      validate: {
+        validator: function(v: string) {
+          if (!v || v === '') return true; // Allow empty values
+          return /^\d{4}-\d{2}-\d{2}$/.test(v);
+        },
+        message: "Date of birth must be in YYYY-MM-DD format or empty"
+      }
     },
     parentsPhone: { 
       type: String,

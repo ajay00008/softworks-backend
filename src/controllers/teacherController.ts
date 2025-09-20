@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import createHttpError from "http-errors";
+import { parse } from "csv-parse/sync";
+import mongoose from "mongoose";
 import { User } from "../models/User";
 import { Teacher } from "../models/Teacher";
 import { Subject } from "../models/Subject";
@@ -26,7 +28,7 @@ const UpdateTeacherSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   qualification: z.string().optional(),
-  experience: z.number().optional(),
+  experience: z.string().optional(),
   isActive: z.boolean().optional(),
 });
 
@@ -131,34 +133,81 @@ export async function getTeachers(req: Request, res: Response, next: NextFunctio
   try {
     const { page, limit, search, isActive } = GetTeachersQuerySchema.parse(req.query);
     
-    const query: any = {};
-    
-    if (search) {
-      query.$or = [
-        { qualification: { $regex: search, $options: "i" } },
-        { experience: { $regex: search, $options: "i" } }
-      ];
-    }
-    
     const skip = (page - 1) * limit;
     
-    const [teachers, total] = await Promise.all([
-      Teacher.find(query)
-        .populate('userId', 'name email isActive createdAt')
-        .populate('subjectIds', 'code name shortName category level')
-        .populate('classIds', 'name displayName level section')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Teacher.countDocuments(query)
-    ]);
+    // Build aggregation pipeline
+    const pipeline: any[] = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: '$user'
+      },
+      {
+        $lookup: {
+          from: 'subjects',
+          localField: 'subjectIds',
+          foreignField: '_id',
+          as: 'subjects'
+        }
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'classIds',
+          foreignField: '_id',
+          as: 'classes'
+        }
+      }
+    ];
+
+    // Add search filter
+    if (search) {
+      pipeline.push({
+        $match: {
+          'user.name': { $regex: search, $options: 'i' }
+        }
+      });
+    }
+
+    // Add isActive filter
+    if (isActive !== undefined) {
+      pipeline.push({
+        $match: {
+          'user.isActive': isActive
+        }
+      });
+    }
+
+    // Add sorting
+    pipeline.push({
+      $sort: { 'user.createdAt': -1 }
+    });
+
+    // Get total count for pagination
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const totalResult = await Teacher.aggregate(countPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+    // Add pagination
+    pipeline.push(
+      { $skip: skip },
+      { $limit: limit }
+    );
+
+    const teachers = await Teacher.aggregate(pipeline);
     
     // Transform the data to include all form fields
     const transformedTeachers = teachers.map(teacher => ({
-      id: teacher.userId._id,
-      email: (teacher.userId as any).email,
-      name: (teacher.userId as any).name,
-      subjects: teacher.subjectIds ? teacher.subjectIds.map((subject: any) => ({
+      id: teacher.user._id,
+      email: teacher.user.email,
+      name: teacher.user.name,
+      subjects: teacher.subjects ? teacher.subjects.map((subject: any) => ({
         id: subject._id,
         code: subject.code,
         name: subject.name,
@@ -166,7 +215,7 @@ export async function getTeachers(req: Request, res: Response, next: NextFunctio
         category: subject.category,
         level: subject.level
       })) : [],
-      classes: teacher.classIds ? teacher.classIds.map((classItem: any) => ({
+      classes: teacher.classes ? teacher.classes.map((classItem: any) => ({
         id: classItem._id,
         name: classItem.name,
         displayName: classItem.displayName,
@@ -178,9 +227,9 @@ export async function getTeachers(req: Request, res: Response, next: NextFunctio
       qualification: teacher.qualification,
       experience: teacher.experience,
       department: teacher.department,
-      isActive: (teacher.userId as any).isActive,
-      createdAt: (teacher.userId as any).createdAt,
-      updatedAt: (teacher as any).updatedAt
+      isActive: teacher.user.isActive,
+      createdAt: teacher.user.createdAt,
+      updatedAt: teacher.updatedAt
     }));
     
     res.json({
@@ -657,6 +706,199 @@ export async function getTeacherPermissions(req: Request, res: Response, next: N
     };
     
     res.json({ success: true, permissions });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// CSV Row Schema for validation
+const CSVTeacherRowSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  qualification: z.string().optional().or(z.literal("")),
+  experience: z.string().optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
+  address: z.string().optional().or(z.literal(""))
+});
+
+// Bulk Create Teachers from CSV
+export async function bulkCreateTeachers(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Check if file is uploaded
+    if (!req.file) {
+      throw new createHttpError.BadRequest("CSV file is required");
+    }
+
+    // Parse CSV file
+    const csvContent = req.file.buffer.toString('utf-8');
+    const records = parse(csvContent, {
+      columns: true, // Use first row as headers
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    if (records.length === 0) {
+      throw new createHttpError.BadRequest("CSV file is empty or invalid");
+    }
+
+    // Validate CSV headers
+    const requiredHeaders = ['email', 'password', 'name'];
+    const csvHeaders = Object.keys(records[0] as Record<string, unknown>);
+    const missingHeaders = requiredHeaders.filter(header => !csvHeaders.includes(header));
+    
+    if (missingHeaders.length > 0) {
+      throw new createHttpError.BadRequest(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
+
+    // Validate and process each row
+    const validationErrors: Array<{ row: number; errors: string[] }> = [];
+    const processedTeachers: any[] = [];
+    const existingEmails = new Set<string>();
+
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const rowNumber = i + 2; // +2 because CSV is 1-indexed and we skip header
+
+      try {
+        // Validate row data
+        const validatedData = CSVTeacherRowSchema.parse(row);
+
+        // Check for duplicate emails in the same batch
+        if (existingEmails.has(validatedData.email)) {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Duplicate email '${validatedData.email}' in the same batch`]
+          });
+          continue;
+        }
+
+        // Check if email already exists in database
+        const existingUser = await User.findOne({ email: validatedData.email });
+        if (existingUser) {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Email '${validatedData.email}' already exists in database`]
+          });
+          continue;
+        }
+
+        existingEmails.add(validatedData.email);
+        processedTeachers.push({
+          ...validatedData,
+          rowNumber
+        });
+
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          const errors = error.issues.map((err: any) => `${err.path.join('.')}: ${err.message}`);
+          validationErrors.push({
+            row: rowNumber,
+            errors
+          });
+        } else {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`]
+          });
+        }
+      }
+    }
+
+    // If there are validation errors, return them
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors found in CSV file",
+        errors: validationErrors,
+        totalRows: records.length,
+        errorRows: validationErrors.length,
+        validRows: processedTeachers.length
+      });
+    }
+
+    // Create teachers in batch using transactions
+    const createdTeachers: any[] = [];
+    const creationErrors: Array<{ row: number; email: string; error: string }> = [];
+
+    for (const teacherData of processedTeachers) {
+      const session = await mongoose.startSession();
+      
+      try {
+        await session.withTransaction(async () => {
+          // Hash password
+          const passwordHash = await bcrypt.hash(teacherData.password, 12);
+
+          // Create user within transaction
+          const user = await User.create([{
+            email: teacherData.email,
+            passwordHash,
+            name: teacherData.name,
+            role: "TEACHER",
+            isActive: true
+          }], { session });
+
+          if (!user || user.length === 0) {
+            throw new Error('Failed to create user');
+          }
+
+          // Create teacher profile within transaction
+          const teacherDataToCreate: any = {
+            userId: user[0]!._id,
+            qualification: teacherData.qualification || undefined,
+            experience: teacherData.experience || undefined,
+            phone: teacherData.phone || undefined,
+            address: teacherData.address || undefined,
+            permissions: {
+              createQuestions: false,
+              viewResults: false,
+              manageStudents: false,
+              accessAnalytics: false
+            }
+          };
+
+          const teacher = await Teacher.create([teacherDataToCreate], { session });
+
+          if (!teacher || teacher.length === 0) {
+            throw new Error('Failed to create teacher profile');
+          }
+
+          createdTeachers.push({
+            id: user[0]!._id,
+            email: user[0]!.email,
+            name: user[0]!.name,
+            qualification: teacher[0]!.qualification,
+            experience: teacher[0]!.experience,
+            phone: teacher[0]!.phone,
+            address: teacher[0]!.address,
+            isActive: user[0]!.isActive,
+            rowNumber: teacherData.rowNumber
+          });
+        });
+      } catch (error) {
+        creationErrors.push({
+          row: teacherData.rowNumber,
+          email: teacherData.email,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } finally {
+        await session.endSession();
+      }
+    }
+
+    // Return results
+    res.status(201).json({
+      success: true,
+      message: `Successfully processed ${records.length} teachers`,
+      data: {
+        totalRows: records.length,
+        created: createdTeachers.length,
+        errors: creationErrors.length,
+        teachers: createdTeachers,
+        creationErrors: creationErrors.length > 0 ? creationErrors : undefined
+      }
+    });
+
   } catch (err) {
     next(err);
   }

@@ -2,9 +2,38 @@ import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import createHttpError from "http-errors";
+import { parse } from "csv-parse/sync";
+import mongoose from "mongoose";
 import { User } from "../models/User";
 import { Student } from "../models/Student";
 import { Class } from "../models/Class";
+
+// Utility function to format date to yyyy-mm-dd
+function formatDateToYYYYMMDD(dateString: string): string {
+  if (!dateString || dateString.trim() === '') {
+    return '';
+  }
+  
+  try {
+    const date = new Date(dateString);
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      throw new Error('Invalid date');
+    }
+    
+    // Format as yyyy-mm-dd
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  } catch (error) {
+    // If parsing fails, return the original string
+    console.warn(`Failed to parse date: ${dateString}`, error);
+    return dateString;
+  }
+}
 
 const CreateStudentSchema = z.object({
   email: z.string().email(),
@@ -71,12 +100,19 @@ export async function createStudent(req: Request, res: Response, next: NextFunct
       isActive: true 
     });
     
-    const student = await Student.create({ 
+    // Format dateOfBirth if provided
+    const studentCreateData = { 
       userId: user._id, 
       rollNumber, 
       classId,
       ...additionalData
-    });
+    };
+    
+    if (studentCreateData.dateOfBirth) {
+      studentCreateData.dateOfBirth = formatDateToYYYYMMDD(studentCreateData.dateOfBirth);
+    }
+    
+    const student = await Student.create(studentCreateData);
     
     // Populate class information for response
     const populatedStudent = await Student.findById(student._id).populate('classId', 'name displayName level section academicYear');
@@ -117,45 +153,96 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
   try {
     const { page, limit, search, classId, isActive } = GetStudentsQuerySchema.parse(req.query);
     
-    const query: any = {};
-    
-    if (classId) {
-      query.classId = classId;
-    }
-    
-    if (search) {
-      query.$or = [
-        { rollNumber: { $regex: search, $options: "i" } },
-        { fatherName: { $regex: search, $options: "i" } },
-        { motherName: { $regex: search, $options: "i" } }
-      ];
-    }
-    
     const skip = (page - 1) * limit;
     
-    const [students, total] = await Promise.all([
-      Student.find(query)
-        .populate('userId', 'name email isActive createdAt')
-        .populate('classId', 'name displayName level section academicYear')
-        .sort({ 'classId.level': 1, 'classId.section': 1, rollNumber: 1 })
-        .skip(skip)
-        .limit(limit),
-      Student.countDocuments(query)
-    ]);
+    // Build aggregation pipeline
+    const pipeline: any[] = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: '$user'
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'classId',
+          foreignField: '_id',
+          as: 'class'
+        }
+      },
+      {
+        $unwind: '$class'
+      }
+    ];
+
+    // Add classId filter
+    if (classId) {
+      pipeline.push({
+        $match: {
+          classId: new mongoose.Types.ObjectId(classId)
+        }
+      });
+    }
+
+    // Add search filter
+    if (search) {
+      pipeline.push({
+        $match: {
+          'user.name': { $regex: search, $options: 'i' }
+        }
+      });
+    }
+
+    // Add isActive filter
+    if (isActive !== undefined) {
+      pipeline.push({
+        $match: {
+          'user.isActive': isActive
+        }
+      });
+    }
+
+    // Add sorting
+    pipeline.push({
+      $sort: { 
+        'class.level': 1, 
+        'class.section': 1, 
+        rollNumber: 1 
+      }
+    });
+
+    // Get total count for pagination
+    const countPipeline = [...pipeline, { $count: 'total' }];
+    const totalResult = await Student.aggregate(countPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+    // Add pagination
+    pipeline.push(
+      { $skip: skip },
+      { $limit: limit }
+    );
+
+    const students = await Student.aggregate(pipeline);
     
     // Transform the data to include all form fields
     const transformedStudents = students.map(student => ({
-      id: student.userId._id,
-      email: (student.userId as any).email,
-      name: (student.userId as any).name,
+      id: student.user._id,
+      email: student.user.email,
+      name: student.user.name,
       rollNumber: student.rollNumber,
       class: {
-        id: (student.classId as any)._id,
-        name: (student.classId as any).name,
-        displayName: (student.classId as any).displayName,
-        level: (student.classId as any).level,
-        section: (student.classId as any).section,
-        academicYear: (student.classId as any).academicYear
+        id: student.class._id,
+        name: student.class.name,
+        displayName: student.class.displayName,
+        level: student.class.level,
+        section: student.class.section,
+        academicYear: student.class.academicYear
       },
       fatherName: student.fatherName,
       motherName: student.motherName,
@@ -164,9 +251,9 @@ export async function getStudents(req: Request, res: Response, next: NextFunctio
       parentsEmail: student.parentsEmail,
       address: student.address,
       whatsappNumber: student.whatsappNumber,
-      isActive: (student.userId as any).isActive,
-      createdAt: (student.userId as any).createdAt,
-      updatedAt: (student as any).updatedAt
+      isActive: student.user.isActive,
+      createdAt: student.user.createdAt,
+      updatedAt: student.updatedAt
     }));
     
     res.json({
@@ -274,6 +361,11 @@ export async function updateStudent(req: Request, res: Response, next: NextFunct
     delete studentUpdateData.email;
     delete studentUpdateData.name;
     delete studentUpdateData.isActive;
+    
+    // Format dateOfBirth if provided
+    if (studentUpdateData.dateOfBirth) {
+      studentUpdateData.dateOfBirth = formatDateToYYYYMMDD(studentUpdateData.dateOfBirth);
+    }
     
     if (Object.keys(studentUpdateData).length > 0) {
       await Student.findByIdAndUpdate(student._id, studentUpdateData, { runValidators: true });
@@ -409,6 +501,226 @@ export async function getStudentsByClass(req: Request, res: Response, next: Next
         pages: Math.ceil(total / Number(limit))
       }
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// CSV Row Schema for validation
+const CSVStudentRowSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  rollNumber: z.string().min(1, "Roll number is required"),
+  className: z.string().min(1, "Class name is required"),
+  fatherName: z.string().optional(),
+  motherName: z.string().optional(),
+  dateOfBirth: z.string().optional().or(z.literal("")),
+  parentsPhone: z.string().optional(),
+  parentsEmail: z.string().email("Invalid parent email format").optional().or(z.literal("")),
+  address: z.string().optional()
+});
+
+// Bulk Create Students from CSV
+export async function bulkCreateStudents(req: Request, res: Response, next: NextFunction) {
+  try {
+    // Check if file is uploaded
+    if (!req.file) {
+      throw new createHttpError.BadRequest("CSV file is required");
+    }
+
+    // Parse CSV file
+    const csvContent = req.file.buffer.toString('utf-8');
+    const records = parse(csvContent, {
+      columns: true, // Use first row as headers
+      skip_empty_lines: true,
+      trim: true
+    });
+
+    if (records.length === 0) {
+      throw new createHttpError.BadRequest("CSV file is empty or invalid");
+    }
+
+    // Validate CSV headers
+    const requiredHeaders = ['email', 'password', 'name', 'rollNumber', 'className'];
+    const csvHeaders = Object.keys(records[0] as Record<string, unknown>);
+    const missingHeaders = requiredHeaders.filter(header => !csvHeaders.includes(header));
+    
+    if (missingHeaders.length > 0) {
+      throw new createHttpError.BadRequest(`Missing required headers: ${missingHeaders.join(', ')}`);
+    }
+
+    // Get all classes to map class names to IDs
+    const classes = await Class.find({ isActive: true });
+    const classNameToIdMap = new Map();
+    classes.forEach(cls => {
+      classNameToIdMap.set(cls.name, (cls._id as any).toString());
+      classNameToIdMap.set(cls.displayName, (cls._id as any).toString());
+    });
+
+    // Validate and process each row
+    const validationErrors: Array<{ row: number; errors: string[] }> = [];
+    const processedStudents: any[] = [];
+    const existingEmails = new Set<string>();
+
+    for (let i = 0; i < records.length; i++) {
+      const row = records[i];
+      const rowNumber = i + 2; // +2 because CSV is 1-indexed and we skip header
+
+      try {
+        // Validate row data
+        const validatedData = CSVStudentRowSchema.parse(row);
+
+        // Check if class exists
+        const classId = classNameToIdMap.get(validatedData.className);
+        if (!classId) {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Class '${validatedData.className}' not found`]
+          });
+          continue;
+        }
+
+        // Check for duplicate emails in the same batch
+        if (existingEmails.has(validatedData.email)) {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Duplicate email '${validatedData.email}' in the same batch`]
+          });
+          continue;
+        }
+
+        // Check if email already exists in database
+        const existingUser = await User.findOne({ email: validatedData.email });
+        if (existingUser) {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Email '${validatedData.email}' already exists in database`]
+          });
+          continue;
+        }
+
+        existingEmails.add(validatedData.email);
+        processedStudents.push({
+          ...validatedData,
+          classId,
+          rowNumber
+        });
+
+      } catch (error) {
+        if (error instanceof z.ZodError) {
+          const errors = error.issues.map((err: any) => `${err.path.join('.')}: ${err.message}`);
+          validationErrors.push({
+            row: rowNumber,
+            errors
+          });
+        } else {
+          validationErrors.push({
+            row: rowNumber,
+            errors: [`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`]
+          });
+        }
+      }
+    }
+
+    // If there are validation errors, return them
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation errors found in CSV file",
+        errors: validationErrors,
+        totalRows: records.length,
+        errorRows: validationErrors.length,
+        validRows: processedStudents.length
+      });
+    }
+
+    // Create students in batch using transactions
+    const createdStudents: any[] = [];
+    const creationErrors: Array<{ row: number; email: string; error: string }> = [];
+
+    for (const studentData of processedStudents) {
+      const session = await mongoose.startSession();
+      
+      try {
+        await session.withTransaction(async () => {
+          // Hash password
+          const passwordHash = await bcrypt.hash(studentData.password, 12);
+
+          // Create user within transaction
+          const user = await User.create([{
+            email: studentData.email,
+            passwordHash,
+            name: studentData.name,
+            role: "STUDENT",
+            isActive: studentData.isActive !== undefined ? studentData.isActive : true
+          }], { session });
+
+          if (!user || user.length === 0) {
+            throw new Error('Failed to create user');
+          }
+
+          // Create student profile within transaction
+          const studentDataToCreate: any = {
+            userId: user[0]!._id,
+            rollNumber: studentData.rollNumber,
+            classId: studentData.classId,
+            fatherName: studentData.fatherName,
+            motherName: studentData.motherName,
+            parentsPhone: studentData.parentsPhone,
+            parentsEmail: studentData.parentsEmail,
+            address: studentData.address
+          };
+
+          // Only include dateOfBirth if it's not empty and format it
+          if (studentData.dateOfBirth && studentData.dateOfBirth.trim() !== '') {
+            studentDataToCreate.dateOfBirth = formatDateToYYYYMMDD(studentData.dateOfBirth);
+          }
+
+          const student = await Student.create([studentDataToCreate], { session });
+
+          if (!student || student.length === 0) {
+            throw new Error('Failed to create student profile');
+          }
+
+          // Get class info for response
+          const classInfo = classes.find(cls => String(cls._id) === studentData.classId);
+
+          createdStudents.push({
+            id: user[0]!._id,
+            email: user[0]!.email,
+            name: user[0]!.name,
+            rollNumber: student[0]!.rollNumber,
+            className: classInfo?.name || studentData.className,
+            classDisplayName: classInfo?.displayName,
+            isActive: user[0]!.isActive,
+            rowNumber: studentData.rowNumber
+          });
+        });
+      } catch (error) {
+        creationErrors.push({
+          row: studentData.rowNumber,
+          email: studentData.email,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      } finally {
+        await session.endSession();
+      }
+    }
+
+    // Return results
+    res.status(201).json({
+      success: true,
+      message: `Successfully processed ${records.length} students`,
+      data: {
+        totalRows: records.length,
+        created: createdStudents.length,
+        errors: creationErrors.length,
+        students: createdStudents,
+        creationErrors: creationErrors.length > 0 ? creationErrors : undefined
+      }
+    });
+
   } catch (err) {
     next(err);
   }

@@ -47,7 +47,8 @@ const TeacherSchema = new Schema<ITeacher>(
       trim: true
     },
     experience: { 
-      type: Number,
+      type: String,
+      trim: true
     },
   },
   { timestamps: true }

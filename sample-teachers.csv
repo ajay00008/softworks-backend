@@ -1,0 +1,9 @@
+email,password,name,qualification,experience,phone,address
+john.teacher@example.com,password123,John Smith,M.Sc Mathematics,5,9876543210,123 Teacher Lane
+jane.doe@example.com,password123,Jane Doe,B.Ed English,3,9876543211,456 Education Street
+mike.wilson@example.com,password123,Mike Wilson,M.A Physics,7,9876543212,789 Science Avenue
+sarah.johnson@example.com,password123,Sarah Johnson,B.Sc Chemistry,4,9876543213,321 Lab Road
+david.brown@example.com,password123,David Brown,M.A History,6,9876543214,654 History Street
+lisa.garcia@example.com,password123,Lisa Garcia,B.Ed Biology,2,9876543215,987 Biology Lane
+tom.miller@example.com,password123,Tom Miller,M.Sc Computer Science,8,9876543216,147 Tech Street
+emma.davis@example.com,password123,Emma Davis,B.A Geography,3,9876543217,258 Geography Avenue
