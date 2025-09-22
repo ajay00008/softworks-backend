@@ -79,6 +79,11 @@ import {
   getPerformanceReport
 } from "../controllers/performanceController";
 import {
+  getDashboardStats,
+  getDashboardAnalytics,
+  getIndividualStudentPerformance
+} from "../controllers/dashboardController";
+import {
   createSyllabus,
   getSyllabi,
   getSyllabus,
@@ -2099,6 +2104,120 @@ router.get("/admin/exams/:id/results", requireAuth, requireRoles("ADMIN", "SUPER
  *         description: Exam not found
  */
 router.get("/admin/exams/:id/statistics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getExamStatistics);
+
+// ==================== DASHBOARD ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/dashboard/stats:
+ *   get:
+ *     tags: [Admin - Dashboard]
+ *     summary: Get comprehensive dashboard statistics
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examType
+ *         schema:
+ *           type: string
+ *           enum: [UNIT_TEST, MID_TERM, FINAL, QUIZ, ASSIGNMENT, PRACTICAL]
+ *       - in: query
+ *         name: timeRange
+ *         schema:
+ *           type: string
+ *           enum: [current, monthly, quarterly, yearly]
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics
+ */
+router.get("/admin/dashboard/stats", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getDashboardStats);
+
+/**
+ * @openapi
+ * /api/admin/dashboard/analytics:
+ *   get:
+ *     tags: [Admin - Dashboard]
+ *     summary: Get dashboard analytics with trends
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examType
+ *         schema:
+ *           type: string
+ *           enum: [UNIT_TEST, MID_TERM, FINAL, QUIZ, ASSIGNMENT, PRACTICAL]
+ *       - in: query
+ *         name: timeRange
+ *         schema:
+ *           type: string
+ *           enum: [current, monthly, quarterly, yearly]
+ *     responses:
+ *       200:
+ *         description: Dashboard analytics
+ */
+router.get("/admin/dashboard/analytics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getDashboardAnalytics);
+
+/**
+ * @openapi
+ * /api/admin/dashboard/student/{studentId}:
+ *   get:
+ *     tags: [Admin - Dashboard]
+ *     summary: Get individual student performance for dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examType
+ *         schema:
+ *           type: string
+ *           enum: [UNIT_TEST, MID_TERM, FINAL, QUIZ, ASSIGNMENT, PRACTICAL]
+ *       - in: query
+ *         name: timeRange
+ *         schema:
+ *           type: string
+ *           enum: [current, monthly, quarterly, yearly]
+ *     responses:
+ *       200:
+ *         description: Individual student performance
+ *       404:
+ *         description: Student not found
+ */
+router.get("/admin/dashboard/student/:studentId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getIndividualStudentPerformance);
 
 // ==================== PERFORMANCE MONITORING ROUTES ====================
 

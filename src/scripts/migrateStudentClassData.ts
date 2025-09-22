@@ -113,7 +113,7 @@ async function migrateStudentClassData() {
       classId: { $exists: true }
     });
 
-    console.log(`\n=== VERIFICATION ===");
+    console.log(`\n=== VERIFICATION ===`);
     console.log(`Students still with className: ${remainingStudentsWithClassName.length}`);
     console.log(`Students with classId: ${studentsWithClassId.length}`);
 
