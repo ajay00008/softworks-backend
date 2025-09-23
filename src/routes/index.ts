@@ -2902,6 +2902,96 @@ router.patch("/admin/absenteeism/:id/resolve", requireAuth, requireRoles("ADMIN"
  */
 router.get("/admin/absenteeism/statistics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAbsenteeismStatistics);
 
+/**
+ * @openapi
+ * /api/admin/absenteeism/{id}/escalate:
+ *   patch:
+ *     tags: [Admin - Absenteeism]
+ *     summary: Escalate absenteeism report
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Absenteeism report escalated successfully
+ *       404:
+ *         description: Absenteeism report not found
+ */
+router.patch("/admin/absenteeism/:id/escalate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), escalateAbsenteeism);
+
+/**
+ * @openapi
+ * /api/admin/absenteeism/{id}:
+ *   put:
+ *     tags: [Admin - Absenteeism]
+ *     summary: Update absenteeism report
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [ABSENT, MISSING_SHEET, LATE_SUBMISSION]
+ *               reason:
+ *                 type: string
+ *               priority:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, URGENT]
+ *     responses:
+ *       200:
+ *         description: Absenteeism report updated successfully
+ *       404:
+ *         description: Absenteeism report not found
+ */
+router.put("/admin/absenteeism/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateAbsenteeism);
+
+/**
+ * @openapi
+ * /api/admin/absenteeism/{id}:
+ *   delete:
+ *     tags: [Admin - Absenteeism]
+ *     summary: Delete absenteeism report
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Absenteeism report deleted successfully
+ *       404:
+ *         description: Absenteeism report not found
+ */
+router.delete("/admin/absenteeism/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteAbsenteeism);
+
 // ==================== PRINTING ROUTES ====================
 
 /**

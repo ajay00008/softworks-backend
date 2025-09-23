@@ -17,7 +17,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const token = header.substring(7);
   try {
     const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
-    (req as any).auth = payload;
+    (req as any).user = { id: payload.sub, role: payload.role };
     next();
   } catch {
     return next(new createHttpError.Unauthorized("Invalid or expired token"));
@@ -26,9 +26,9 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 
 export function requireRoles(...roles: UserRole[]) {
   return (req: Request, _res: Response, next: NextFunction) => {
-    const payload = (req as any).auth as AuthPayload | undefined;
-    if (!payload) return next(new createHttpError.Unauthorized());
-    if (!roles.includes(payload.role)) {
+    const user = (req as any).user as { id: string; role: UserRole } | undefined;
+    if (!user) return next(new createHttpError.Unauthorized());
+    if (!roles.includes(user.role)) {
       return next(new createHttpError.Forbidden("Insufficient role"));
     }
     next();

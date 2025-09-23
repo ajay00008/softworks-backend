@@ -3,8 +3,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Import models
-import { Student } from './src/models/Student.js';
-import { User } from './src/models/User.js';
+import { Student } from './src/models/Student.ts';
+import { User } from './src/models/User.ts';
 
 async function testStudentCount() {
   try {
