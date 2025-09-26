@@ -96,6 +96,21 @@ import {
   sendBulkMessage,
   sendIndividualResult
 } from "../controllers/communicationController";
+import {
+  getAIConfig,
+  updateAIConfig,
+  testAIConfig,
+  getAIProviders,
+  generateQuestionsWithConfig
+} from "../controllers/aiController";
+import {
+  createTemplate,
+  getTemplates,
+  getTemplate,
+  updateTemplate,
+  deleteTemplate,
+  generateQuestionPaper
+} from "../controllers/questionPaperController";
 
 const router = Router();
 
@@ -2528,6 +2543,812 @@ router.post("/admin/communication/bulk", requireAuth, requireRoles("ADMIN", "SUP
  *         description: Exam, student, or result not found
  */
 router.post("/admin/communication/results/:examId/students/:studentId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), sendIndividualResult);
+
+// ==================== ANSWER SHEET ROUTES ====================
+
+import {
+  uploadAnswerSheet,
+  getAnswerSheetsByExam,
+  markAsMissing,
+  markAsAbsent,
+  acknowledgeNotification,
+  getAnswerSheetDetails,
+  updateAICorrectionResults,
+  addManualOverride,
+  batchUploadAnswerSheets,
+  processAnswerSheet
+} from "../controllers/answerSheetController";
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/upload:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Upload answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [examId, studentId, originalFileName, cloudStorageUrl, cloudStorageKey]
+ *             properties:
+ *               examId:
+ *                 type: string
+ *               studentId:
+ *                 type: string
+ *               originalFileName:
+ *                 type: string
+ *               cloudStorageUrl:
+ *                 type: string
+ *               cloudStorageKey:
+ *                 type: string
+ *               language:
+ *                 type: string
+ *                 enum: [ENGLISH, TAMIL, HINDI, MALAYALAM, TELUGU, KANNADA, FRENCH]
+ *                 default: ENGLISH
+ *     responses:
+ *       201:
+ *         description: Answer sheet uploaded successfully
+ *       400:
+ *         description: Answer sheet already exists for this student
+ *       403:
+ *         description: Access denied to this class
+ *       404:
+ *         description: Exam not found
+ */
+router.post("/admin/answer-sheets/upload", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadAnswerSheet);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/batch/{examId}:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Batch upload answer sheets with image processing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Answer sheets processed successfully
+ *       400:
+ *         description: No files uploaded
+ *       403:
+ *         description: Access denied to this class
+ *       404:
+ *         description: Exam not found
+ */
+router.post("/admin/answer-sheets/batch/:examId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), batchUploadAnswerSheets);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/exam/{examId}:
+ *   get:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Get answer sheets for an exam
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [UPLOADED, PROCESSING, AI_CORRECTED, MANUALLY_REVIEWED, COMPLETED, MISSING, ABSENT]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Answer sheets retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/answer-sheets/exam/:examId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAnswerSheetsByExam);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/process:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Process answer sheet (trigger AI correction)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet processing started
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post("/admin/answer-sheets/:answerSheetId/process", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), processAnswerSheet);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/missing:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Mark answer sheet as missing
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet marked as missing
+ *       404:
+ *         description: Answer sheet not found
+ *       403:
+ *         description: Access denied
+ */
+router.post("/admin/answer-sheets/:answerSheetId/missing", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), markAsMissing);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/exam/{examId}/student/{studentId}/absent:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Mark student as absent
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: studentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Student marked as absent
+ *       404:
+ *         description: Exam not found
+ *       403:
+ *         description: Access denied
+ */
+router.post("/admin/answer-sheets/exam/:examId/student/:studentId/absent", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), markAsAbsent);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/acknowledge:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Acknowledge missing/absent notification
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification acknowledged
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post("/admin/answer-sheets/:answerSheetId/acknowledge", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), acknowledgeNotification);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}:
+ *   get:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Get answer sheet details
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet details retrieved
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.get("/admin/answer-sheets/:answerSheetId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAnswerSheetDetails);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/ai-results:
+ *   put:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Update AI correction results
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               aiCorrectionResults:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: AI correction results updated
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.put("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateAICorrectionResults);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/manual-override:
+ *   post:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Add manual override to answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [questionId, correctedAnswer, correctedMarks, reason]
+ *             properties:
+ *               questionId:
+ *                 type: string
+ *               correctedAnswer:
+ *                 type: string
+ *               correctedMarks:
+ *                 type: number
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Manual override added
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post("/admin/answer-sheets/:answerSheetId/manual-override", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), addManualOverride);
+
+// ==================== AI CONFIGURATION ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/ai/config:
+ *   get:
+ *     tags: [Admin - AI Configuration]
+ *     summary: Get current AI configuration
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Current AI configuration
+ */
+router.get("/admin/ai/config", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAIConfig);
+
+/**
+ * @openapi
+ * /api/admin/ai/config:
+ *   put:
+ *     tags: [Admin - AI Configuration]
+ *     summary: Update AI configuration
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: [OPENAI, GEMINI, ANTHROPIC, MOCK]
+ *               apiKey:
+ *                 type: string
+ *               model:
+ *                 type: string
+ *               baseUrl:
+ *                 type: string
+ *               temperature:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 2
+ *               maxTokens:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: AI configuration updated successfully
+ */
+router.put("/admin/ai/config", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateAIConfig);
+
+/**
+ * @openapi
+ * /api/admin/ai/test:
+ *   post:
+ *     tags: [Admin - AI Configuration]
+ *     summary: Test AI configuration
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [provider, apiKey, model]
+ *             properties:
+ *               provider:
+ *                 type: string
+ *                 enum: [OPENAI, GEMINI, ANTHROPIC, MOCK]
+ *               apiKey:
+ *                 type: string
+ *               model:
+ *                 type: string
+ *               baseUrl:
+ *                 type: string
+ *               temperature:
+ *                 type: number
+ *                 default: 0.7
+ *               maxTokens:
+ *                 type: number
+ *                 default: 4000
+ *     responses:
+ *       200:
+ *         description: AI configuration test successful
+ *       400:
+ *         description: AI configuration test failed
+ */
+router.post("/admin/ai/test", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), testAIConfig);
+
+/**
+ * @openapi
+ * /api/admin/ai/providers:
+ *   get:
+ *     tags: [Admin - AI Configuration]
+ *     summary: Get available AI providers and models
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Available AI providers and models
+ */
+router.get("/admin/ai/providers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAIProviders);
+
+/**
+ * @openapi
+ * /api/admin/ai/generate:
+ *   post:
+ *     tags: [Admin - AI Configuration]
+ *     summary: Generate questions with specific AI configuration
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [aiConfig, questionRequest]
+ *             properties:
+ *               aiConfig:
+ *                 type: object
+ *                 required: [provider, apiKey, model]
+ *                 properties:
+ *                   provider:
+ *                     type: string
+ *                     enum: [OPENAI, GEMINI, ANTHROPIC, MOCK]
+ *                   apiKey:
+ *                     type: string
+ *                   model:
+ *                     type: string
+ *                   baseUrl:
+ *                     type: string
+ *                   temperature:
+ *                     type: number
+ *                   maxTokens:
+ *                     type: number
+ *               questionRequest:
+ *                 type: object
+ *                 required: [subjectId, classId, unit, questionDistribution, totalQuestions]
+ *                 properties:
+ *                   subjectId:
+ *                     type: string
+ *                   classId:
+ *                     type: string
+ *                   unit:
+ *                     type: string
+ *                   questionDistribution:
+ *                     type: array
+ *                   totalQuestions:
+ *                     type: number
+ *                   language:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Questions generated successfully
+ *       400:
+ *         description: Invalid AI configuration or question request
+ */
+router.post("/admin/ai/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestionsWithConfig);
+
+// ==================== QUESTION PAPER TEMPLATE ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates:
+ *   post:
+ *     tags: [Admin - Question Paper Templates]
+ *     summary: Create a question paper template
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, subjectId, classId, gradeLevel, totalMarks, examName, duration, markDistribution, bloomsDistribution, questionTypeDistribution, unitSelections, gradeSpecificSettings]
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               gradeLevel:
+ *                 type: string
+ *                 enum: [PRE_KG, LKG, UKG, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+ *               totalMarks:
+ *                 type: number
+ *               examName:
+ *                 type: string
+ *               duration:
+ *                 type: number
+ *               markDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     marks:
+ *                       type: number
+ *                     count:
+ *                       type: number
+ *                     percentage:
+ *                       type: number
+ *               bloomsDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     level:
+ *                       type: string
+ *                       enum: [REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE]
+ *                     percentage:
+ *                       type: number
+ *                     twistedPercentage:
+ *                       type: number
+ *               questionTypeDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       enum: [MULTIPLE_CHOICE, FILL_BLANKS, ONE_WORD_ANSWER, TRUE_FALSE, MULTIPLE_ANSWERS, MATCHING_PAIRS, DRAWING_DIAGRAM, MARKING_PARTS]
+ *                     percentage:
+ *                       type: number
+ *                     marksPerQuestion:
+ *                       type: number
+ *               unitSelections:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     unitId:
+ *                       type: string
+ *                     unitName:
+ *                       type: string
+ *                     pages:
+ *                       type: object
+ *                       properties:
+ *                         startPage:
+ *                           type: number
+ *                         endPage:
+ *                           type: number
+ *                     topics:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *               twistedQuestionsPercentage:
+ *                 type: number
+ *               gradeSpecificSettings:
+ *                 type: object
+ *                 properties:
+ *                   ageAppropriate:
+ *                     type: boolean
+ *                   cognitiveLevel:
+ *                     type: string
+ *                     enum: [PRE_SCHOOL, PRIMARY, MIDDLE, SECONDARY, SENIOR_SECONDARY]
+ *                   languageComplexity:
+ *                     type: string
+ *                     enum: [VERY_SIMPLE, SIMPLE, MODERATE, COMPLEX, VERY_COMPLEX]
+ *                   visualAids:
+ *                     type: boolean
+ *                   interactiveElements:
+ *                     type: boolean
+ *               isPublic:
+ *                 type: boolean
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Template created successfully
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Template name already exists
+ */
+router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates:
+ *   get:
+ *     tags: [Admin - Question Paper Templates]
+ *     summary: Get question paper templates
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: gradeLevel
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isPublic
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of templates
+ */
+router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplates);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   get:
+ *     tags: [Admin - Question Paper Templates]
+ *     summary: Get single template
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template details
+ *       404:
+ *         description: Template not found
+ */
+router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   put:
+ *     tags: [Admin - Question Paper Templates]
+ *     summary: Update template
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               totalMarks:
+ *                 type: number
+ *               examName:
+ *                 type: string
+ *               duration:
+ *                 type: number
+ *               markDistribution:
+ *                 type: array
+ *               bloomsDistribution:
+ *                 type: array
+ *               questionTypeDistribution:
+ *                 type: array
+ *               unitSelections:
+ *                 type: array
+ *               twistedQuestionsPercentage:
+ *                 type: number
+ *               gradeSpecificSettings:
+ *                 type: object
+ *               isPublic:
+ *                 type: boolean
+ *               tags:
+ *                 type: array
+ *     responses:
+ *       200:
+ *         description: Template updated successfully
+ *       404:
+ *         description: Template not found
+ */
+router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   delete:
+ *     tags: [Admin - Question Paper Templates]
+ *     summary: Delete template
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template deleted successfully
+ *       404:
+ *         description: Template not found
+ */
+router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), deleteTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/generate:
+ *   post:
+ *     tags: [Admin - Question Paper Templates]
+ *     summary: Generate question paper from template
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [templateId]
+ *             properties:
+ *               templateId:
+ *                 type: string
+ *               customSettings:
+ *                 type: object
+ *                 properties:
+ *                   totalMarks:
+ *                     type: number
+ *                   duration:
+ *                     type: number
+ *                   twistedQuestionsPercentage:
+ *                     type: number
+ *                   unitSelections:
+ *                     type: array
+ *     responses:
+ *       200:
+ *         description: Question paper generated successfully
+ *       404:
+ *         description: Template not found
+ */
+router.post("/admin/question-paper-templates/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestionPaper);
 
 export default router;
 

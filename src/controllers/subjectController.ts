@@ -25,8 +25,8 @@ const UpdateSubjectSchema = z.object({
 });
 
 const GetSubjectsQuerySchema = z.object({
-  page: z.string().transform(Number).default(1),
-  limit: z.string().transform(Number).default(10),
+  page: z.union([z.string(), z.number()]).transform(Number).default(1),
+  limit: z.union([z.string(), z.number()]).transform(Number).default(10),
   search: z.string().optional(),
   category: z.string().optional(),
   level: z.string().transform(Number).optional(),

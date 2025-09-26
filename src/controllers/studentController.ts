@@ -37,8 +37,8 @@ const UpdateStudentSchema = z.object({
 });
 
 const GetStudentsQuerySchema = z.object({
-  page: z.string().transform(Number).default(1),
-  limit: z.string().transform(Number).default(10),
+  page: z.union([z.string(), z.number()]).transform(Number).default(1),
+  limit: z.union([z.string(), z.number()]).transform(Number).default(10),
   search: z.string().optional(),
   classId: z.string().optional(),
   isActive: z.string().transform(Boolean).optional(),

@@ -5,12 +5,14 @@ import { User } from '../models/User';
 import { Notification } from '../models/Notification';
 import { StaffAccess } from '../models/StaffAccess';
 import { logger } from '../utils/logger';
+import { ImageProcessingService } from '../services/imageProcessing';
+import { CloudStorageService } from '../services/cloudStorage';
 
 // Upload answer sheet
 export const uploadAnswerSheet = async (req: Request, res: Response) => {
   try {
     const { examId, studentId, originalFileName, cloudStorageUrl, cloudStorageKey, language = 'ENGLISH' } = req.body;
-    const uploadedBy = req.user?.id;
+    const uploadedBy = (req as any).auth?.sub;
 
     if (!uploadedBy) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -68,7 +70,7 @@ export const getAnswerSheetsByExam = async (req: Request, res: Response) => {
   try {
     const { examId } = req.params;
     const { status, page = 1, limit = 10 } = req.query;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -110,7 +112,7 @@ export const markAsMissing = async (req: Request, res: Response) => {
   try {
     const { answerSheetId } = req.params;
     const { reason } = req.body;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -178,7 +180,7 @@ export const markAsAbsent = async (req: Request, res: Response) => {
   try {
     const { examId, studentId } = req.params;
     const { reason } = req.body;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -254,7 +256,7 @@ export const markAsAbsent = async (req: Request, res: Response) => {
 export const acknowledgeNotification = async (req: Request, res: Response) => {
   try {
     const { answerSheetId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -292,7 +294,7 @@ export const acknowledgeNotification = async (req: Request, res: Response) => {
 export const getAnswerSheetDetails = async (req: Request, res: Response) => {
   try {
     const { answerSheetId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -323,7 +325,7 @@ export const updateAICorrectionResults = async (req: Request, res: Response) => 
   try {
     const { answerSheetId } = req.params;
     const { aiCorrectionResults } = req.body;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -374,7 +376,7 @@ export const addManualOverride = async (req: Request, res: Response) => {
   try {
     const { answerSheetId } = req.params;
     const { questionId, correctedAnswer, correctedMarks, reason } = req.body;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -408,6 +410,175 @@ export const addManualOverride = async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error('Error adding manual override:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Batch upload answer sheets with image processing
+export const batchUploadAnswerSheets = async (req: Request, res: Response) => {
+  try {
+    const { examId } = req.params;
+    const uploadedBy = (req as any).auth?.sub;
+    const files = req.files as Express.Multer.File[];
+
+    if (!uploadedBy) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, error: 'No files uploaded' });
+    }
+
+    // Check if staff has access to this exam's class
+    const exam = await Exam.findById(examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    const staffAccess = await StaffAccess.findOne({
+      staffId: uploadedBy,
+      'classAccess.classId': exam.classId,
+      isActive: true
+    });
+
+    if (!staffAccess) {
+      return res.status(403).json({ success: false, error: 'Access denied to this class' });
+    }
+
+    const cloudStorage = new CloudStorageService();
+    const results = [];
+    const errors = [];
+
+    // Process each file
+    for (const file of files) {
+      try {
+        // Process image for alignment and roll number detection
+        const processingResult = await ImageProcessingService.processAnswerSheet(
+          file.buffer,
+          file.originalname
+        );
+
+        // Upload to cloud storage
+        const uploadResult = await cloudStorage.uploadAnswerSheet(
+          file.buffer,
+          examId,
+          'unknown', // Will be updated after roll number detection
+          file.originalname,
+          processingResult.processedImage
+        );
+
+        // Create answer sheet record
+        const answerSheet = new AnswerSheet({
+          examId,
+          studentId: null, // Will be updated when roll number is matched
+          uploadedBy,
+          originalFileName: file.originalname,
+          cloudStorageUrl: uploadResult.original.url,
+          cloudStorageKey: uploadResult.original.key,
+          status: processingResult.rollNumberDetected ? 'UPLOADED' : 'PROCESSING',
+          scanQuality: processingResult.scanQuality,
+          isAligned: processingResult.isAligned,
+          rollNumberDetected: processingResult.rollNumberDetected,
+          rollNumberConfidence: processingResult.rollNumberConfidence,
+          language: 'ENGLISH'
+        });
+
+        await answerSheet.save();
+
+        results.push({
+          answerSheetId: answerSheet._id,
+          originalFileName: file.originalname,
+          status: answerSheet.status,
+          rollNumberDetected: processingResult.rollNumberDetected,
+          rollNumberConfidence: processingResult.rollNumberConfidence,
+          scanQuality: processingResult.scanQuality,
+          isAligned: processingResult.isAligned,
+          issues: processingResult.issues,
+          suggestions: processingResult.suggestions
+        });
+
+        logger.info(`Answer sheet processed: ${answerSheet._id}`);
+      } catch (error) {
+        const errorMsg = `Failed to process ${file.originalname}: ${error.message}`;
+        errors.push(errorMsg);
+        logger.error(errorMsg);
+      }
+    }
+
+    // Create notification for admin if there are issues
+    if (errors.length > 0 || results.some(r => r.rollNumberConfidence < 70)) {
+      const notification = new Notification({
+        type: 'UPLOAD_ISSUES',
+        priority: 'MEDIUM',
+        title: 'Answer Sheet Upload Issues',
+        message: `${errors.length} files failed to process, ${results.filter(r => r.rollNumberConfidence < 70).length} files have low roll number confidence`,
+        recipientId: 'admin', // This should be the admin user ID
+        relatedEntityId: examId,
+        relatedEntityType: 'exam',
+        metadata: {
+          examTitle: exam.title,
+          totalFiles: files.length,
+          successfulUploads: results.length,
+          errors: errors.length
+        }
+      });
+
+      await notification.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Processed ${files.length} files`,
+      results,
+      errors,
+      metadata: {
+        examId,
+        totalFiles: files.length,
+        successfulUploads: results.length,
+        failedUploads: errors.length,
+        processedAt: new Date()
+      }
+    });
+  } catch (error) {
+    logger.error('Error in batch upload:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Process uploaded answer sheet (trigger AI correction)
+export const processAnswerSheet = async (req: Request, res: Response) => {
+  try {
+    const { answerSheetId } = req.params;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const answerSheet = await AnswerSheet.findById(answerSheetId);
+    if (!answerSheet) {
+      return res.status(404).json({ success: false, error: 'Answer sheet not found' });
+    }
+
+    // Update status to processing
+    answerSheet.status = 'PROCESSING';
+    await answerSheet.save();
+
+    // TODO: Trigger AI correction service
+    // This would typically be done asynchronously with a job queue
+    logger.info(`Answer sheet processing started: ${answerSheetId}`);
+
+    res.json({
+      success: true,
+      message: 'Answer sheet processing started',
+      data: {
+        answerSheetId,
+        status: 'PROCESSING',
+        estimatedCompletionTime: '5-10 minutes'
+      }
+    });
+  } catch (error) {
+    logger.error('Error processing answer sheet:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };

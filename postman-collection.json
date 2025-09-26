@@ -1,0 +1,463 @@
+{
+  "info": {
+    "name": "Softworks API Collection",
+    "description": "Complete API collection for Softworks Education Management System",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Student Management",
+      "item": [
+        {
+          "name": "Get All Students",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/students?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "students"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"student@example.com\",\n  \"password\": \"password123\",\n  \"name\": \"John Doe\",\n  \"rollNumber\": \"001\",\n  \"classId\": \"{{classId}}\",\n  \"fatherName\": \"Father Name\",\n  \"motherName\": \"Mother Name\",\n  \"dateOfBirth\": \"2005-01-01\",\n  \"parentsPhone\": \"+1234567890\",\n  \"parentsEmail\": \"parents@example.com\",\n  \"address\": \"Test Address\",\n  \"whatsappNumber\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/students",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "students"]
+            }
+          }
+        },
+        {
+          "name": "Get Student by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "students", "{{studentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Student",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"fatherName\": \"Updated Father Name\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "students", "{{studentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Student",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "students", "{{studentId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Question Management",
+      "item": [
+        {
+          "name": "Create Question",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionText\": \"What is the capital of France?\",\n  \"questionType\": \"MULTIPLE_CHOICE\",\n  \"subjectId\": \"{{subjectId}}\",\n  \"classId\": \"{{classId}}\",\n  \"unit\": \"Geography Basics\",\n  \"bloomsTaxonomyLevel\": \"REMEMBER\",\n  \"difficulty\": \"EASY\",\n  \"isTwisted\": false,\n  \"options\": [\"Paris\", \"London\", \"Berlin\", \"Madrid\"],\n  \"correctAnswer\": \"Paris\",\n  \"explanation\": \"Paris is the capital and largest city of France.\",\n  \"marks\": 1,\n  \"timeLimit\": 2,\n  \"tags\": [\"geography\", \"capitals\"],\n  \"language\": \"ENGLISH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "questions"]
+            }
+          }
+        },
+        {
+          "name": "Generate Questions with AI",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjectId\": \"{{subjectId}}\",\n  \"classId\": \"{{classId}}\",\n  \"unit\": \"Algebra Basics\",\n  \"questionDistribution\": [\n    {\n      \"bloomsLevel\": \"REMEMBER\",\n      \"difficulty\": \"EASY\",\n      \"percentage\": 30\n    },\n    {\n      \"bloomsLevel\": \"UNDERSTAND\",\n      \"difficulty\": \"MODERATE\",\n      \"percentage\": 40\n    },\n    {\n      \"bloomsLevel\": \"APPLY\",\n      \"difficulty\": \"TOUGHEST\",\n      \"percentage\": 30\n    }\n  ],\n  \"totalQuestions\": 10,\n  \"language\": \"ENGLISH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/questions/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "questions", "generate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Answer Sheet Management",
+      "item": [
+        {
+          "name": "Upload Answer Sheet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examId\": \"{{examId}}\",\n  \"studentId\": \"{{studentId}}\",\n  \"originalFileName\": \"answer_sheet_001.jpg\",\n  \"cloudStorageUrl\": \"https://storage.example.com/answer-sheets/001.jpg\",\n  \"cloudStorageKey\": \"answer-sheets/exam123/student001/original.jpg\",\n  \"language\": \"ENGLISH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/answer-sheets/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "answer-sheets", "upload"]
+            }
+          }
+        },
+        {
+          "name": "Batch Upload Answer Sheets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/answer-sheets/batch/{{examId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "answer-sheets", "batch", "{{examId}}"]
+            }
+          }
+        },
+        {
+          "name": "Process Answer Sheet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/answer-sheets/{{answerSheetId}}/process",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "answer-sheets", "{{answerSheetId}}", "process"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Performance Analytics",
+      "item": [
+        {
+          "name": "Get Individual Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/performance/individual/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "performance", "individual", "{{studentId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Class Performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/performance/class/{{classId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "performance", "class", "{{classId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Performance Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/performance/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "performance", "analytics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Printing & Reports",
+      "item": [
+        {
+          "name": "Print All Students Answers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/print/exams/{{examId}}/answers?includeAnswers=true&includeGrades=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "print", "exams", "{{examId}}", "answers"],
+              "query": [
+                {
+                  "key": "includeAnswers",
+                  "value": "true"
+                },
+                {
+                  "key": "includeGrades",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Print Individual Student Answer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/print/exams/{{examId}}/students/{{studentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "print", "exams", "{{examId}}", "students", "{{studentId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Communication",
+      "item": [
+        {
+          "name": "Send Results to Parents",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"examId\": \"{{examId}}\",\n  \"studentIds\": [\"{{studentId}}\"],\n  \"communicationMethod\": \"WHATSAPP\",\n  \"message\": \"Your child's exam results are ready. Please check the attached report.\",\n  \"includeAnswers\": false,\n  \"includeStatistics\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/communication/results",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "communication", "results"]
+            }
+          }
+        },
+        {
+          "name": "Send Bulk Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"classId\": \"{{classId}}\",\n  \"communicationMethod\": \"EMAIL\",\n  \"subject\": \"Important School Notice\",\n  \"message\": \"Please be informed about the upcoming parent-teacher meeting.\",\n  \"scheduledAt\": \"2024-01-15T10:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/communication/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "communication", "bulk"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import createHttpError from "http-errors";
 import { Question } from "../models/Question";
 import { Subject } from "../models/Subject";
 import { Class } from "../models/Class";
+import AIService from "../services/aiService";
 
 const CreateQuestionSchema = z.object({
   questionText: z.string().min(10),
@@ -26,8 +27,8 @@ const CreateQuestionSchema = z.object({
 const UpdateQuestionSchema = CreateQuestionSchema.partial();
 
 const GetQuestionsQuerySchema = z.object({
-  page: z.string().transform(Number).default(1),
-  limit: z.string().transform(Number).default(10),
+  page: z.union([z.string(), z.number()]).transform(Number).default(1),
+  limit: z.union([z.string(), z.number()]).transform(Number).default(10),
   search: z.string().optional(),
   subjectId: z.string().optional(),
   classId: z.string().optional(),
@@ -57,7 +58,10 @@ const GenerateQuestionsSchema = z.object({
 export async function createQuestion(req: Request, res: Response, next: NextFunction) {
   try {
     const questionData = CreateQuestionSchema.parse(req.body);
-    const userId = (req as any).user.id;
+    const userId = (req as any).auth?.sub;
+    if (!userId) {
+      throw new createHttpError.Unauthorized("User not authenticated");
+    }
     
     // Validate subject and class exist
     const [subject, classExists] = await Promise.all([
@@ -231,7 +235,10 @@ export async function deleteQuestion(req: Request, res: Response, next: NextFunc
 export async function generateQuestions(req: Request, res: Response, next: NextFunction) {
   try {
     const { subjectId, classId, unit, questionDistribution, totalQuestions, language } = GenerateQuestionsSchema.parse(req.body);
-    const userId = (req as any).user.id;
+    const userId = (req as any).auth?.sub;
+    if (!userId) {
+      throw new createHttpError.Unauthorized("User not authenticated");
+    }
     
     // Validate subject and class exist
     const [subject, classExists] = await Promise.all([
@@ -242,35 +249,37 @@ export async function generateQuestions(req: Request, res: Response, next: NextF
     if (!subject) throw new createHttpError.NotFound("Subject not found");
     if (!classExists) throw new createHttpError.NotFound("Class not found");
     
-    // Mock AI question generation
-    const generatedQuestions = [];
+    // Generate questions using AI service
+    const aiGeneratedQuestions = await AIService.generateQuestions({
+      subjectId,
+      classId,
+      unit,
+      questionDistribution,
+      totalQuestions,
+      language,
+      subjectName: subject.name,
+      className: classExists.name
+    });
     
-    for (const distribution of questionDistribution) {
-      const questionsForThisDistribution = Math.round((distribution.percentage / 100) * totalQuestions);
-      
-      for (let i = 0; i < questionsForThisDistribution; i++) {
-        const isTwisted = distribution.twistedPercentage && Math.random() < (distribution.twistedPercentage / 100);
-        
-        const mockQuestion = {
-          questionText: `Generated ${distribution.bloomsLevel} question for ${unit} (${distribution.difficulty}${isTwisted ? ', Twisted' : ''})`,
-          questionType: "MULTIPLE_CHOICE" as const,
-          subjectId,
-          classId,
-          unit,
-          bloomsTaxonomyLevel: distribution.bloomsLevel,
-          difficulty: distribution.difficulty,
-          isTwisted,
-          options: ["Option A", "Option B", "Option C", "Option D"],
-          correctAnswer: "Option A",
-          explanation: `This is a ${distribution.difficulty} level question testing ${distribution.bloomsLevel} skills.`,
-          marks: distribution.difficulty === "EASY" ? 1 : distribution.difficulty === "MODERATE" ? 2 : 3,
-          createdBy: userId,
-          language
-        };
-        
-        generatedQuestions.push(mockQuestion);
-      }
-    }
+    // Convert AI generated questions to database format
+    const generatedQuestions = aiGeneratedQuestions.map(aiQuestion => ({
+      questionText: aiQuestion.questionText,
+      questionType: aiQuestion.questionType,
+      subjectId,
+      classId,
+      unit,
+      bloomsTaxonomyLevel: questionDistribution[0]?.bloomsLevel || 'REMEMBER',
+      difficulty: questionDistribution[0]?.difficulty || 'MODERATE',
+      isTwisted: false,
+      options: aiQuestion.options || [],
+      correctAnswer: aiQuestion.correctAnswer,
+      explanation: aiQuestion.explanation,
+      marks: aiQuestion.marks,
+      timeLimit: aiQuestion.timeLimit,
+      tags: aiQuestion.tags || [],
+      createdBy: userId,
+      language
+    }));
     
     // Save generated questions
     const savedQuestions = await Question.insertMany(generatedQuestions);

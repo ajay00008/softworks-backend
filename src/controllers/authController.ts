@@ -19,8 +19,8 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new createHttpError.Unauthorized("Invalid credentials");
 
-    const token = jwt.sign({ sub: user._id.toString(), role: user.role }, env.JWT_SECRET, {
-      expiresIn: env.JWT_EXPIRES_IN,
+    const token = jwt.sign({ sub: (user._id as any).toString(), role: user.role }, env.JWT_SECRET, {
+      expiresIn: env.JWT_EXPIRES_IN as string,
     });
     res.json({ success: true, token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {

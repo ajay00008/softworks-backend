@@ -113,9 +113,9 @@ async function migrateStudentClassData() {
       classId: { $exists: true }
     });
 
-    console.log(`\n=== VERIFICATION ===");
-    console.log(`Students still with className: ${remainingStudentsWithClassName.length}`);
-    console.log(`Students with classId: ${studentsWithClassId.length}`);
+    console.log("\n=== VERIFICATION ===");
+    console.log("Students still with className:", remainingStudentsWithClassName.length);
+    console.log("Students with classId:", studentsWithClassId.length);
 
     if (remainingStudentsWithClassName.length === 0) {
       console.log("✅ Migration completed successfully! All students now use classId.");
@@ -144,7 +144,7 @@ async function createMissingClasses() {
   const missingClassNames = uniqueClassNames.filter(name => !existingClassNames.includes(name));
   
   if (missingClassNames.length > 0) {
-    console.log(`Found ${missingClassNames.length} missing classes:`, missingClassNames);
+    console.log("Found", missingClassNames.length, "missing classes:", missingClassNames);
     
     // Create missing classes
     for (const className of missingClassNames) {
@@ -157,18 +157,18 @@ async function createMissingClasses() {
           
           const newClass = await Class.create({
             name: className,
-            displayName: `Class ${className}`,
+            displayName: "Class " + className,
             level: level,
             section: section,
             academicYear: "2024-25", // Default academic year
             isActive: true,
-            description: `Auto-created during migration for className: ${className}`
+            description: "Auto-created during migration for className: " + className
           });
           
-          console.log(`Created class: ${newClass.name} (${newClass.displayName})`);
+          console.log("Created class:", newClass.name, "(" + newClass.displayName + ")");
         }
       } catch (error) {
-        console.error(`Error creating class ${className}:`, error);
+        console.error("Error creating class " + className + ":", error);
       }
     }
   } else {
@@ -177,7 +177,7 @@ async function createMissingClasses() {
 }
 
 // Run migration if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === "file://" + process.argv[1]) {
   // Connect to MongoDB
   const mongoUri = process.env.MONGODB_URI || "mongodb://localhost:27017/school-management";
   

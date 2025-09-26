@@ -31,8 +31,8 @@ const CreateSyllabusSchema = z.object({
 const UpdateSyllabusSchema = CreateSyllabusSchema.partial();
 
 const GetSyllabusQuerySchema = z.object({
-  page: z.string().transform(Number).default(1),
-  limit: z.string().transform(Number).default(10),
+  page: z.union([z.string(), z.number()]).transform(Number).default(1),
+  limit: z.union([z.string(), z.number()]).transform(Number).default(10),
   search: z.string().optional(),
   subjectId: z.string().optional(),
   classId: z.string().optional(),

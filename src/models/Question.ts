@@ -2,7 +2,17 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type BloomsTaxonomyLevel = "REMEMBER" | "UNDERSTAND" | "APPLY" | "ANALYZE" | "EVALUATE" | "CREATE";
 export type QuestionDifficulty = "EASY" | "MODERATE" | "TOUGHEST";
-export type QuestionType = "MULTIPLE_CHOICE" | "SHORT_ANSWER" | "LONG_ANSWER" | "TRUE_FALSE" | "FILL_BLANKS";
+export type QuestionType = 
+  | "MULTIPLE_CHOICE" 
+  | "FILL_BLANKS" 
+  | "ONE_WORD_ANSWER" 
+  | "TRUE_FALSE" 
+  | "MULTIPLE_ANSWERS" 
+  | "MATCHING_PAIRS" 
+  | "DRAWING_DIAGRAM" 
+  | "MARKING_PARTS"
+  | "SHORT_ANSWER" 
+  | "LONG_ANSWER";
 
 export interface IQuestion extends Document {
   questionText: string;
@@ -16,6 +26,14 @@ export interface IQuestion extends Document {
   options?: string[]; // For multiple choice questions
   correctAnswer: string;
   explanation?: string;
+  
+  // Additional fields for new question types
+  matchingPairs?: { left: string; right: string }[]; // For matching pairs
+  multipleCorrectAnswers?: string[]; // For multiple correct answers
+  drawingInstructions?: string; // For drawing questions
+  markingInstructions?: string; // For marking questions
+  visualAids?: string[]; // URLs or descriptions of visual aids
+  interactiveElements?: string[]; // Interactive elements for the question
   marks: number;
   timeLimit?: number; // in minutes
   createdBy: mongoose.Types.ObjectId; // Teacher who created it
@@ -33,7 +51,7 @@ const QuestionSchema = new Schema<IQuestion>(
     },
     questionType: { 
       type: String, 
-      enum: ["MULTIPLE_CHOICE", "SHORT_ANSWER", "LONG_ANSWER", "TRUE_FALSE", "FILL_BLANKS"],
+      enum: ["MULTIPLE_CHOICE", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
       required: true
     },
     subjectId: { 
@@ -80,6 +98,32 @@ const QuestionSchema = new Schema<IQuestion>(
       type: String,
       trim: true
     },
+    
+    // Additional fields for new question types
+    matchingPairs: [{
+      left: { type: String, trim: true },
+      right: { type: String, trim: true }
+    }],
+    multipleCorrectAnswers: [{ 
+      type: String,
+      trim: true
+    }],
+    drawingInstructions: { 
+      type: String,
+      trim: true
+    },
+    markingInstructions: { 
+      type: String,
+      trim: true
+    },
+    visualAids: [{ 
+      type: String,
+      trim: true
+    }],
+    interactiveElements: [{ 
+      type: String,
+      trim: true
+    }],
     marks: { 
       type: Number, 
       required: true,

@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
 // Get notifications for current user
 export const getNotifications = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
     const { type, priority, status, page = 1, limit = 10, dateFrom, dateTo } = req.query;
 
     if (!userId) {
@@ -53,7 +53,7 @@ export const getNotifications = async (req: Request, res: Response) => {
 export const markAsRead = async (req: Request, res: Response) => {
   try {
     const { notificationId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -89,7 +89,7 @@ export const markAsRead = async (req: Request, res: Response) => {
 export const acknowledgeNotification = async (req: Request, res: Response) => {
   try {
     const { notificationId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -125,7 +125,7 @@ export const acknowledgeNotification = async (req: Request, res: Response) => {
 export const dismissNotification = async (req: Request, res: Response) => {
   try {
     const { notificationId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -161,7 +161,7 @@ export const dismissNotification = async (req: Request, res: Response) => {
 export const createNotification = async (req: Request, res: Response) => {
   try {
     const { type, priority, title, message, recipientId, relatedEntityId, relatedEntityType, metadata } = req.body;
-    const createdBy = req.user?.id;
+    const createdBy = (req as any).auth?.sub;
 
     if (!createdBy) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -201,7 +201,7 @@ export const createNotification = async (req: Request, res: Response) => {
 // Get notification counts
 export const getNotificationCounts = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -242,7 +242,7 @@ export const getNotificationCounts = async (req: Request, res: Response) => {
 // Mark all notifications as read
 export const markAllAsRead = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -271,7 +271,7 @@ export const markAllAsRead = async (req: Request, res: Response) => {
 export const deleteNotification = async (req: Request, res: Response) => {
   try {
     const { notificationId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -305,7 +305,7 @@ export const deleteNotification = async (req: Request, res: Response) => {
 export const getNotificationsByType = async (req: Request, res: Response) => {
   try {
     const { type } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
     const { page = 1, limit = 10 } = req.query;
 
     if (!userId) {

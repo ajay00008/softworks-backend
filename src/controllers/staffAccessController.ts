@@ -9,7 +9,7 @@ import { logger } from '../utils/logger';
 export const createStaffAccess = async (req: Request, res: Response) => {
   try {
     const { staffId, classAccess, subjectAccess, globalPermissions, expiresAt, notes } = req.body;
-    const assignedBy = req.user?.id;
+    const assignedBy = (req as any).auth?.sub;
 
     if (!assignedBy) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -71,7 +71,7 @@ export const createStaffAccess = async (req: Request, res: Response) => {
 export const getStaffAccess = async (req: Request, res: Response) => {
   try {
     const { staffId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -102,7 +102,7 @@ export const updateStaffAccess = async (req: Request, res: Response) => {
   try {
     const { staffAccessId } = req.params;
     const { classAccess, subjectAccess, globalPermissions, expiresAt, notes } = req.body;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -157,7 +157,7 @@ export const updateStaffAccess = async (req: Request, res: Response) => {
 export const getAllStaffAccess = async (req: Request, res: Response) => {
   try {
     const { page = 1, limit = 10, search } = req.query;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -203,7 +203,7 @@ export const getAllStaffAccess = async (req: Request, res: Response) => {
 export const deactivateStaffAccess = async (req: Request, res: Response) => {
   try {
     const { staffAccessId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -233,7 +233,7 @@ export const deactivateStaffAccess = async (req: Request, res: Response) => {
 export const checkClassAccess = async (req: Request, res: Response) => {
   try {
     const { classId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -275,7 +275,7 @@ export const checkClassAccess = async (req: Request, res: Response) => {
 export const checkSubjectAccess = async (req: Request, res: Response) => {
   try {
     const { subjectId } = req.params;
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -314,7 +314,7 @@ export const checkSubjectAccess = async (req: Request, res: Response) => {
 // Get staff's accessible classes
 export const getStaffClasses = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
@@ -345,7 +345,7 @@ export const getStaffClasses = async (req: Request, res: Response) => {
 // Get staff's accessible subjects
 export const getStaffSubjects = async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });

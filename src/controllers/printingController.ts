@@ -10,9 +10,9 @@ const PrintQuerySchema = z.object({
   examId: z.string().min(1),
   studentId: z.string().optional(),
   classId: z.string().optional(),
-  includeAnswers: z.string().transform(Boolean).default(true),
-  includeGrades: z.string().transform(Boolean).default(true),
-  includeStatistics: z.string().transform(Boolean).default(false)
+  includeAnswers: z.union([z.string(), z.boolean()]).transform(Boolean).default(true),
+  includeGrades: z.union([z.string(), z.boolean()]).transform(Boolean).default(true),
+  includeStatistics: z.union([z.string(), z.boolean()]).transform(Boolean).default(false)
 });
 
 // Print All Students' Answers for an Exam
