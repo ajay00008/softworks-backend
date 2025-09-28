@@ -39,6 +39,23 @@ import {
   validateConsistency
 } from "../controllers/classSubjectController";
 import {
+  createClass,
+  getClasses,
+  getClass,
+  updateClass,
+  deleteClass,
+  getClassesByLevel
+} from "../controllers/classController";
+import {
+  createSubject,
+  getSubjects,
+  getSubject,
+  updateSubject,
+  deleteSubject,
+  getSubjectsByCategory,
+  getSubjectsByLevel
+} from "../controllers/subjectController";
+import {
   createQuestion,
   getQuestions,
   getQuestion,
@@ -971,6 +988,421 @@ router.get("/admin/teachers/:teacherId/assigned-classes", requireAuth, requireRo
  *         description: Data consistency validation results
  */
 router.get("/admin/validate-consistency", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), validateConsistency);
+
+// ==================== CLASS MANAGEMENT ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/classes:
+ *   post:
+ *     tags: [Admin - Classes]
+ *     summary: Create a new class (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, displayName, level, section, academicYear]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "10A"
+ *               displayName:
+ *                 type: string
+ *                 example: "Class 10A"
+ *               level:
+ *                 type: number
+ *                 example: 10
+ *               section:
+ *                 type: string
+ *                 example: "A"
+ *               academicYear:
+ *                 type: string
+ *                 example: "2024-25"
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Class created successfully
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Class already exists
+ */
+router.post("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createClass);
+
+/**
+ * @openapi
+ * /api/admin/classes:
+ *   get:
+ *     tags: [Admin - Classes]
+ *     summary: Get all classes with pagination and filters (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: academicYear
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of classes
+ */
+router.get("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClasses);
+
+/**
+ * @openapi
+ * /api/admin/classes/{id}:
+ *   get:
+ *     tags: [Admin - Classes]
+ *     summary: Get a specific class by ID (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Class details
+ *       404:
+ *         description: Class not found
+ */
+router.get("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClass);
+
+/**
+ * @openapi
+ * /api/admin/classes/{id}:
+ *   put:
+ *     tags: [Admin - Classes]
+ *     summary: Update a class (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               displayName:
+ *                 type: string
+ *               level:
+ *                 type: number
+ *               section:
+ *                 type: string
+ *               academicYear:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Class updated successfully
+ *       404:
+ *         description: Class not found
+ */
+router.put("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateClass);
+
+/**
+ * @openapi
+ * /api/admin/classes/{id}:
+ *   delete:
+ *     tags: [Admin - Classes]
+ *     summary: Delete a class (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Class deleted successfully
+ *       404:
+ *         description: Class not found
+ */
+router.delete("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteClass);
+
+/**
+ * @openapi
+ * /api/admin/classes/level/{level}:
+ *   get:
+ *     tags: [Admin - Classes]
+ *     summary: Get classes by level (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: level
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of classes for the level
+ */
+router.get("/admin/classes/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClassesByLevel);
+
+// ==================== SUBJECT MANAGEMENT ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/subjects:
+ *   post:
+ *     tags: [Admin - Subjects]
+ *     summary: Create a new subject (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code, name, shortName, category, level]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: "MATH_10"
+ *               name:
+ *                 type: string
+ *                 example: "Mathematics"
+ *               shortName:
+ *                 type: string
+ *                 example: "Math"
+ *               category:
+ *                 type: string
+ *                 enum: [SCIENCE, MATHEMATICS, LANGUAGES, SOCIAL_SCIENCES, COMMERCE, ARTS, PHYSICAL_EDUCATION, COMPUTER_SCIENCE, OTHER]
+ *               level:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 example: [10, 11, 12]
+ *               description:
+ *                 type: string
+ *               color:
+ *                 type: string
+ *                 example: "#FF5733"
+ *     responses:
+ *       201:
+ *         description: Subject created successfully
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Subject code already exists
+ */
+router.post("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createSubject);
+
+/**
+ * @openapi
+ * /api/admin/subjects:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get all subjects with pagination and filters (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of subjects
+ */
+router.get("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjects);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get a specific subject by ID (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subject details
+ *       404:
+ *         description: Subject not found
+ */
+router.get("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubject);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}:
+ *   put:
+ *     tags: [Admin - Subjects]
+ *     summary: Update a subject (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               shortName:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               level:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               description:
+ *                 type: string
+ *               color:
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Subject updated successfully
+ *       404:
+ *         description: Subject not found
+ */
+router.put("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateSubject);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}:
+ *   delete:
+ *     tags: [Admin - Subjects]
+ *     summary: Delete a subject (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subject deleted successfully
+ *       404:
+ *         description: Subject not found
+ */
+router.delete("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteSubject);
+
+/**
+ * @openapi
+ * /api/admin/subjects/category/{category}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get subjects by category (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: category
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of subjects for the category
+ */
+router.get("/admin/subjects/category/:category", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByCategory);
+
+/**
+ * @openapi
+ * /api/admin/subjects/level/{level}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get subjects by level (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: level
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of subjects for the level
+ */
+router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByLevel);
 
 // ==================== QUESTION MANAGEMENT ROUTES ====================
 

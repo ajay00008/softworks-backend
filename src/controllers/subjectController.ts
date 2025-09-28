@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import createHttpError from "http-errors";
+import mongoose from "mongoose";
 import { Subject } from "../models/Subject";
 
 const CreateSubjectSchema = z.object({
@@ -8,7 +9,7 @@ const CreateSubjectSchema = z.object({
   name: z.string().min(1),
   shortName: z.string().min(1),
   category: z.enum(["SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES", "COMMERCE", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "OTHER"]),
-  level: z.array(z.number().int().min(1).max(12)).min(1),
+  classIds: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid class ID")).min(1, "At least one class must be selected"),
   description: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color code").optional(),
 });
@@ -18,7 +19,7 @@ const UpdateSubjectSchema = z.object({
   name: z.string().min(1).optional(),
   shortName: z.string().min(1).optional(),
   category: z.enum(["SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES", "COMMERCE", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "OTHER"]).optional(),
-  level: z.array(z.number().int().min(1).max(12)).min(1).optional(),
+  classIds: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid class ID")).min(1, "At least one class must be selected").optional(),
   description: z.string().optional(),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color code").optional(),
   isActive: z.boolean().optional(),
@@ -47,12 +48,61 @@ export async function createSubject(req: Request, res: Response, next: NextFunct
     const newSubject = await Subject.create({
       ...subjectData,
       code: subjectData.code.toUpperCase(),
-      category: subjectData.category.toUpperCase()
+      category: subjectData.category.toUpperCase(),
+      classIds: subjectData.classIds
     });
+    
+    // Get subject with class details using aggregation
+    const subjects = await Subject.aggregate([
+      { $match: { _id: newSubject._id } },
+      {
+        $addFields: {
+          classIds: {
+            $map: {
+              input: '$classIds',
+              as: 'id',
+              in: { $toObjectId: '$$id' }
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'classIds',
+          foreignField: '_id',
+          as: 'classes'
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          code: 1,
+          name: 1,
+          shortName: 1,
+          category: 1,
+          classIds: 1,
+          classes: {
+            _id: 1,
+            name: 1,
+            displayName: 1,
+            level: 1,
+            section: 1,
+            academicYear: 1,
+            isActive: 1
+          },
+          description: 1,
+          color: 1,
+          isActive: 1,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      }
+    ]);
     
     res.status(201).json({ 
       success: true, 
-      subject: newSubject
+      subject: subjects[0]
     });
   } catch (err) {
     next(err);
@@ -89,10 +139,55 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
     const skip = (page - 1) * limit;
     
     const [subjects, total] = await Promise.all([
-      Subject.find(query)
-        .sort({ category: 1, name: 1 })
-        .skip(skip)
-        .limit(limit),
+      Subject.aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            classIds: {
+              $map: {
+                input: '$classIds',
+                as: 'id',
+                in: { $toObjectId: '$$id' }
+              }
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: 'classes',
+            localField: 'classIds',
+            foreignField: '_id',
+            as: 'classes'
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            code: 1,
+            name: 1,
+            shortName: 1,
+            category: 1,
+            classIds: 1,
+            classes: {
+              _id: 1,
+              name: 1,
+              displayName: 1,
+              level: 1,
+              section: 1,
+              academicYear: 1,
+              isActive: 1
+            },
+            description: 1,
+            color: 1,
+            isActive: 1,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        },
+        { $sort: { category: 1, name: 1 } },
+        { $skip: skip },
+        { $limit: limit }
+      ]),
       Subject.countDocuments(query)
     ]);
     
@@ -116,10 +211,56 @@ export async function getSubject(req: Request, res: Response, next: NextFunction
   try {
     const { id } = req.params;
     
-    const subject = await Subject.findById(id);
-    if (!subject) throw new createHttpError.NotFound("Subject not found");
+    const subjects = await Subject.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(id) } },
+      {
+        $addFields: {
+          classIds: {
+            $map: {
+              input: '$classIds',
+              as: 'id',
+              in: { $toObjectId: '$$id' }
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'classIds',
+          foreignField: '_id',
+          as: 'classes'
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          code: 1,
+          name: 1,
+          shortName: 1,
+          category: 1,
+          classIds: 1,
+          classes: {
+            _id: 1,
+            name: 1,
+            displayName: 1,
+            level: 1,
+            section: 1,
+            academicYear: 1,
+            isActive: 1
+          },
+          description: 1,
+          color: 1,
+          isActive: 1,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      }
+    ]);
     
-    res.json({ success: true, subject });
+    if (subjects.length === 0) throw new createHttpError.NotFound("Subject not found");
+    
+    res.json({ success: true, subject: subjects[0] });
   } catch (err) {
     next(err);
   }
@@ -146,14 +287,62 @@ export async function updateSubject(req: Request, res: Response, next: NextFunct
     // Update data
     const updatedData = { ...updateData };
     if (updatedData.code) updatedData.code = updatedData.code.toUpperCase();
-    if (updatedData.category) updatedData.category = updatedData.category.toUpperCase();
+    if (updatedData.category) updatedData.category = updatedData.category.toUpperCase() as any;
     
     const updatedSubject = await Subject.findByIdAndUpdate(id, updatedData, { 
       new: true, 
       runValidators: true 
     });
     
-    res.json({ success: true, subject: updatedSubject });
+    // Get updated subject with class details using aggregation
+    const subjects = await Subject.aggregate([
+      { $match: { _id: updatedSubject!._id } },
+      {
+        $addFields: {
+          classIds: {
+            $map: {
+              input: '$classIds',
+              as: 'id',
+              in: { $toObjectId: '$$id' }
+            }
+          }
+        }
+      },
+      {
+        $lookup: {
+          from: 'classes',
+          localField: 'classIds',
+          foreignField: '_id',
+          as: 'classes'
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          code: 1,
+          name: 1,
+          shortName: 1,
+          category: 1,
+          classIds: 1,
+          classes: {
+            _id: 1,
+            name: 1,
+            displayName: 1,
+            level: 1,
+            section: 1,
+            academicYear: 1,
+            isActive: 1
+          },
+          description: 1,
+          color: 1,
+          isActive: 1,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      }
+    ]);
+    
+    res.json({ success: true, subject: subjects[0] });
   } catch (err) {
     next(err);
   }

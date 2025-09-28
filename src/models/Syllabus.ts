@@ -88,11 +88,6 @@ const SyllabusSchema = new Schema<ISyllabus>(
         min: 0
       }
     }],
-    totalHours: { 
-      type: Number, 
-      required: true,
-      min: 0
-    },
     uploadedBy: { 
       type: Schema.Types.ObjectId, 
       ref: "User", 

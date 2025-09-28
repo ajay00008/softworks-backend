@@ -50,7 +50,7 @@ const GetExamsQuerySchema = z.object({
 export async function createExam(req: Request, res: Response, next: NextFunction) {
   try {
     const examData = CreateExamSchema.parse(req.body);
-    const userId = (req as any).user.id;
+    const userId = (req as any).auth?.sub;
     
     // Validate subject and class exist
     const [subject, classExists] = await Promise.all([

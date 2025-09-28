@@ -5,7 +5,7 @@ export interface ISubject extends Document {
   name: string; // e.g., "Mathematics", "Physics", "Chemistry"
   shortName: string; // e.g., "Math", "Phy", "Chem"
   category: string; // e.g., "SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES"
-  level: number[]; // e.g., [9, 10, 11, 12] - which classes this subject is taught in
+  classIds: mongoose.Types.ObjectId[]; // References to actual Class documents
   isActive: boolean;
   description?: string;
   color?: string; // For UI display purposes
@@ -37,11 +37,10 @@ const SubjectSchema = new Schema<ISubject>(
       enum: ["SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES", "COMMERCE", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "OTHER"],
       uppercase: true
     },
-    level: [{ 
-      type: Number, 
-      required: true,
-      min: 1,
-      max: 12
+    classIds: [{ 
+      type: Schema.Types.ObjectId, 
+      ref: 'Class',
+      required: true
     }],
     isActive: { 
       type: Boolean, 

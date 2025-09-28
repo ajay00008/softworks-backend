@@ -11,18 +11,6 @@ const CreateSyllabusSchema = z.object({
   subjectId: z.string().min(1),
   classId: z.string().min(1),
   academicYear: z.string().min(1),
-  units: z.array(z.object({
-    unitNumber: z.number().min(1),
-    unitName: z.string().min(1),
-    topics: z.array(z.object({
-      topicName: z.string().min(1),
-      subtopics: z.array(z.string()).optional(),
-      learningObjectives: z.array(z.string()).optional(),
-      estimatedHours: z.number().min(0).optional()
-    })),
-    totalHours: z.number().min(0).optional()
-  })),
-  totalHours: z.number().min(0),
   fileUrl: z.string().optional(),
   version: z.string().default("1.0"),
   language: z.enum(["ENGLISH", "TAMIL", "HINDI", "MALAYALAM", "TELUGU", "KANNADA"]).default("ENGLISH")
@@ -45,7 +33,7 @@ const GetSyllabusQuerySchema = z.object({
 export async function createSyllabus(req: Request, res: Response, next: NextFunction) {
   try {
     const syllabusData = CreateSyllabusSchema.parse(req.body);
-    const userId = (req as any).user.id;
+    const userId = (req as any).auth?.sub;
     
     // Validate subject and class exist
     const [subject, classExists] = await Promise.all([
