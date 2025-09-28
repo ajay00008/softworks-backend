@@ -8,7 +8,7 @@ import createHttpError from "http-errors";
 
 const LoginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string(),
 });
 
 export async function login(req: Request, res: Response, next: NextFunction) {
