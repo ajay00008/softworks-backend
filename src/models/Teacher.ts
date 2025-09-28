@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface ITeacher extends Document {
   userId: mongoose.Types.ObjectId; // references User with role TEACHER
+  adminId: mongoose.Types.ObjectId; // references User with role ADMIN who created this teacher
   subjectIds: mongoose.Types.ObjectId[]; // references Subject model
   classIds: mongoose.Types.ObjectId[]; // references Class model - classes teacher is assigned to
   phone?: string;
@@ -14,6 +15,7 @@ export interface ITeacher extends Document {
 const TeacherSchema = new Schema<ITeacher>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     subjectIds: [{ 
       type: Schema.Types.ObjectId, 
       ref: "Subject"

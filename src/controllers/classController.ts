@@ -32,15 +32,19 @@ const GetClassesQuerySchema = z.object({
 export async function createClass(req: Request, res: Response, next: NextFunction) {
   try {
     const classData = CreateClassSchema.parse(req.body);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
-    // Check if class already exists
+    // Check if class already exists for this admin
     const existing = await Class.findOne({ 
-      name: classData.name.toUpperCase(), 
+      name: classData.name.toUpperCase(),
+      adminId
     });
-    if (existing) throw new createHttpError.Conflict("Class already exists for this academic year");
+    if (existing) throw new createHttpError.Conflict("Class already exists");
     
     const newClass = await Class.create({
       ...classData,
+      adminId,
       name: classData.name.toUpperCase(),
       section: classData.section.toUpperCase()
     });
@@ -58,8 +62,10 @@ export async function createClass(req: Request, res: Response, next: NextFunctio
 export async function getClasses(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit, search, level, isActive } = GetClassesQuerySchema.parse(req.query);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
-    const query: any = {};
+    const query: any = { adminId };
     
     if (level) {
       query.level = level;

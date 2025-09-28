@@ -38,15 +38,19 @@ const GetSubjectsQuerySchema = z.object({
 export async function createSubject(req: Request, res: Response, next: NextFunction) {
   try {
     const subjectData = CreateSubjectSchema.parse(req.body);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
-    // Check if subject code already exists
+    // Check if subject code already exists for this admin
     const existing = await Subject.findOne({ 
-      code: subjectData.code.toUpperCase()
+      code: subjectData.code.toUpperCase(),
+      adminId
     });
     if (existing) throw new createHttpError.Conflict("Subject code already exists");
     
     const newSubject = await Subject.create({
       ...subjectData,
+      adminId,
       code: subjectData.code.toUpperCase(),
       category: subjectData.category.toUpperCase(),
       classIds: subjectData.classIds
@@ -113,8 +117,10 @@ export async function createSubject(req: Request, res: Response, next: NextFunct
 export async function getSubjects(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit, search, category, level, isActive } = GetSubjectsQuerySchema.parse(req.query);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
-    const query: any = {};
+    const query: any = { adminId };
     
     if (category) {
       query.category = category.toUpperCase();

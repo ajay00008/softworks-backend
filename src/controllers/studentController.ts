@@ -51,17 +51,20 @@ export async function createStudent(req: Request, res: Response, next: NextFunct
   try {
     const studentData = CreateStudentSchema.parse(req.body);
     const { email, password, name, rollNumber, classId, ...additionalData } = studentData;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
     const exists = await User.findOne({ email });
     if (exists) throw new createHttpError.Conflict("Email already in use");
     
-    // Validate that the class exists and is active
-    const classExists = await Class.findById(classId);
-    if (!classExists) throw new createHttpError.NotFound("Class not found");
-    if (!classExists.isActive) throw new createHttpError.BadRequest("Class is not active");
+    // Validate that the class exists, is active, and belongs to the same admin
+    const classExists = await Class.findOne({ _id: classId, adminId, isActive: true });
+    if (!classExists) {
+      throw new createHttpError.BadRequest("Class not found, inactive, or not accessible");
+    }
     
-    // Check if roll number already exists in the same class
-    const rollExists = await Student.findOne({ rollNumber, classId });
+    // Check if roll number already exists in the same class for this admin
+    const rollExists = await Student.findOne({ rollNumber, classId, adminId });
     if (rollExists) throw new createHttpError.Conflict("Roll number already exists in this class");
     
     const passwordHash = await bcrypt.hash(password, 12);
@@ -79,6 +82,7 @@ export async function createStudent(req: Request, res: Response, next: NextFunct
       // Create student
       const student = await Student.create({ 
         userId: createdUser._id, 
+        adminId,
         rollNumber, 
         classId,
         ...additionalData
@@ -133,8 +137,10 @@ export async function createStudent(req: Request, res: Response, next: NextFunct
 export async function getStudents(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit, search, classId, isActive } = GetStudentsQuerySchema.parse(req.query);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
-    const query: any = {};
+    const query: any = { adminId };
     
     if (classId) {
       query.classId = classId;

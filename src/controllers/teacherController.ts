@@ -44,36 +44,41 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
   try {
     const teacherData = CreateTeacherSchema.parse(req.body);
     const { email, password, name, subjectIds, classIds, ...additionalData } = teacherData;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
     console.log('🔍 Parsed teacher data:', {
       email,
       name,
       subjectIds,
       classIds,
+      adminId,
       additionalData
     });
     
     const exists = await User.findOne({ email });
     if (exists) throw new createHttpError.Conflict("Email already in use");
     
-    // Validate that all subjects exist and are active
+    // Validate that all subjects exist, are active, and belong to the same admin
     if (subjectIds && subjectIds.length > 0) {
       const subjects = await Subject.find({ 
         _id: { $in: subjectIds }, 
+        adminId,
         isActive: true 
       });
       
       if (subjects.length !== subjectIds.length) {
-        throw new createHttpError.BadRequest("One or more subjects not found or inactive");
+        throw new createHttpError.BadRequest("One or more subjects not found, inactive, or not accessible");
       }
     }
     
-    // Validate that all classes exist and are active
+    // Validate that all classes exist, are active, and belong to the same admin
     if (classIds && classIds.length > 0) {
       console.log('🔍 Validating classIds:', classIds);
       const { Class } = await import("../models/Class");
       const classes = await Class.find({ 
         _id: { $in: classIds }, 
+        adminId,
         isActive: true 
       });
       
@@ -81,7 +86,7 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
       
       if (classes.length !== classIds.length) {
         console.log('❌ Class validation failed. Expected:', classIds.length, 'Found:', classes.length);
-        throw new createHttpError.BadRequest("One or more classes not found or inactive");
+        throw new createHttpError.BadRequest("One or more classes not found, inactive, or not accessible");
       }
     }
     
@@ -100,6 +105,7 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
       // Create teacher
       const teacherData = {
         userId: createdUser._id, 
+        adminId,
         subjectIds,
         classIds,
         ...additionalData
@@ -174,8 +180,10 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
 export async function getTeachers(req: Request, res: Response, next: NextFunction) {
   try {
     const { page, limit, search, isActive } = GetTeachersQuerySchema.parse(req.query);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
-    const query: any = {};
+    const query: any = { adminId };
     
     if (search) {
       query.$or = [

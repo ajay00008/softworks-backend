@@ -7,6 +7,7 @@ import type { UserRole } from "../models/User";
 export interface AuthPayload {
   sub: string;
   role: UserRole;
+  adminId?: string; // Only present for ADMIN and SUPER_ADMIN roles
 }
 
 export function requireAuth(req: Request, _res: Response, next: NextFunction) {
