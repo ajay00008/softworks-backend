@@ -46,6 +46,8 @@ const GetStudentsQuerySchema = z.object({
 
 // Create Student
 export async function createStudent(req: Request, res: Response, next: NextFunction) {
+  let createdUser: any = null;
+  
   try {
     const studentData = CreateStudentSchema.parse(req.body);
     const { email, password, name, rollNumber, classId, ...additionalData } = studentData;
@@ -63,50 +65,65 @@ export async function createStudent(req: Request, res: Response, next: NextFunct
     if (rollExists) throw new createHttpError.Conflict("Roll number already exists in this class");
     
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await User.create({ 
-      email, 
-      passwordHash, 
-      name, 
-      role: "STUDENT",
-      isActive: true 
-    });
     
-    const student = await Student.create({ 
-      userId: user._id, 
-      rollNumber, 
-      classId,
-      ...additionalData
-    });
-    
-    // Populate class information for response
-    const populatedStudent = await Student.findById(student._id).populate('classId', 'name displayName level section academicYear');
-    
-    res.status(201).json({ 
-      success: true, 
-      student: { 
-        id: user._id, 
-        email: user.email, 
-        name: user.name,
-        rollNumber: student.rollNumber,
-        class: {
-          id: (populatedStudent!.classId as any)._id,
-          name: (populatedStudent!.classId as any).name,
-          displayName: (populatedStudent!.classId as any).displayName,
-          level: (populatedStudent!.classId as any).level,
-          section: (populatedStudent!.classId as any).section,
-          academicYear: (populatedStudent!.classId as any).academicYear
-        },
-        fatherName: student.fatherName,
-        motherName: student.motherName,
-        dateOfBirth: student.dateOfBirth,
-        parentsPhone: student.parentsPhone,
-        parentsEmail: student.parentsEmail,
-        address: student.address,
-        whatsappNumber: student.whatsappNumber,
-        isActive: user.isActive,
-        createdAt: (user as any).createdAt
-      } 
-    });
+    try {
+      // Create user first
+      createdUser = await User.create({ 
+        email, 
+        passwordHash, 
+        name, 
+        role: "STUDENT",
+        isActive: true 
+      });
+      
+      // Create student
+      const student = await Student.create({ 
+        userId: createdUser._id, 
+        rollNumber, 
+        classId,
+        ...additionalData
+      });
+      
+      // Populate class information for response
+      const populatedStudent = await Student.findById(student._id).populate('classId', 'name displayName level section academicYear');
+      
+      res.status(201).json({ 
+        success: true, 
+        student: { 
+          id: createdUser._id, 
+          email: createdUser.email, 
+          name: createdUser.name,
+          rollNumber: student.rollNumber,
+          class: {
+            id: (populatedStudent!.classId as any)._id,
+            name: (populatedStudent!.classId as any).name,
+            displayName: (populatedStudent!.classId as any).displayName,
+            level: (populatedStudent!.classId as any).level,
+            section: (populatedStudent!.classId as any).section,
+            academicYear: (populatedStudent!.classId as any).academicYear
+          },
+          fatherName: student.fatherName,
+          motherName: student.motherName,
+          dateOfBirth: student.dateOfBirth,
+          parentsPhone: student.parentsPhone,
+          parentsEmail: student.parentsEmail,
+          address: student.address,
+          whatsappNumber: student.whatsappNumber,
+          isActive: createdUser.isActive,
+          createdAt: (createdUser as any).createdAt
+        } 
+      });
+    } catch (studentError) {
+      // If student creation fails, delete the user
+      if (createdUser) {
+        try {
+          await User.findByIdAndDelete(createdUser._id);
+        } catch (deleteError) {
+          console.error('Failed to delete user after student creation failure:', deleteError);
+        }
+      }
+      throw studentError; // Re-throw the original error
+    }
   } catch (err) {
     next(err);
   }

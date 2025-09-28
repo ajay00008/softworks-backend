@@ -44,9 +44,18 @@ const TeacherSchema = new Schema<ITeacher>(
 
 // Pre-save validation to ensure at least one subject is assigned
 TeacherSchema.pre('save', function(next) {
+  console.log('🔍 Teacher pre-save validation:', {
+    subjectIds: this.subjectIds,
+    classIds: this.classIds,
+    subjectIdsLength: this.subjectIds?.length,
+    classIdsLength: this.classIds?.length
+  });
+  
   if (this.subjectIds && this.subjectIds.length === 0) {
+    console.log('❌ Teacher validation failed: No subjects assigned');
     next(new Error('Teacher must be assigned to at least one subject'));
   } else {
+    console.log('✅ Teacher validation passed');
     next();
   }
 });

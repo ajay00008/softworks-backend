@@ -2,7 +2,7 @@ import { Router } from "express";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
-import { createStudent, createTeacher } from "../controllers/userManagementController";
+import { createTeacher } from "../controllers/userManagementController";
 import { 
   createAdmin as createAdminSuper, 
   getAdmins, 
@@ -255,7 +255,7 @@ router.post("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       201:
  *         description: Student created
  */
-router.post("/admin/students", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createStudent);
+// Removed old student creation route - using new one below
 
 // ==================== SUPER ADMIN ROUTES ====================
 
