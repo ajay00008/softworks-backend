@@ -21,6 +21,8 @@ const CreateTeacherSchema = z.object({
 export async function createTeacher(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password, name, subjectIds, classIds, phone, address, qualification, experience } = CreateTeacherSchema.parse(req.body);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
     
     console.log('🔍 Creating teacher with data:', {
       email,
@@ -30,8 +32,13 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
       phone,
       address,
       qualification,
-      experience
+      experience,
+      adminId
     });
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
     
     const exists = await User.findOne({ email });
     if (exists) throw new createHttpError.Conflict("Email already in use");
@@ -41,6 +48,7 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
     
     const teacher = await Teacher.create({ 
       userId: user._id, 
+      adminId,
       subjectIds,
       classIds,
       phone,

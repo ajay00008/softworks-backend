@@ -9,6 +9,7 @@ export interface IExam extends Document {
   examType: ExamType;
   subjectId: mongoose.Types.ObjectId;
   classId: mongoose.Types.ObjectId;
+  adminId: mongoose.Types.ObjectId; // references User with role ADMIN who created this exam
   totalMarks: number;
   duration: number; // in minutes
   status: ExamStatus;
@@ -57,6 +58,7 @@ const ExamSchema = new Schema<IExam>(
       required: true,
       index: true
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     totalMarks: { 
       type: Number, 
       required: true,

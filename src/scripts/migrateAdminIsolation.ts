@@ -5,6 +5,9 @@ import { Student } from "../models/Student";
 import { Teacher } from "../models/Teacher";
 import { Class } from "../models/Class";
 import { Subject } from "../models/Subject";
+import { Question } from "../models/Question";
+import { Exam } from "../models/Exam";
+import { Syllabus } from "../models/Syllabus";
 
 async function migrateAdminIsolation() {
   try {
@@ -53,6 +56,27 @@ async function migrateAdminIsolation() {
       { $set: { adminId: superAdmin._id } }
     );
     console.log(`✅ Updated ${subjectResult.modifiedCount} subjects with adminId`);
+
+    // Update Questions
+    const questionResult = await Question.updateMany(
+      { adminId: { $exists: false } },
+      { $set: { adminId: superAdmin._id } }
+    );
+    console.log(`✅ Updated ${questionResult.modifiedCount} questions with adminId`);
+
+    // Update Exams
+    const examResult = await Exam.updateMany(
+      { adminId: { $exists: false } },
+      { $set: { adminId: superAdmin._id } }
+    );
+    console.log(`✅ Updated ${examResult.modifiedCount} exams with adminId`);
+
+    // Update Syllabi
+    const syllabusResult = await Syllabus.updateMany(
+      { adminId: { $exists: false } },
+      { $set: { adminId: superAdmin._id } }
+    );
+    console.log(`✅ Updated ${syllabusResult.modifiedCount} syllabi with adminId`);
 
     console.log("🎉 Admin isolation migration completed successfully!");
     console.log("📝 All existing data has been assigned to the SUPER_ADMIN");

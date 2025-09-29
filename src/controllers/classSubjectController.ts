@@ -14,7 +14,11 @@ import {
  */
 export async function getClassSubjectMappings(req: Request, res: Response, next: NextFunction) {
   try {
-    const mappings = await getAllClassSubjectMappings();
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    
+    
+    const mappings = await getAllClassSubjectMappings(adminId);
     
     res.json({
       success: true,
@@ -40,7 +44,10 @@ export async function getSubjectsForLevel(req: Request, res: Response, next: Nex
       throw new createHttpError.BadRequest("Invalid class level. Must be between 1 and 12");
     }
     
-    const subjects = await getSubjectsForClassLevel(levelNumber);
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    
+    const subjects = await getSubjectsForClassLevel(levelNumber, adminId);
     
     res.json({
       success: true,

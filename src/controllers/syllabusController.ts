@@ -33,22 +33,33 @@ const GetSyllabusQuerySchema = z.object({
 export async function createSyllabus(req: Request, res: Response, next: NextFunction) {
   try {
     const syllabusData = CreateSyllabusSchema.parse(req.body);
-    const userId = (req as any).auth?.sub;
+    const auth = (req as any).auth;
+    const userId = auth?.sub;
+    const adminId = auth?.adminId;
     
-    // Validate subject and class exist
+    if (!userId) {
+      throw new createHttpError.Unauthorized("User not authenticated");
+    }
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+    
+    // Validate subject and class exist and belong to the same admin
     const [subject, classExists] = await Promise.all([
-      Subject.findById(syllabusData.subjectId),
-      Class.findById(syllabusData.classId)
+      Subject.findOne({ _id: syllabusData.subjectId, adminId, isActive: true }),
+      Class.findOne({ _id: syllabusData.classId, adminId, isActive: true })
     ]);
     
-    if (!subject) throw new createHttpError.NotFound("Subject not found");
-    if (!classExists) throw new createHttpError.NotFound("Class not found");
+    if (!subject) throw new createHttpError.NotFound("Subject not found or not accessible");
+    if (!classExists) throw new createHttpError.NotFound("Class not found or not accessible");
     
     // Check if syllabus already exists for this subject, class, and academic year
     const existingSyllabus = await Syllabus.findOne({
       subjectId: syllabusData.subjectId,
       classId: syllabusData.classId,
       academicYear: syllabusData.academicYear,
+      adminId,
       isActive: true
     });
     
@@ -58,6 +69,7 @@ export async function createSyllabus(req: Request, res: Response, next: NextFunc
     
     const syllabus = await Syllabus.create({
       ...syllabusData,
+      adminId,
       uploadedBy: userId
     });
     
@@ -80,8 +92,14 @@ export async function getSyllabi(req: Request, res: Response, next: NextFunction
   try {
     const queryParams = GetSyllabusQuerySchema.parse(req.query);
     const { page, limit, search, subjectId, classId, academicYear, language, isActive } = queryParams;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
     
-    const query: any = {};
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+    
+    const query: any = { adminId };
     
     if (subjectId) query.subjectId = subjectId;
     if (classId) query.classId = classId;
@@ -129,13 +147,19 @@ export async function getSyllabi(req: Request, res: Response, next: NextFunction
 export async function getSyllabus(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
     
-    const syllabus = await Syllabus.findById(id)
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+    
+    const syllabus = await Syllabus.findOne({ _id: id, adminId })
       .populate('subjectId', 'code name shortName')
       .populate('classId', 'name displayName level section')
       .populate('uploadedBy', 'name email');
     
-    if (!syllabus) throw new createHttpError.NotFound("Syllabus not found");
+    if (!syllabus) throw new createHttpError.NotFound("Syllabus not found or not accessible");
     
     res.json({
       success: true,
@@ -151,19 +175,25 @@ export async function updateSyllabus(req: Request, res: Response, next: NextFunc
   try {
     const { id } = req.params;
     const updateData = UpdateSyllabusSchema.parse(req.body);
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
     
-    const syllabus = await Syllabus.findById(id);
-    if (!syllabus) throw new createHttpError.NotFound("Syllabus not found");
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+    
+    const syllabus = await Syllabus.findOne({ _id: id, adminId });
+    if (!syllabus) throw new createHttpError.NotFound("Syllabus not found or not accessible");
     
     // Validate subject and class if being updated
     if (updateData.subjectId) {
-      const subject = await Subject.findById(updateData.subjectId);
-      if (!subject) throw new createHttpError.NotFound("Subject not found");
+      const subject = await Subject.findOne({ _id: updateData.subjectId, adminId, isActive: true });
+      if (!subject) throw new createHttpError.NotFound("Subject not found or not accessible");
     }
     
     if (updateData.classId) {
-      const classExists = await Class.findById(updateData.classId);
-      if (!classExists) throw new createHttpError.NotFound("Class not found");
+      const classExists = await Class.findOne({ _id: updateData.classId, adminId, isActive: true });
+      if (!classExists) throw new createHttpError.NotFound("Class not found or not accessible");
     }
     
     // Check for conflicts if subject, class, or academic year is being updated
@@ -204,9 +234,15 @@ export async function updateSyllabus(req: Request, res: Response, next: NextFunc
 export async function deleteSyllabus(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
     
-    const syllabus = await Syllabus.findById(id);
-    if (!syllabus) throw new createHttpError.NotFound("Syllabus not found");
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+    
+    const syllabus = await Syllabus.findOne({ _id: id, adminId });
+    if (!syllabus) throw new createHttpError.NotFound("Syllabus not found or not accessible");
     
     await Syllabus.findByIdAndDelete(id);
     
@@ -224,10 +260,17 @@ export async function getSyllabusBySubjectClass(req: Request, res: Response, nex
   try {
     const { subjectId, classId } = req.params;
     const { academicYear } = req.query;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
     
     const query: any = {
       subjectId,
       classId,
+      adminId,
       isActive: true
     };
     

@@ -120,6 +120,7 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
     const auth = (req as any).auth;
     const adminId = auth.adminId;
     
+    
     const query: any = { adminId };
     
     if (category) {
@@ -145,55 +146,12 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
     const skip = (page - 1) * limit;
     
     const [subjects, total] = await Promise.all([
-      Subject.aggregate([
-        { $match: query },
-        {
-          $addFields: {
-            classIds: {
-              $map: {
-                input: '$classIds',
-                as: 'id',
-                in: { $toObjectId: '$$id' }
-              }
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: 'classes',
-            localField: 'classIds',
-            foreignField: '_id',
-            as: 'classes'
-          }
-        },
-        {
-          $project: {
-            _id: 1,
-            code: 1,
-            name: 1,
-            shortName: 1,
-            category: 1,
-            classIds: 1,
-            classes: {
-              _id: 1,
-              name: 1,
-              displayName: 1,
-              level: 1,
-              section: 1,
-              academicYear: 1,
-              isActive: 1
-            },
-            description: 1,
-            color: 1,
-            isActive: 1,
-            createdAt: 1,
-            updatedAt: 1
-          }
-        },
-        { $sort: { category: 1, name: 1 } },
-        { $skip: skip },
-        { $limit: limit }
-      ]),
+      Subject.find(query)
+        .select('_id code name shortName category classIds description color isActive createdAt updatedAt')
+        .sort({ category: 1, name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       Subject.countDocuments(query)
     ]);
     

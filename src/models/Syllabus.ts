@@ -5,6 +5,7 @@ export interface ISyllabus extends Document {
   description?: string;
   subjectId: mongoose.Types.ObjectId;
   classId: mongoose.Types.ObjectId;
+  adminId: mongoose.Types.ObjectId; // references User with role ADMIN who created this syllabus
   academicYear: string;
   units: {
     unitNumber: number;
@@ -48,6 +49,7 @@ const SyllabusSchema = new Schema<ISyllabus>(
       required: true,
       index: true
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     academicYear: { 
       type: String, 
       required: true,

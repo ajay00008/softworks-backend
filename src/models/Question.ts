@@ -19,6 +19,7 @@ export interface IQuestion extends Document {
   questionType: QuestionType;
   subjectId: mongoose.Types.ObjectId;
   classId: mongoose.Types.ObjectId;
+  adminId: mongoose.Types.ObjectId; // references User with role ADMIN who created this question
   unit: string;
   bloomsTaxonomyLevel: BloomsTaxonomyLevel;
   difficulty: QuestionDifficulty;
@@ -66,6 +67,7 @@ const QuestionSchema = new Schema<IQuestion>(
       required: true,
       index: true
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     unit: { 
       type: String, 
       required: true,
@@ -159,9 +161,9 @@ const QuestionSchema = new Schema<IQuestion>(
 );
 
 // Indexes for efficient queries
-QuestionSchema.index({ subjectId: 1, classId: 1 });
-QuestionSchema.index({ bloomsTaxonomyLevel: 1, difficulty: 1 });
-QuestionSchema.index({ unit: 1, subjectId: 1 });
-QuestionSchema.index({ createdBy: 1, isActive: 1 });
+QuestionSchema.index({ adminId: 1, subjectId: 1, classId: 1 });
+QuestionSchema.index({ adminId: 1, bloomsTaxonomyLevel: 1, difficulty: 1 });
+QuestionSchema.index({ adminId: 1, unit: 1, subjectId: 1 });
+QuestionSchema.index({ adminId: 1, createdBy: 1, isActive: 1 });
 
 export const Question: Model<IQuestion> = mongoose.models.Question || mongoose.model<IQuestion>("Question", QuestionSchema);
