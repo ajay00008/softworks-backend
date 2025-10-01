@@ -34,80 +34,130 @@ const GetTeachersQuerySchema = z.object({
 });
 // Create Teacher
 export async function createTeacher(req, res, next) {
+    let createdUser = null;
     try {
         const teacherData = CreateTeacherSchema.parse(req.body);
         const { email, password, name, subjectIds, classIds, ...additionalData } = teacherData;
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        console.log('🔍 Parsed teacher data:', {
+            email,
+            name,
+            subjectIds,
+            classIds,
+            adminId,
+            additionalData
+        });
+        // First, check if any classes exist for this admin
+        const { Class } = await import("../models/Class");
+        const totalClasses = await Class.countDocuments({ adminId, isActive: true });
+        if (totalClasses === 0) {
+            throw new createHttpError.BadRequest("Cannot create teachers. Please create at least one class first.");
+        }
         const exists = await User.findOne({ email });
         if (exists)
             throw new createHttpError.Conflict("Email already in use");
-        // Validate that all subjects exist and are active
+        // Validate that all subjects exist, are active, and belong to the same admin
         if (subjectIds && subjectIds.length > 0) {
             const subjects = await Subject.find({
                 _id: { $in: subjectIds },
+                adminId,
                 isActive: true
             });
             if (subjects.length !== subjectIds.length) {
-                throw new createHttpError.BadRequest("One or more subjects not found or inactive");
+                throw new createHttpError.BadRequest("One or more subjects not found, inactive, or not accessible");
             }
         }
-        // Validate that all classes exist and are active
+        // Validate that all classes exist, are active, and belong to the same admin
         if (classIds && classIds.length > 0) {
+            console.log('🔍 Validating classIds:', classIds);
             const { Class } = await import("../models/Class");
             const classes = await Class.find({
                 _id: { $in: classIds },
+                adminId,
                 isActive: true
             });
+            console.log('🔍 Found classes:', classes.map(c => ({ id: c._id, name: c.name })));
             if (classes.length !== classIds.length) {
-                throw new createHttpError.BadRequest("One or more classes not found or inactive");
+                console.log('❌ Class validation failed. Expected:', classIds.length, 'Found:', classes.length);
+                throw new createHttpError.BadRequest("One or more classes not found, inactive, or not accessible");
             }
         }
         const passwordHash = await bcrypt.hash(password, 12);
-        const user = await User.create({
-            email,
-            passwordHash,
-            name,
-            role: "TEACHER",
-            isActive: true
-        });
-        const teacher = await Teacher.create({
-            userId: user._id,
-            subjectIds,
-            classIds,
-            ...additionalData
-        });
-        // Populate subject and class information for response
-        const populatedTeacher = await Teacher.findById(teacher._id)
-            .populate('subjectIds', 'code name shortName category level')
-            .populate('classIds', 'name displayName level section');
-        res.status(201).json({
-            success: true,
-            teacher: {
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                subjects: populatedTeacher.subjectIds.map((subject) => ({
-                    id: subject._id,
-                    code: subject.code,
-                    name: subject.name,
-                    shortName: subject.shortName,
-                    category: subject.category,
-                    level: subject.level
-                })),
-                classes: populatedTeacher.classIds.map((classItem) => ({
-                    id: classItem._id,
-                    name: classItem.name,
-                    displayName: classItem.displayName,
-                    level: classItem.level,
-                    section: classItem.section
-                })),
-                phone: teacher.phone,
-                address: teacher.address,
-                qualification: teacher.qualification,
-                experience: teacher.experience,
-                isActive: user.isActive,
-                createdAt: user.createdAt
+        try {
+            // Create user first
+            createdUser = await User.create({
+                email,
+                passwordHash,
+                name,
+                role: "TEACHER",
+                isActive: true
+            });
+            // Create teacher
+            const teacherData = {
+                userId: createdUser._id,
+                adminId,
+                subjectIds,
+                classIds,
+                ...additionalData
+            };
+            console.log('🔍 Creating teacher with data:', teacherData);
+            const teacher = await Teacher.create(teacherData);
+            console.log('✅ Teacher created with ID:', teacher._id);
+            console.log('🔍 Teacher classIds after creation:', teacher.classIds);
+            // Populate subject and class information for response
+            const populatedTeacher = await Teacher.findById(teacher._id)
+                .populate('subjectIds', 'code name shortName category level color')
+                .populate('classIds', 'name displayName level section');
+            console.log('🔍 Populated teacher data:', {
+                id: populatedTeacher?._id,
+                subjectIds: populatedTeacher?.subjectIds,
+                classIds: populatedTeacher?.classIds,
+                subjects: populatedTeacher?.subjectIds?.length,
+                classes: populatedTeacher?.classIds?.length
+            });
+            res.status(201).json({
+                success: true,
+                teacher: {
+                    id: createdUser._id,
+                    email: createdUser.email,
+                    name: createdUser.name,
+                    subjects: populatedTeacher.subjectIds.map((subject) => ({
+                        id: subject._id,
+                        code: subject.code,
+                        name: subject.name,
+                        shortName: subject.shortName,
+                        category: subject.category,
+                        level: subject.level
+                    })),
+                    classes: populatedTeacher.classIds.map((classItem) => ({
+                        id: classItem._id,
+                        name: classItem.name,
+                        displayName: classItem.displayName,
+                        level: classItem.level,
+                        section: classItem.section
+                    })),
+                    phone: teacher.phone,
+                    address: teacher.address,
+                    qualification: teacher.qualification,
+                    experience: teacher.experience,
+                    isActive: createdUser.isActive,
+                    createdAt: createdUser.createdAt
+                }
+            });
+        }
+        catch (teacherError) {
+            // If teacher creation fails, delete the user
+            if (createdUser) {
+                try {
+                    await User.findByIdAndDelete(createdUser._id);
+                }
+                catch (deleteError) {
+                    console.error('Failed to delete user after teacher creation failure:', deleteError);
+                }
             }
-        });
+            throw teacherError; // Re-throw the original error
+        }
     }
     catch (err) {
         next(err);
@@ -117,7 +167,9 @@ export async function createTeacher(req, res, next) {
 export async function getTeachers(req, res, next) {
     try {
         const { page, limit, search, isActive } = GetTeachersQuerySchema.parse(req.query);
-        const query = {};
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const query = { adminId };
         if (search) {
             query.$or = [
                 { qualification: { $regex: search, $options: "i" } },
@@ -128,7 +180,7 @@ export async function getTeachers(req, res, next) {
         const [teachers, total] = await Promise.all([
             Teacher.find(query)
                 .populate('userId', 'name email isActive createdAt')
-                .populate('subjectIds', 'code name shortName category level')
+                .populate('subjectIds', 'code name shortName category level color')
                 .populate('classIds', 'name displayName level section')
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -146,7 +198,8 @@ export async function getTeachers(req, res, next) {
                 name: subject.name,
                 shortName: subject.shortName,
                 category: subject.category,
-                level: subject.level
+                level: subject.level,
+                color: subject.color
             })),
             classes: teacher.classIds.map((classItem) => ({
                 id: classItem._id,
@@ -185,7 +238,7 @@ export async function getTeacher(req, res, next) {
         const { id } = req.params;
         const teacher = await Teacher.findOne({ userId: id })
             .populate('userId', 'name email isActive createdAt')
-            .populate('subjectIds', 'code name shortName category level')
+            .populate('subjectIds', 'code name shortName category level color')
             .populate('classIds', 'name displayName level section');
         if (!teacher)
             throw new createHttpError.NotFound("Teacher not found");
@@ -200,7 +253,8 @@ export async function getTeacher(req, res, next) {
                 name: subject.name,
                 shortName: subject.shortName,
                 category: subject.category,
-                level: subject.level
+                level: subject.level,
+                color: subject.color
             })),
             classes: teacher.classIds.map((classItem) => ({
                 id: classItem._id,
@@ -281,7 +335,7 @@ export async function updateTeacher(req, res, next) {
         }
         const updatedTeacher = await Teacher.findOne({ userId: id })
             .populate('userId', 'name email isActive createdAt')
-            .populate('subjectIds', 'code name shortName category level')
+            .populate('subjectIds', 'code name shortName category level color')
             .populate('classIds', 'name displayName level section');
         // Transform the data to include all form fields
         const transformedTeacher = {
@@ -294,7 +348,8 @@ export async function updateTeacher(req, res, next) {
                 name: subject.name,
                 shortName: subject.shortName,
                 category: subject.category,
-                level: subject.level
+                level: subject.level,
+                color: subject.color
             })),
             classes: updatedTeacher.classIds.map((classItem) => ({
                 id: classItem._id,

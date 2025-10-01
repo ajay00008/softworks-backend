@@ -3,11 +3,10 @@ const ClassSchema = new Schema({
     name: {
         type: String,
         required: true,
-        unique: true,
         uppercase: true,
         trim: true,
-        match: [/^[0-9]+[A-Z]$/, "Class name must be in format like 10A, 9B, 12C"]
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     displayName: {
         type: String,
         required: true,
@@ -24,13 +23,6 @@ const ClassSchema = new Schema({
         required: true,
         uppercase: true,
         trim: true,
-        match: [/^[A-Z]$/, "Section must be a single letter"]
-    },
-    academicYear: {
-        type: String,
-        required: true,
-        trim: true,
-        match: [/^\d{4}-\d{2}$/, "Academic year must be in format YYYY-YY"]
     },
     isActive: {
         type: Boolean,
@@ -42,8 +34,8 @@ const ClassSchema = new Schema({
     }
 }, { timestamps: true });
 // Index for efficient queries
-ClassSchema.index({ name: 1, academicYear: 1 }, { unique: true });
-ClassSchema.index({ level: 1, section: 1, academicYear: 1 });
-ClassSchema.index({ isActive: 1 });
+ClassSchema.index({ adminId: 1, name: 1 }, { unique: true });
+ClassSchema.index({ adminId: 1, level: 1, section: 1 });
+ClassSchema.index({ adminId: 1, isActive: 1 });
 export const Class = mongoose.models.Class || mongoose.model("Class", ClassSchema);
 //# sourceMappingURL=Class.js.map

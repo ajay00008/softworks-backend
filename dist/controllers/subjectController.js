@@ -1,12 +1,16 @@
 import { z } from "zod";
 import createHttpError from "http-errors";
+import mongoose from "mongoose";
 import { Subject } from "../models/Subject";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 const CreateSubjectSchema = z.object({
     code: z.string().regex(/^[A-Z0-9_]+$/, "Subject code must contain only uppercase letters, numbers, and underscores"),
     name: z.string().min(1),
     shortName: z.string().min(1),
     category: z.enum(["SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES", "COMMERCE", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "OTHER"]),
-    level: z.array(z.number().int().min(1).max(12)).min(1),
+    classIds: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid class ID")).min(1, "At least one class must be selected"),
     description: z.string().optional(),
     color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color code").optional(),
 });
@@ -15,7 +19,7 @@ const UpdateSubjectSchema = z.object({
     name: z.string().min(1).optional(),
     shortName: z.string().min(1).optional(),
     category: z.enum(["SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES", "COMMERCE", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "OTHER"]).optional(),
-    level: z.array(z.number().int().min(1).max(12)).min(1).optional(),
+    classIds: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid class ID")).min(1, "At least one class must be selected").optional(),
     description: z.string().optional(),
     color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color code").optional(),
     isActive: z.boolean().optional(),
@@ -28,24 +32,105 @@ const GetSubjectsQuerySchema = z.object({
     level: z.string().transform(Number).optional(),
     isActive: z.string().transform(Boolean).optional(),
 });
+// Multer configuration for reference book uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadPath = path.join(__dirname, '../../uploads/reference-books');
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, `reference-book-${uniqueSuffix}${path.extname(file.originalname)}`);
+    }
+});
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB limit for reference books
+    },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        }
+        else {
+            cb(new Error('Only PDF files are allowed for reference books'));
+        }
+    }
+});
+export const uploadReferenceBook = upload.single('referenceBook');
 // Create Subject
 export async function createSubject(req, res, next) {
     try {
         const subjectData = CreateSubjectSchema.parse(req.body);
-        // Check if subject code already exists
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        // Check if subject code already exists for this admin
         const existing = await Subject.findOne({
-            code: subjectData.code.toUpperCase()
+            code: subjectData.code.toUpperCase(),
+            adminId
         });
         if (existing)
             throw new createHttpError.Conflict("Subject code already exists");
         const newSubject = await Subject.create({
             ...subjectData,
+            adminId,
             code: subjectData.code.toUpperCase(),
-            category: subjectData.category.toUpperCase()
+            category: subjectData.category.toUpperCase(),
+            classIds: subjectData.classIds
         });
+        // Get subject with class details using aggregation
+        const subjects = await Subject.aggregate([
+            { $match: { _id: newSubject._id } },
+            {
+                $addFields: {
+                    classIds: {
+                        $map: {
+                            input: '$classIds',
+                            as: 'id',
+                            in: { $toObjectId: '$$id' }
+                        }
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'classes',
+                    localField: 'classIds',
+                    foreignField: '_id',
+                    as: 'classes'
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    name: 1,
+                    shortName: 1,
+                    category: 1,
+                    classIds: 1,
+                    classes: {
+                        _id: 1,
+                        name: 1,
+                        displayName: 1,
+                        level: 1,
+                        section: 1,
+                        academicYear: 1,
+                        isActive: 1
+                    },
+                    description: 1,
+                    color: 1,
+                    isActive: 1,
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }
+        ]);
         res.status(201).json({
             success: true,
-            subject: newSubject
+            subject: subjects[0]
         });
     }
     catch (err) {
@@ -56,7 +141,9 @@ export async function createSubject(req, res, next) {
 export async function getSubjects(req, res, next) {
     try {
         const { page, limit, search, category, level, isActive } = GetSubjectsQuerySchema.parse(req.query);
-        const query = {};
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const query = { adminId };
         if (category) {
             query.category = category.toUpperCase();
         }
@@ -76,9 +163,11 @@ export async function getSubjects(req, res, next) {
         const skip = (page - 1) * limit;
         const [subjects, total] = await Promise.all([
             Subject.find(query)
+                .select('_id code name shortName category classIds description color isActive createdAt updatedAt')
                 .sort({ category: 1, name: 1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             Subject.countDocuments(query)
         ]);
         res.json({
@@ -100,10 +189,55 @@ export async function getSubjects(req, res, next) {
 export async function getSubject(req, res, next) {
     try {
         const { id } = req.params;
-        const subject = await Subject.findById(id);
-        if (!subject)
+        const subjects = await Subject.aggregate([
+            { $match: { _id: new mongoose.Types.ObjectId(id) } },
+            {
+                $addFields: {
+                    classIds: {
+                        $map: {
+                            input: '$classIds',
+                            as: 'id',
+                            in: { $toObjectId: '$$id' }
+                        }
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'classes',
+                    localField: 'classIds',
+                    foreignField: '_id',
+                    as: 'classes'
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    name: 1,
+                    shortName: 1,
+                    category: 1,
+                    classIds: 1,
+                    classes: {
+                        _id: 1,
+                        name: 1,
+                        displayName: 1,
+                        level: 1,
+                        section: 1,
+                        academicYear: 1,
+                        isActive: 1
+                    },
+                    description: 1,
+                    color: 1,
+                    isActive: 1,
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }
+        ]);
+        if (subjects.length === 0)
             throw new createHttpError.NotFound("Subject not found");
-        res.json({ success: true, subject });
+        res.json({ success: true, subject: subjects[0] });
     }
     catch (err) {
         next(err);
@@ -136,7 +270,54 @@ export async function updateSubject(req, res, next) {
             new: true,
             runValidators: true
         });
-        res.json({ success: true, subject: updatedSubject });
+        // Get updated subject with class details using aggregation
+        const subjects = await Subject.aggregate([
+            { $match: { _id: updatedSubject._id } },
+            {
+                $addFields: {
+                    classIds: {
+                        $map: {
+                            input: '$classIds',
+                            as: 'id',
+                            in: { $toObjectId: '$$id' }
+                        }
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: 'classes',
+                    localField: 'classIds',
+                    foreignField: '_id',
+                    as: 'classes'
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    code: 1,
+                    name: 1,
+                    shortName: 1,
+                    category: 1,
+                    classIds: 1,
+                    classes: {
+                        _id: 1,
+                        name: 1,
+                        displayName: 1,
+                        level: 1,
+                        section: 1,
+                        academicYear: 1,
+                        isActive: 1
+                    },
+                    description: 1,
+                    color: 1,
+                    isActive: 1,
+                    createdAt: 1,
+                    updatedAt: 1
+                }
+            }
+        ]);
+        res.json({ success: true, subject: subjects[0] });
     }
     catch (err) {
         next(err);
@@ -161,7 +342,7 @@ export async function getSubjectsByCategory(req, res, next) {
     try {
         const { category } = req.params;
         const { level } = req.query;
-        const query = { category: category.toUpperCase() };
+        const query = { category: category?.toUpperCase() };
         if (level) {
             query.level = parseInt(level);
         }
@@ -185,6 +366,103 @@ export async function getSubjectsByLevel(req, res, next) {
             .sort({ category: 1, name: 1 })
             .select('code name shortName category color');
         res.json({ success: true, data: subjects });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+// Upload Reference Book
+export async function uploadReferenceBookToSubject(req, res, next) {
+    try {
+        const { id } = req.params;
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const userId = auth.sub;
+        if (!req.file) {
+            throw new createHttpError.BadRequest("No PDF file uploaded");
+        }
+        const subject = await Subject.findOne({ _id: id, adminId });
+        if (!subject) {
+            throw new createHttpError.NotFound("Subject not found");
+        }
+        // Delete existing reference book if it exists
+        if (subject.referenceBook && fs.existsSync(subject.referenceBook.filePath)) {
+            fs.unlinkSync(subject.referenceBook.filePath);
+        }
+        // Update subject with new reference book information
+        subject.referenceBook = {
+            fileName: req.file.filename,
+            originalName: req.file.originalname,
+            filePath: req.file.path,
+            fileSize: req.file.size,
+            uploadedAt: new Date(),
+            uploadedBy: userId
+        };
+        await subject.save();
+        res.json({
+            success: true,
+            message: "Reference book uploaded successfully",
+            referenceBook: {
+                fileName: subject.referenceBook.fileName,
+                originalName: subject.referenceBook.originalName,
+                fileSize: subject.referenceBook.fileSize,
+                uploadedAt: subject.referenceBook.uploadedAt
+            }
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+// Download Reference Book
+export async function downloadReferenceBook(req, res, next) {
+    try {
+        const { id } = req.params;
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const subject = await Subject.findOne({ _id: id, adminId });
+        if (!subject) {
+            throw new createHttpError.NotFound("Subject not found");
+        }
+        if (!subject.referenceBook) {
+            throw new createHttpError.NotFound("No reference book uploaded for this subject");
+        }
+        const filePath = subject.referenceBook.filePath;
+        if (!fs.existsSync(filePath)) {
+            throw new createHttpError.NotFound("Reference book file not found");
+        }
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${subject.referenceBook.originalName}"`);
+        res.sendFile(path.resolve(filePath));
+    }
+    catch (err) {
+        next(err);
+    }
+}
+// Delete Reference Book
+export async function deleteReferenceBook(req, res, next) {
+    try {
+        const { id } = req.params;
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const subject = await Subject.findOne({ _id: id, adminId });
+        if (!subject) {
+            throw new createHttpError.NotFound("Subject not found");
+        }
+        if (!subject.referenceBook) {
+            throw new createHttpError.NotFound("No reference book to delete");
+        }
+        // Delete the file from filesystem
+        if (fs.existsSync(subject.referenceBook.filePath)) {
+            fs.unlinkSync(subject.referenceBook.filePath);
+        }
+        // Remove reference book information from subject
+        delete subject.referenceBook;
+        await subject.save();
+        res.json({
+            success: true,
+            message: "Reference book deleted successfully"
+        });
     }
     catch (err) {
         next(err);

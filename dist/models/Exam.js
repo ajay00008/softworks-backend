@@ -26,6 +26,7 @@ const ExamSchema = new Schema({
         required: true,
         index: true
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     totalMarks: {
         type: Number,
         required: true,

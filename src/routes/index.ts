@@ -53,7 +53,11 @@ import {
   updateSubject,
   deleteSubject,
   getSubjectsByCategory,
-  getSubjectsByLevel
+  getSubjectsByLevel,
+  uploadReferenceBook,
+  uploadReferenceBookToSubject,
+  downloadReferenceBook,
+  deleteReferenceBook
 } from "../controllers/subjectController";
 import {
   createQuestion,
@@ -121,13 +125,19 @@ import {
   generateQuestionsWithConfig
 } from "../controllers/aiController";
 import {
-  createTemplate,
-  getTemplates,
-  getTemplate,
-  updateTemplate,
-  deleteTemplate,
   generateQuestionPaper
 } from "../controllers/questionPaperController";
+import {
+  createQuestionPaper,
+  getQuestionPapers,
+  getQuestionPaper,
+  updateQuestionPaper,  
+  deleteQuestionPaper,
+  generateAIQuestionPaper,
+  uploadQuestionPaperPdf,
+  uploadPDFQuestionPaper,
+  downloadQuestionPaperPDF
+} from "../controllers/enhancedQuestionPaperController";
 
 const router = Router();
 
@@ -1403,6 +1413,89 @@ router.get("/admin/subjects/category/:category", requireAuth, requireRoles("ADMI
  *         description: List of subjects for the level
  */
 router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByLevel);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   post:
+ *     tags: [Admin - Subjects]
+ *     summary: Upload reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               referenceBook:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Reference book uploaded successfully
+ *       400:
+ *         description: No PDF file uploaded
+ *       404:
+ *         description: Subject not found
+ */
+router.post("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadReferenceBook, uploadReferenceBookToSubject);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Download reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.get("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadReferenceBook);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   delete:
+ *     tags: [Admin - Subjects]
+ *     summary: Delete reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book deleted successfully
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.delete("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteReferenceBook);
 
 // ==================== QUESTION MANAGEMENT ROUTES ====================
 
@@ -3599,7 +3692,7 @@ router.post("/admin/ai/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       409:
  *         description: Template name already exists
  */
-router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createTemplate);
+// router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createTemplate);
 
 /**
  * @openapi
@@ -3644,7 +3737,7 @@ router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN"
  *       200:
  *         description: List of templates
  */
-router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplates);
+// router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplates);
 
 /**
  * @openapi
@@ -3666,7 +3759,7 @@ router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN",
  *       404:
  *         description: Template not found
  */
-router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplate);
+// router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplate);
 
 /**
  * @openapi
@@ -3721,7 +3814,7 @@ router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADM
  *       404:
  *         description: Template not found
  */
-router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateTemplate);
+// router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateTemplate);
 
 /**
  * @openapi
@@ -3743,7 +3836,7 @@ router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADM
  *       404:
  *         description: Template not found
  */
-router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), deleteTemplate);
+// router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), deleteTemplate);
 
 /**
  * @openapi
@@ -3781,6 +3874,325 @@ router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("
  *         description: Template not found
  */
 router.post("/admin/question-paper-templates/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestionPaper);
+
+// ==================== QUESTION PAPER MANAGEMENT ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/question-papers:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Create a new question paper
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, examId, subjectId, classId, type, markDistribution, bloomsDistribution]
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "Mathematics Unit Test - Chapter 1"
+ *               description:
+ *                 type: string
+ *                 example: "Test covering basic algebra concepts"
+ *               examId:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [AI_GENERATED, PDF_UPLOADED, MANUAL]
+ *               markDistribution:
+ *                 type: object
+ *                 properties:
+ *                   oneMark:
+ *                     type: number
+ *                     example: 10
+ *                   twoMark:
+ *                     type: number
+ *                     example: 5
+ *                   threeMark:
+ *                     type: number
+ *                     example: 3
+ *                   fiveMark:
+ *                     type: number
+ *                     example: 2
+ *                   totalQuestions:
+ *                     type: number
+ *                     example: 20
+ *                   totalMarks:
+ *                     type: number
+ *                     example: 50
+ *               bloomsDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     level:
+ *                       type: string
+ *                       enum: [REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE]
+ *                     percentage:
+ *                       type: number
+ *               aiSettings:
+ *                 type: object
+ *                 properties:
+ *                   referenceBookUsed:
+ *                     type: boolean
+ *                   customInstructions:
+ *                     type: string
+ *                   difficultyLevel:
+ *                     type: string
+ *                     enum: [EASY, MODERATE, TOUGHEST]
+ *                   twistedQuestionsPercentage:
+ *                     type: number
+ *     responses:
+ *       201:
+ *         description: Question paper created successfully
+ *       400:
+ *         description: Invalid input data
+ *       404:
+ *         description: Exam, subject, or class not found
+ */
+router.post("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Get all question papers with pagination and filtering
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [AI_GENERATED, PDF_UPLOADED, MANUAL]
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [DRAFT, GENERATED, PUBLISHED, ARCHIVED]
+ *     responses:
+ *       200:
+ *         description: List of question papers
+ */
+router.get("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPapers);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Get a single question paper by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question paper details
+ *       404:
+ *         description: Question paper not found
+ */
+router.get("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}:
+ *   put:
+ *     tags: [Admin - Question Papers]
+ *     summary: Update a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               markDistribution:
+ *                 type: object
+ *               bloomsDistribution:
+ *                 type: array
+ *     responses:
+ *       200:
+ *         description: Question paper updated successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.put("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}:
+ *   delete:
+ *     tags: [Admin - Question Papers]
+ *     summary: Delete a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question paper deleted successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/generate-ai:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Generate AI question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               customSettings:
+ *                 type: object
+ *                 properties:
+ *                   referenceBookUsed:
+ *                     type: boolean
+ *                   customInstructions:
+ *                     type: string
+ *                   difficultyLevel:
+ *                     type: string
+ *                     enum: [EASY, MODERATE, TOUGHEST]
+ *                   twistedQuestionsPercentage:
+ *                     type: number
+ *     responses:
+ *       200:
+ *         description: Question paper generated successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateAIQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/upload-pdf:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Upload PDF question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionPaper:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: PDF question paper uploaded successfully
+ *       400:
+ *         description: No PDF file uploaded
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadQuestionPaperPdf, uploadPDFQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/download:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Download question paper as PDF
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question paper PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Question paper not found
+ */
+router.get("/admin/question-papers/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadQuestionPaperPDF);
 
 export default router;
 

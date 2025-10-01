@@ -3,6 +3,7 @@ import createHttpError from "http-errors";
 import { Question } from "../models/Question";
 import { Subject } from "../models/Subject";
 import { Class } from "../models/Class";
+import { Syllabus } from "../models/Syllabus";
 import AIService from "../services/aiService";
 const CreateQuestionSchema = z.object({
     questionText: z.string().min(10),
@@ -52,25 +53,41 @@ const GenerateQuestionsSchema = z.object({
 export async function createQuestion(req, res, next) {
     try {
         const questionData = CreateQuestionSchema.parse(req.body);
-        const userId = req.auth?.sub;
+        const auth = req.auth;
+        const userId = auth?.sub;
+        const adminId = auth?.adminId;
         if (!userId) {
             throw new createHttpError.Unauthorized("User not authenticated");
         }
-        // Validate subject and class exist
+        if (!adminId) {
+            throw new createHttpError.Unauthorized("Admin ID not found in token");
+        }
+        // Validate subject and class exist and belong to the same admin
         const [subject, classExists] = await Promise.all([
-            Subject.findById(questionData.subjectId),
-            Class.findById(questionData.classId)
+            Subject.findOne({ _id: questionData.subjectId, adminId, isActive: true }),
+            Class.findOne({ _id: questionData.classId, adminId, isActive: true })
         ]);
         if (!subject)
-            throw new createHttpError.NotFound("Subject not found");
+            throw new createHttpError.NotFound("Subject not found or not accessible");
         if (!classExists)
-            throw new createHttpError.NotFound("Class not found");
+            throw new createHttpError.NotFound("Class not found or not accessible");
+        // Validate that syllabus exists for this subject and class combination
+        const syllabus = await Syllabus.findOne({
+            subjectId: questionData.subjectId,
+            classId: questionData.classId,
+            adminId,
+            isActive: true
+        });
+        if (!syllabus) {
+            throw new createHttpError.BadRequest("No syllabus found for this subject and class combination. Please upload syllabus first.");
+        }
         // Validate options for multiple choice questions
         if (questionData.questionType === "MULTIPLE_CHOICE" && (!questionData.options || questionData.options.length < 2)) {
             throw new createHttpError.BadRequest("Multiple choice questions must have at least 2 options");
         }
         const question = await Question.create({
             ...questionData,
+            adminId,
             createdBy: userId
         });
         const populatedQuestion = await Question.findById(question._id)
@@ -91,7 +108,9 @@ export async function getQuestions(req, res, next) {
     try {
         const queryParams = GetQuestionsQuerySchema.parse(req.query);
         const { page, limit, search, subjectId, classId, unit, bloomsTaxonomyLevel, difficulty, isTwisted, language, isActive } = queryParams;
-        const query = {};
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const query = { adminId };
         if (subjectId)
             query.subjectId = subjectId;
         if (classId)
@@ -220,15 +239,30 @@ export async function generateQuestions(req, res, next) {
         if (!userId) {
             throw new createHttpError.Unauthorized("User not authenticated");
         }
-        // Validate subject and class exist
+        const auth = req.auth;
+        const adminId = auth?.adminId;
+        if (!adminId) {
+            throw new createHttpError.Unauthorized("Admin ID not found in token");
+        }
+        // Validate subject and class exist and belong to the same admin
         const [subject, classExists] = await Promise.all([
-            Subject.findById(subjectId),
-            Class.findById(classId)
+            Subject.findOne({ _id: subjectId, adminId, isActive: true }),
+            Class.findOne({ _id: classId, adminId, isActive: true })
         ]);
         if (!subject)
-            throw new createHttpError.NotFound("Subject not found");
+            throw new createHttpError.NotFound("Subject not found or not accessible");
         if (!classExists)
-            throw new createHttpError.NotFound("Class not found");
+            throw new createHttpError.NotFound("Class not found or not accessible");
+        // Validate that syllabus exists for this subject and class combination
+        const syllabus = await Syllabus.findOne({
+            subjectId,
+            classId,
+            adminId,
+            isActive: true
+        });
+        if (!syllabus) {
+            throw new createHttpError.BadRequest("No syllabus found for this subject and class combination. Please upload syllabus first.");
+        }
         // Generate questions using AI service
         const aiGeneratedQuestions = await AIService.generateQuestions({
             subjectId,
@@ -256,6 +290,7 @@ export async function generateQuestions(req, res, next) {
             marks: aiQuestion.marks,
             timeLimit: aiQuestion.timeLimit,
             tags: aiQuestion.tags || [],
+            adminId,
             createdBy: userId,
             language
         }));

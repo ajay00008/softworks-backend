@@ -3,16 +3,16 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export type BloomsTaxonomyLevel = "REMEMBER" | "UNDERSTAND" | "APPLY" | "ANALYZE" | "EVALUATE" | "CREATE";
 export type QuestionDifficulty = "EASY" | "MODERATE" | "TOUGHEST";
 export type QuestionType = 
-  | "MULTIPLE_CHOICE" 
-  | "FILL_BLANKS" 
-  | "ONE_WORD_ANSWER" 
-  | "TRUE_FALSE" 
-  | "MULTIPLE_ANSWERS" 
-  | "MATCHING_PAIRS" 
-  | "DRAWING_DIAGRAM" 
-  | "MARKING_PARTS"
-  | "SHORT_ANSWER" 
-  | "LONG_ANSWER";
+  | "CHOOSE_BEST_ANSWER"      // Choose the best answer (multiple choice)
+  | "FILL_BLANKS"             // Fill in the blanks
+  | "ONE_WORD_ANSWER"         // One word answers
+  | "TRUE_FALSE"             // True or false
+  | "CHOOSE_MULTIPLE_ANSWERS" // Choose the multiple answers
+  | "MATCHING_PAIRS"          // Choose the matching pairs using arrow marks
+  | "DRAWING_DIAGRAM"         // Draw the map or any diagrams and mark the parts, objects states etc
+  | "MARKING_PARTS"           // Mark the correct object or parts etc
+  | "SHORT_ANSWER"           // Short answer questions
+  | "LONG_ANSWER";           // Long answer questions
 
 export interface IQuestion extends Document {
   questionText: string;
@@ -52,7 +52,7 @@ const QuestionSchema = new Schema<IQuestion>(
     },
     questionType: { 
       type: String, 
-      enum: ["MULTIPLE_CHOICE", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+      enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
       required: true
     },
     subjectId: { 

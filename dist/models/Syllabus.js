@@ -21,6 +21,7 @@ const SyllabusSchema = new Schema({
         required: true,
         index: true
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     academicYear: {
         type: String,
         required: true,
@@ -61,11 +62,6 @@ const SyllabusSchema = new Schema({
                 min: 0
             }
         }],
-    totalHours: {
-        type: Number,
-        required: true,
-        min: 0
-    },
     uploadedBy: {
         type: Schema.Types.ObjectId,
         ref: "User",

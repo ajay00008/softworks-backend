@@ -5,7 +5,9 @@ import { getAllClassSubjectMappings, getSubjectsForClassLevel, getTeachersForCla
  */
 export async function getClassSubjectMappings(req, res, next) {
     try {
-        const mappings = await getAllClassSubjectMappings();
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const mappings = await getAllClassSubjectMappings(adminId);
         res.json({
             success: true,
             data: mappings
@@ -28,7 +30,9 @@ export async function getSubjectsForLevel(req, res, next) {
         if (isNaN(levelNumber) || levelNumber < 1 || levelNumber > 12) {
             throw new createHttpError.BadRequest("Invalid class level. Must be between 1 and 12");
         }
-        const subjects = await getSubjectsForClassLevel(levelNumber);
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const subjects = await getSubjectsForClassLevel(levelNumber, adminId);
         res.json({
             success: true,
             data: subjects

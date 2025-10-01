@@ -7,7 +7,7 @@ const QuestionSchema = new Schema({
     },
     questionType: {
         type: String,
-        enum: ["MULTIPLE_CHOICE", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+        enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
         required: true
     },
     subjectId: {
@@ -22,6 +22,7 @@ const QuestionSchema = new Schema({
         required: true,
         index: true
     },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     unit: {
         type: String,
         required: true,
@@ -111,9 +112,9 @@ const QuestionSchema = new Schema({
     }
 }, { timestamps: true });
 // Indexes for efficient queries
-QuestionSchema.index({ subjectId: 1, classId: 1 });
-QuestionSchema.index({ bloomsTaxonomyLevel: 1, difficulty: 1 });
-QuestionSchema.index({ unit: 1, subjectId: 1 });
-QuestionSchema.index({ createdBy: 1, isActive: 1 });
+QuestionSchema.index({ adminId: 1, subjectId: 1, classId: 1 });
+QuestionSchema.index({ adminId: 1, bloomsTaxonomyLevel: 1, difficulty: 1 });
+QuestionSchema.index({ adminId: 1, unit: 1, subjectId: 1 });
+QuestionSchema.index({ adminId: 1, createdBy: 1, isActive: 1 });
 export const Question = mongoose.models.Question || mongoose.model("Question", QuestionSchema);
 //# sourceMappingURL=Question.js.map

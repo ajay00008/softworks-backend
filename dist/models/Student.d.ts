@@ -1,6 +1,7 @@
 import mongoose, { Document, Model } from "mongoose";
 export interface IStudent extends Document {
     userId: mongoose.Types.ObjectId;
+    adminId: mongoose.Types.ObjectId;
     rollNumber: string;
     classId: mongoose.Types.ObjectId;
     fatherName?: string;

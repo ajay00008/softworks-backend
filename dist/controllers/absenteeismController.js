@@ -34,7 +34,7 @@ const GetAbsenteeismQuerySchema = z.object({
 export async function reportAbsenteeism(req, res, next) {
     try {
         const absenteeismData = CreateAbsenteeismSchema.parse(req.body);
-        const userId = req.user.id;
+        const userId = req.auth?.sub;
         // Validate exam and student exist
         const [exam, student] = await Promise.all([
             Exam.findById(absenteeismData.examId),
@@ -170,7 +170,7 @@ export async function acknowledgeAbsenteeism(req, res, next) {
     try {
         const { id } = req.params;
         const { adminRemarks } = req.body;
-        const userId = req.user.id;
+        const userId = req.auth?.sub;
         const absenteeism = await Absenteeism.findById(id);
         if (!absenteeism)
             throw new createHttpError.NotFound("Absenteeism report not found");
@@ -202,7 +202,7 @@ export async function resolveAbsenteeism(req, res, next) {
     try {
         const { id } = req.params;
         const { adminRemarks } = req.body;
-        const userId = req.user.id;
+        const userId = req.auth?.sub;
         const absenteeism = await Absenteeism.findById(id);
         if (!absenteeism)
             throw new createHttpError.NotFound("Absenteeism report not found");
@@ -233,7 +233,7 @@ export async function escalateAbsenteeism(req, res, next) {
     try {
         const { id } = req.params;
         const { escalatedTo, adminRemarks } = req.body;
-        const userId = req.user.id;
+        const userId = req.auth?.sub;
         const absenteeism = await Absenteeism.findById(id);
         if (!absenteeism)
             throw new createHttpError.NotFound("Absenteeism report not found");

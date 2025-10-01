@@ -2,19 +2,17 @@ import { z } from "zod";
 import createHttpError from "http-errors";
 import { Class } from "../models/Class";
 const CreateClassSchema = z.object({
-    name: z.string().regex(/^[0-9]+[A-Z]$/, "Class name must be in format like 10A, 9B, 12C"),
+    name: z.string(),
     displayName: z.string().min(1),
     level: z.number().int().min(1).max(12),
-    section: z.string().regex(/^[A-Z]$/, "Section must be a single letter"),
-    academicYear: z.string().regex(/^\d{4}-\d{2}$/, "Academic year must be in format YYYY-YY"),
+    section: z.string(),
     description: z.string().optional(),
 });
 const UpdateClassSchema = z.object({
-    name: z.string().regex(/^[0-9]+[A-Z]$/, "Class name must be in format like 10A, 9B, 12C").optional(),
+    name: z.string(),
     displayName: z.string().min(1).optional(),
     level: z.number().int().min(1).max(12).optional(),
-    section: z.string().regex(/^[A-Z]$/, "Section must be a single letter").optional(),
-    academicYear: z.string().regex(/^\d{4}-\d{2}$/, "Academic year must be in format YYYY-YY").optional(),
+    section: z.string(),
     description: z.string().optional(),
     isActive: z.boolean().optional(),
 });
@@ -23,22 +21,24 @@ const GetClassesQuerySchema = z.object({
     limit: z.union([z.string(), z.number()]).transform(Number).default(10),
     search: z.string().optional(),
     level: z.string().transform(Number).optional(),
-    academicYear: z.string().optional(),
     isActive: z.string().transform(Boolean).optional(),
 });
 // Create Class
 export async function createClass(req, res, next) {
     try {
         const classData = CreateClassSchema.parse(req.body);
-        // Check if class already exists
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        // Check if class already exists for this admin
         const existing = await Class.findOne({
             name: classData.name.toUpperCase(),
-            academicYear: classData.academicYear
+            adminId
         });
         if (existing)
-            throw new createHttpError.Conflict("Class already exists for this academic year");
+            throw new createHttpError.Conflict("Class already exists");
         const newClass = await Class.create({
             ...classData,
+            adminId,
             name: classData.name.toUpperCase(),
             section: classData.section.toUpperCase()
         });
@@ -54,13 +54,12 @@ export async function createClass(req, res, next) {
 // Get All Classes
 export async function getClasses(req, res, next) {
     try {
-        const { page, limit, search, level, academicYear, isActive } = GetClassesQuerySchema.parse(req.query);
-        const query = {};
+        const { page, limit, search, level, isActive } = GetClassesQuerySchema.parse(req.query);
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const query = { adminId };
         if (level) {
             query.level = level;
-        }
-        if (academicYear) {
-            query.academicYear = academicYear;
         }
         if (isActive !== undefined) {
             query.isActive = isActive;
@@ -75,7 +74,7 @@ export async function getClasses(req, res, next) {
         const skip = (page - 1) * limit;
         const [classes, total] = await Promise.all([
             Class.find(query)
-                .sort({ level: 1, section: 1, academicYear: -1 })
+                .sort({ level: 1, section: 1 })
                 .skip(skip)
                 .limit(limit),
             Class.countDocuments(query)
@@ -117,12 +116,10 @@ export async function updateClass(req, res, next) {
         if (!classData)
             throw new createHttpError.NotFound("Class not found");
         // Check if name and academic year combination already exists (if being changed)
-        if (updateData.name || updateData.academicYear) {
+        if (updateData.name) {
             const name = updateData.name?.toUpperCase() || classData.name;
-            const academicYear = updateData.academicYear || classData.academicYear;
             const existing = await Class.findOne({
                 name,
-                academicYear,
                 _id: { $ne: id }
             });
             if (existing)
@@ -162,14 +159,10 @@ export async function deleteClass(req, res, next) {
 export async function getClassesByLevel(req, res, next) {
     try {
         const { level } = req.params;
-        const { academicYear } = req.query;
         const query = { level: parseInt(level) };
-        if (academicYear) {
-            query.academicYear = academicYear;
-        }
         const classes = await Class.find(query)
             .sort({ section: 1 })
-            .select('name displayName section academicYear isActive');
+            .select('name displayName section isActive');
         res.json({ success: true, data: classes });
     }
     catch (err) {

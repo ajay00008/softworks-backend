@@ -1,12 +1,13 @@
 import mongoose, { Document, Model } from "mongoose";
 export type BloomsTaxonomyLevel = "REMEMBER" | "UNDERSTAND" | "APPLY" | "ANALYZE" | "EVALUATE" | "CREATE";
 export type QuestionDifficulty = "EASY" | "MODERATE" | "TOUGHEST";
-export type QuestionType = "MULTIPLE_CHOICE" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+export type QuestionType = "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
 export interface IQuestion extends Document {
     questionText: string;
     questionType: QuestionType;
     subjectId: mongoose.Types.ObjectId;
     classId: mongoose.Types.ObjectId;
+    adminId: mongoose.Types.ObjectId;
     unit: string;
     bloomsTaxonomyLevel: BloomsTaxonomyLevel;
     difficulty: QuestionDifficulty;

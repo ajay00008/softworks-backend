@@ -3,6 +3,9 @@ import { z } from "zod";
 import createHttpError from "http-errors";
 import mongoose from "mongoose";
 import { Subject } from "../models/Subject";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const CreateSubjectSchema = z.object({
   code: z.string().regex(/^[A-Z0-9_]+$/, "Subject code must contain only uppercase letters, numbers, and underscores"),
@@ -33,6 +36,37 @@ const GetSubjectsQuerySchema = z.object({
   level: z.string().transform(Number).optional(),
   isActive: z.string().transform(Boolean).optional(),
 });
+
+// Multer configuration for reference book uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../../uploads/reference-books');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `reference-book-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB limit for reference books
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF files are allowed for reference books'));
+    }
+  }
+});
+
+export const uploadReferenceBook = upload.single('referenceBook');
 
 // Create Subject
 export async function createSubject(req: Request, res: Response, next: NextFunction) {
@@ -334,7 +368,7 @@ export async function getSubjectsByCategory(req: Request, res: Response, next: N
     const { category } = req.params;
     const { level } = req.query;
     
-    const query: any = { category: category.toUpperCase() };
+    const query: any = { category: category?.toUpperCase() };
     if (level) {
       query.level = parseInt(level as string);
     }
@@ -355,13 +389,126 @@ export async function getSubjectsByLevel(req: Request, res: Response, next: Next
     const { level } = req.params;
     
     const subjects = await Subject.find({ 
-      level: parseInt(level),
+      level: parseInt(level as string),
       isActive: true 
     })
       .sort({ category: 1, name: 1 })
       .select('code name shortName category color');
     
     res.json({ success: true, data: subjects });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Upload Reference Book
+export async function uploadReferenceBookToSubject(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    const userId = auth.sub;
+    
+    if (!req.file) {
+      throw new createHttpError.BadRequest("No PDF file uploaded");
+    }
+    
+    const subject = await Subject.findOne({ _id: id, adminId });
+    if (!subject) {
+      throw new createHttpError.NotFound("Subject not found");
+    }
+    
+    // Delete existing reference book if it exists
+    if (subject.referenceBook && fs.existsSync(subject.referenceBook.filePath)) {
+      fs.unlinkSync(subject.referenceBook.filePath);
+    }
+    
+    // Update subject with new reference book information
+    subject.referenceBook = {
+      fileName: req.file.filename,
+      originalName: req.file.originalname,
+      filePath: req.file.path,
+      fileSize: req.file.size,
+      uploadedAt: new Date(),
+      uploadedBy: userId
+    };
+    
+    await subject.save();
+    
+    res.json({
+      success: true,
+      message: "Reference book uploaded successfully",
+      referenceBook: {
+        fileName: subject.referenceBook.fileName,
+        originalName: subject.referenceBook.originalName,
+        fileSize: subject.referenceBook.fileSize,
+        uploadedAt: subject.referenceBook.uploadedAt
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Download Reference Book
+export async function downloadReferenceBook(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    
+    const subject = await Subject.findOne({ _id: id, adminId });
+    if (!subject) {
+      throw new createHttpError.NotFound("Subject not found");
+    }
+    
+    if (!subject.referenceBook) {
+      throw new createHttpError.NotFound("No reference book uploaded for this subject");
+    }
+    
+    const filePath = subject.referenceBook.filePath;
+    
+    if (!fs.existsSync(filePath)) {
+      throw new createHttpError.NotFound("Reference book file not found");
+    }
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${subject.referenceBook.originalName}"`);
+    res.sendFile(path.resolve(filePath));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Delete Reference Book
+export async function deleteReferenceBook(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    
+    const subject = await Subject.findOne({ _id: id, adminId });
+    if (!subject) {
+      throw new createHttpError.NotFound("Subject not found");
+    }
+    
+    if (!subject.referenceBook) {
+      throw new createHttpError.NotFound("No reference book to delete");
+    }
+    
+    // Delete the file from filesystem
+    if (fs.existsSync(subject.referenceBook.filePath)) {
+      fs.unlinkSync(subject.referenceBook.filePath);
+    }
+    
+    // Remove reference book information from subject
+    delete subject.referenceBook;
+    await subject.save();
+    
+    res.json({
+      success: true,
+      message: "Reference book deleted successfully"
+    });
   } catch (err) {
     next(err);
   }

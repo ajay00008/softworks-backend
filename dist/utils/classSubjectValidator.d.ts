@@ -15,7 +15,7 @@ export interface ClassSubjectMapping {
 /**
  * Get all subjects available for a specific class level
  */
-export declare function getSubjectsForClassLevel(level: number): Promise<Array<{
+export declare function getSubjectsForClassLevel(level: number, adminId: string): Promise<Array<{
     id: string;
     code: string;
     name: string;
@@ -24,9 +24,9 @@ export declare function getSubjectsForClassLevel(level: number): Promise<Array<{
     level: number[];
 }>>;
 /**
- * Get all classes with their available subjects
+ * Get all classes with their available subjects for a specific admin
  */
-export declare function getAllClassSubjectMappings(): Promise<ClassSubjectMapping[]>;
+export declare function getAllClassSubjectMappings(adminId: string): Promise<ClassSubjectMapping[]>;
 /**
  * Validate if a teacher can teach a specific class based on their subjects
  */

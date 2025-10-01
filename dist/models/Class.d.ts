@@ -1,10 +1,10 @@
-import { Document, Model } from "mongoose";
+import mongoose, { Document, Model } from "mongoose";
 export interface IClass extends Document {
     name: string;
     displayName: string;
     level: number;
     section: string;
-    academicYear: string;
+    adminId: mongoose.Types.ObjectId;
     isActive: boolean;
     description?: string;
 }

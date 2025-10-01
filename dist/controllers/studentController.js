@@ -41,64 +41,88 @@ const GetStudentsQuerySchema = z.object({
 });
 // Create Student
 export async function createStudent(req, res, next) {
+    let createdUser = null;
     try {
         const studentData = CreateStudentSchema.parse(req.body);
         const { email, password, name, rollNumber, classId, ...additionalData } = studentData;
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        // First, check if any classes exist for this admin
+        const totalClasses = await Class.countDocuments({ adminId, isActive: true });
+        if (totalClasses === 0) {
+            throw new createHttpError.BadRequest("Cannot create students. Please create at least one class first.");
+        }
         const exists = await User.findOne({ email });
         if (exists)
             throw new createHttpError.Conflict("Email already in use");
-        // Validate that the class exists and is active
-        const classExists = await Class.findById(classId);
-        if (!classExists)
-            throw new createHttpError.NotFound("Class not found");
-        if (!classExists.isActive)
-            throw new createHttpError.BadRequest("Class is not active");
-        // Check if roll number already exists in the same class
-        const rollExists = await Student.findOne({ rollNumber, classId });
+        // Validate that the class exists, is active, and belongs to the same admin
+        const classExists = await Class.findOne({ _id: classId, adminId, isActive: true });
+        if (!classExists) {
+            throw new createHttpError.BadRequest("Class not found, inactive, or not accessible");
+        }
+        // Check if roll number already exists in the same class for this admin
+        const rollExists = await Student.findOne({ rollNumber, classId, adminId });
         if (rollExists)
             throw new createHttpError.Conflict("Roll number already exists in this class");
         const passwordHash = await bcrypt.hash(password, 12);
-        const user = await User.create({
-            email,
-            passwordHash,
-            name,
-            role: "STUDENT",
-            isActive: true
-        });
-        const student = await Student.create({
-            userId: user._id,
-            rollNumber,
-            classId,
-            ...additionalData
-        });
-        // Populate class information for response
-        const populatedStudent = await Student.findById(student._id).populate('classId', 'name displayName level section academicYear');
-        res.status(201).json({
-            success: true,
-            student: {
-                id: user._id,
-                email: user.email,
-                name: user.name,
-                rollNumber: student.rollNumber,
-                class: {
-                    id: populatedStudent.classId._id,
-                    name: populatedStudent.classId.name,
-                    displayName: populatedStudent.classId.displayName,
-                    level: populatedStudent.classId.level,
-                    section: populatedStudent.classId.section,
-                    academicYear: populatedStudent.classId.academicYear
-                },
-                fatherName: student.fatherName,
-                motherName: student.motherName,
-                dateOfBirth: student.dateOfBirth,
-                parentsPhone: student.parentsPhone,
-                parentsEmail: student.parentsEmail,
-                address: student.address,
-                whatsappNumber: student.whatsappNumber,
-                isActive: user.isActive,
-                createdAt: user.createdAt
+        try {
+            // Create user first
+            createdUser = await User.create({
+                email,
+                passwordHash,
+                name,
+                role: "STUDENT",
+                isActive: true
+            });
+            // Create student
+            const student = await Student.create({
+                userId: createdUser._id,
+                adminId,
+                rollNumber,
+                classId,
+                ...additionalData
+            });
+            // Populate class information for response
+            const populatedStudent = await Student.findById(student._id).populate('classId', 'name displayName level section academicYear');
+            res.status(201).json({
+                success: true,
+                student: {
+                    id: createdUser._id,
+                    email: createdUser.email,
+                    name: createdUser.name,
+                    rollNumber: student.rollNumber,
+                    class: {
+                        id: populatedStudent.classId._id,
+                        name: populatedStudent.classId.name,
+                        displayName: populatedStudent.classId.displayName,
+                        level: populatedStudent.classId.level,
+                        section: populatedStudent.classId.section,
+                        academicYear: populatedStudent.classId.academicYear
+                    },
+                    fatherName: student.fatherName,
+                    motherName: student.motherName,
+                    dateOfBirth: student.dateOfBirth,
+                    parentsPhone: student.parentsPhone,
+                    parentsEmail: student.parentsEmail,
+                    address: student.address,
+                    whatsappNumber: student.whatsappNumber,
+                    isActive: createdUser.isActive,
+                    createdAt: createdUser.createdAt
+                }
+            });
+        }
+        catch (studentError) {
+            // If student creation fails, delete the user
+            if (createdUser) {
+                try {
+                    await User.findByIdAndDelete(createdUser._id);
+                }
+                catch (deleteError) {
+                    console.error('Failed to delete user after student creation failure:', deleteError);
+                }
             }
-        });
+            throw studentError; // Re-throw the original error
+        }
     }
     catch (err) {
         next(err);
@@ -108,7 +132,9 @@ export async function createStudent(req, res, next) {
 export async function getStudents(req, res, next) {
     try {
         const { page, limit, search, classId, isActive } = GetStudentsQuerySchema.parse(req.query);
-        const query = {};
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        const query = { adminId };
         if (classId) {
             query.classId = classId;
         }

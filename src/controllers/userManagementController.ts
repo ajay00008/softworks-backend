@@ -40,6 +40,13 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
       throw new createHttpError.Unauthorized("Admin ID not found in token");
     }
     
+    // First, check if any classes exist for this admin
+    const { Class } = await import("../models/Class");
+    const totalClasses = await Class.countDocuments({ adminId, isActive: true });
+    if (totalClasses === 0) {
+      throw new createHttpError.BadRequest("Cannot create teachers. Please create at least one class first.");
+    }
+    
     const exists = await User.findOne({ email });
     if (exists) throw new createHttpError.Conflict("Email already in use");
     

@@ -10,6 +10,14 @@ export interface ISubject extends Document {
   isActive: boolean;
   description?: string;
   color?: string; // For UI display purposes
+  referenceBook?: {
+    fileName: string;
+    originalName: string;
+    filePath: string;
+    fileSize: number;
+    uploadedAt: Date;
+    uploadedBy: mongoose.Types.ObjectId;
+  };
 }
 
 const SubjectSchema = new Schema<ISubject>(
@@ -55,6 +63,14 @@ const SubjectSchema = new Schema<ISubject>(
       type: String,
       trim: true,
       match: [/^#[0-9A-Fa-f]{6}$/, "Color must be a valid hex color code"]
+    },
+    referenceBook: {
+      fileName: { type: String, trim: true },
+      originalName: { type: String, trim: true },
+      filePath: { type: String, trim: true },
+      fileSize: { type: Number, min: 0 },
+      uploadedAt: { type: Date, default: Date.now },
+      uploadedBy: { type: Schema.Types.ObjectId, ref: "User" }
     }
   },
   { timestamps: true }

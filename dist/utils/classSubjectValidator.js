@@ -5,10 +5,11 @@ import { Student } from "../models/Student";
 /**
  * Get all subjects available for a specific class level
  */
-export async function getSubjectsForClassLevel(level) {
+export async function getSubjectsForClassLevel(level, adminId) {
     const subjects = await Subject.find({
         level: { $in: [level] },
-        isActive: true
+        isActive: true,
+        adminId
     }).select('code name shortName category level');
     return subjects.map(subject => ({
         id: subject._id.toString(),
@@ -20,13 +21,13 @@ export async function getSubjectsForClassLevel(level) {
     }));
 }
 /**
- * Get all classes with their available subjects
+ * Get all classes with their available subjects for a specific admin
  */
-export async function getAllClassSubjectMappings() {
-    const classes = await Class.find({ isActive: true });
+export async function getAllClassSubjectMappings(adminId) {
+    const classes = await Class.find({ isActive: true, adminId });
     const mappings = [];
     for (const classItem of classes) {
-        const availableSubjects = await getSubjectsForClassLevel(classItem.level);
+        const availableSubjects = await getSubjectsForClassLevel(classItem.level, adminId);
         mappings.push({
             classId: classItem._id.toString(),
             className: classItem.name,

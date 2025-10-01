@@ -9,19 +9,58 @@ const CreateTeacherSchema = z.object({
     password: z.string().min(8),
     name: z.string().min(2),
     subjectIds: z.array(z.string()).default([]),
+    classIds: z.array(z.string()).default([]),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    qualification: z.string().optional(),
+    experience: z.number().optional(),
 });
 export async function createTeacher(req, res, next) {
     try {
-        const { email, password, name, subjectIds } = CreateTeacherSchema.parse(req.body);
+        const { email, password, name, subjectIds, classIds, phone, address, qualification, experience } = CreateTeacherSchema.parse(req.body);
+        const auth = req.auth;
+        const adminId = auth.adminId;
+        console.log('🔍 Creating teacher with data:', {
+            email,
+            name,
+            subjectIds,
+            classIds,
+            phone,
+            address,
+            qualification,
+            experience,
+            adminId
+        });
+        if (!adminId) {
+            throw new createHttpError.Unauthorized("Admin ID not found in token");
+        }
+        // First, check if any classes exist for this admin
+        const { Class } = await import("../models/Class");
+        const totalClasses = await Class.countDocuments({ adminId, isActive: true });
+        if (totalClasses === 0) {
+            throw new createHttpError.BadRequest("Cannot create teachers. Please create at least one class first.");
+        }
         const exists = await User.findOne({ email });
         if (exists)
             throw new createHttpError.Conflict("Email already in use");
         const passwordHash = await bcrypt.hash(password, 12);
         const user = await User.create({ email, passwordHash, name, role: "TEACHER" });
-        await Teacher.create({ userId: user._id, subjectIds });
+        const teacher = await Teacher.create({
+            userId: user._id,
+            adminId,
+            subjectIds,
+            classIds,
+            phone,
+            address,
+            qualification,
+            experience
+        });
+        console.log('✅ Teacher created with ID:', teacher._id);
+        console.log('🔍 Teacher classIds after creation:', teacher.classIds);
         res.status(201).json({ success: true, teacher: { id: user._id, email: user.email, name: user.name } });
     }
     catch (err) {
+        console.error('❌ Error creating teacher:', err);
         next(err);
     }
 }

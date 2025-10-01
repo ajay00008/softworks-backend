@@ -4,6 +4,7 @@ export interface ISyllabus extends Document {
     description?: string;
     subjectId: mongoose.Types.ObjectId;
     classId: mongoose.Types.ObjectId;
+    adminId: mongoose.Types.ObjectId;
     academicYear: string;
     units: {
         unitNumber: number;

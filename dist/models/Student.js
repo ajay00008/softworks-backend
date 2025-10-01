@@ -1,6 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 const StudentSchema = new Schema({
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true, unique: true },
+    adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     rollNumber: {
         type: String,
         required: true,
@@ -49,5 +50,6 @@ const StudentSchema = new Schema({
     },
 }, { timestamps: true });
 StudentSchema.index({ classId: 1, rollNumber: 1 }, { unique: true });
+StudentSchema.index({ adminId: 1, classId: 1, rollNumber: 1 }, { unique: true });
 export const Student = mongoose.models.Student || mongoose.model("Student", StudentSchema);
 //# sourceMappingURL=Student.js.map

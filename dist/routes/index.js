@@ -2,11 +2,13 @@ import { Router } from "express";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
-import { createStudent, createTeacher } from "../controllers/userManagementController";
+import { createTeacher } from "../controllers/userManagementController";
 import { createAdmin as createAdminSuper, getAdmins, getAdmin, updateAdmin, deleteAdmin, activateAdmin } from "../controllers/superAdminController";
 import { createStudent as createStudentNew, getStudents, getStudent, updateStudent, deleteStudent, activateStudent, getStudentsByClass } from "../controllers/studentController";
 import { createTeacher as createTeacherNew, getTeachers, getTeacher, updateTeacher, deleteTeacher, activateTeacher, assignSubjects, assignClasses } from "../controllers/teacherController";
 import { getClassSubjectMappings, getSubjectsForLevel, getTeachersForClass, getClassesForTeacher, getAssignedClassesForTeacher, validateConsistency } from "../controllers/classSubjectController";
+import { createClass, getClasses, getClass, updateClass, deleteClass, getClassesByLevel } from "../controllers/classController";
+import { createSubject, getSubjects, getSubject, updateSubject, deleteSubject, getSubjectsByCategory, getSubjectsByLevel, uploadReferenceBook, uploadReferenceBookToSubject, downloadReferenceBook, deleteReferenceBook } from "../controllers/subjectController";
 import { createQuestion, getQuestions, getQuestion, updateQuestion, deleteQuestion, generateQuestions, getQuestionStatistics } from "../controllers/questionController";
 import { createExam, getExams, getExam, updateExam, deleteExam, startExam, endExam, getExamResults, getExamStatistics } from "../controllers/examController";
 import { getIndividualPerformance, getClassPerformance, getPerformanceAnalytics, getPerformanceReport } from "../controllers/performanceController";
@@ -15,7 +17,8 @@ import { reportAbsenteeism, getAbsenteeismReports, getAbsenteeismReport, acknowl
 import { printAllStudentsAnswers, printIndividualStudentAnswer, printClassResultsSummary, printPerformanceReport } from "../controllers/printingController";
 import { sendResultsToParents, sendBulkMessage, sendIndividualResult } from "../controllers/communicationController";
 import { getAIConfig, updateAIConfig, testAIConfig, getAIProviders, generateQuestionsWithConfig } from "../controllers/aiController";
-import { createTemplate, getTemplates, getTemplate, updateTemplate, deleteTemplate, generateQuestionPaper } from "../controllers/questionPaperController";
+import { generateQuestionPaper } from "../controllers/questionPaperController";
+import { createQuestionPaper, getQuestionPapers, getQuestionPaper, updateQuestionPaper, deleteQuestionPaper, generateAIQuestionPaper, uploadQuestionPaperPdf, uploadPDFQuestionPaper, downloadQuestionPaperPDF } from "../controllers/enhancedQuestionPaperController";
 const router = Router();
 // Health
 router.get("/health", (_req, res) => res.json({ ok: true }));
@@ -137,7 +140,7 @@ router.post("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       201:
  *         description: Student created
  */
-router.post("/admin/students", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createStudent);
+// Removed old student creation route - using new one below
 // ==================== SUPER ADMIN ROUTES ====================
 /**
  * @openapi
@@ -839,6 +842,486 @@ router.get("/admin/teachers/:teacherId/assigned-classes", requireAuth, requireRo
  *         description: Data consistency validation results
  */
 router.get("/admin/validate-consistency", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), validateConsistency);
+// ==================== CLASS MANAGEMENT ROUTES ====================
+/**
+ * @openapi
+ * /api/admin/classes:
+ *   post:
+ *     tags: [Admin - Classes]
+ *     summary: Create a new class (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name, displayName, level, section, academicYear]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "10A"
+ *               displayName:
+ *                 type: string
+ *                 example: "Class 10A"
+ *               level:
+ *                 type: number
+ *                 example: 10
+ *               section:
+ *                 type: string
+ *                 example: "A"
+ *               academicYear:
+ *                 type: string
+ *                 example: "2024-25"
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Class created successfully
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Class already exists
+ */
+router.post("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createClass);
+/**
+ * @openapi
+ * /api/admin/classes:
+ *   get:
+ *     tags: [Admin - Classes]
+ *     summary: Get all classes with pagination and filters (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: academicYear
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of classes
+ */
+router.get("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClasses);
+/**
+ * @openapi
+ * /api/admin/classes/{id}:
+ *   get:
+ *     tags: [Admin - Classes]
+ *     summary: Get a specific class by ID (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Class details
+ *       404:
+ *         description: Class not found
+ */
+router.get("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClass);
+/**
+ * @openapi
+ * /api/admin/classes/{id}:
+ *   put:
+ *     tags: [Admin - Classes]
+ *     summary: Update a class (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               displayName:
+ *                 type: string
+ *               level:
+ *                 type: number
+ *               section:
+ *                 type: string
+ *               academicYear:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Class updated successfully
+ *       404:
+ *         description: Class not found
+ */
+router.put("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateClass);
+/**
+ * @openapi
+ * /api/admin/classes/{id}:
+ *   delete:
+ *     tags: [Admin - Classes]
+ *     summary: Delete a class (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Class deleted successfully
+ *       404:
+ *         description: Class not found
+ */
+router.delete("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteClass);
+/**
+ * @openapi
+ * /api/admin/classes/level/{level}:
+ *   get:
+ *     tags: [Admin - Classes]
+ *     summary: Get classes by level (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: level
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of classes for the level
+ */
+router.get("/admin/classes/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClassesByLevel);
+// ==================== SUBJECT MANAGEMENT ROUTES ====================
+/**
+ * @openapi
+ * /api/admin/subjects:
+ *   post:
+ *     tags: [Admin - Subjects]
+ *     summary: Create a new subject (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code, name, shortName, category, level]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: "MATH_10"
+ *               name:
+ *                 type: string
+ *                 example: "Mathematics"
+ *               shortName:
+ *                 type: string
+ *                 example: "Math"
+ *               category:
+ *                 type: string
+ *                 enum: [SCIENCE, MATHEMATICS, LANGUAGES, SOCIAL_SCIENCES, COMMERCE, ARTS, PHYSICAL_EDUCATION, COMPUTER_SCIENCE, OTHER]
+ *               level:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *                 example: [10, 11, 12]
+ *               description:
+ *                 type: string
+ *               color:
+ *                 type: string
+ *                 example: "#FF5733"
+ *     responses:
+ *       201:
+ *         description: Subject created successfully
+ *       400:
+ *         description: Invalid input data
+ *       409:
+ *         description: Subject code already exists
+ */
+router.post("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createSubject);
+/**
+ * @openapi
+ * /api/admin/subjects:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get all subjects with pagination and filters (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of subjects
+ */
+router.get("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjects);
+/**
+ * @openapi
+ * /api/admin/subjects/{id}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get a specific subject by ID (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subject details
+ *       404:
+ *         description: Subject not found
+ */
+router.get("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubject);
+/**
+ * @openapi
+ * /api/admin/subjects/{id}:
+ *   put:
+ *     tags: [Admin - Subjects]
+ *     summary: Update a subject (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *               name:
+ *                 type: string
+ *               shortName:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               level:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               description:
+ *                 type: string
+ *               color:
+ *                 type: string
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Subject updated successfully
+ *       404:
+ *         description: Subject not found
+ */
+router.put("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateSubject);
+/**
+ * @openapi
+ * /api/admin/subjects/{id}:
+ *   delete:
+ *     tags: [Admin - Subjects]
+ *     summary: Delete a subject (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Subject deleted successfully
+ *       404:
+ *         description: Subject not found
+ */
+router.delete("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteSubject);
+/**
+ * @openapi
+ * /api/admin/subjects/category/{category}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get subjects by category (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: category
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of subjects for the category
+ */
+router.get("/admin/subjects/category/:category", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByCategory);
+/**
+ * @openapi
+ * /api/admin/subjects/level/{level}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get subjects by level (Admin or Super Admin)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: level
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of subjects for the level
+ */
+router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByLevel);
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   post:
+ *     tags: [Admin - Subjects]
+ *     summary: Upload reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               referenceBook:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Reference book uploaded successfully
+ *       400:
+ *         description: No PDF file uploaded
+ *       404:
+ *         description: Subject not found
+ */
+router.post("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadReferenceBook, uploadReferenceBookToSubject);
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Download reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.get("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadReferenceBook);
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   delete:
+ *     tags: [Admin - Subjects]
+ *     summary: Delete reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book deleted successfully
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.delete("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteReferenceBook);
 // ==================== QUESTION MANAGEMENT ROUTES ====================
 /**
  * @openapi
@@ -2957,7 +3440,7 @@ router.post("/admin/ai/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       409:
  *         description: Template name already exists
  */
-router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createTemplate);
+// router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createTemplate);
 /**
  * @openapi
  * /api/admin/question-paper-templates:
@@ -3001,7 +3484,7 @@ router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN"
  *       200:
  *         description: List of templates
  */
-router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplates);
+// router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplates);
 /**
  * @openapi
  * /api/admin/question-paper-templates/{id}:
@@ -3022,7 +3505,7 @@ router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN",
  *       404:
  *         description: Template not found
  */
-router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplate);
+// router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getTemplate);
 /**
  * @openapi
  * /api/admin/question-paper-templates/{id}:
@@ -3076,7 +3559,7 @@ router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADM
  *       404:
  *         description: Template not found
  */
-router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateTemplate);
+// router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateTemplate);
 /**
  * @openapi
  * /api/admin/question-paper-templates/{id}:
@@ -3097,7 +3580,7 @@ router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADM
  *       404:
  *         description: Template not found
  */
-router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), deleteTemplate);
+// router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), deleteTemplate);
 /**
  * @openapi
  * /api/admin/question-paper-templates/generate:
@@ -3134,5 +3617,315 @@ router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("
  *         description: Template not found
  */
 router.post("/admin/question-paper-templates/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestionPaper);
+// ==================== QUESTION PAPER MANAGEMENT ROUTES ====================
+/**
+ * @openapi
+ * /api/admin/question-papers:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Create a new question paper
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, examId, subjectId, classId, type, markDistribution, bloomsDistribution]
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 example: "Mathematics Unit Test - Chapter 1"
+ *               description:
+ *                 type: string
+ *                 example: "Test covering basic algebra concepts"
+ *               examId:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [AI_GENERATED, PDF_UPLOADED, MANUAL]
+ *               markDistribution:
+ *                 type: object
+ *                 properties:
+ *                   oneMark:
+ *                     type: number
+ *                     example: 10
+ *                   twoMark:
+ *                     type: number
+ *                     example: 5
+ *                   threeMark:
+ *                     type: number
+ *                     example: 3
+ *                   fiveMark:
+ *                     type: number
+ *                     example: 2
+ *                   totalQuestions:
+ *                     type: number
+ *                     example: 20
+ *                   totalMarks:
+ *                     type: number
+ *                     example: 50
+ *               bloomsDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     level:
+ *                       type: string
+ *                       enum: [REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE]
+ *                     percentage:
+ *                       type: number
+ *               aiSettings:
+ *                 type: object
+ *                 properties:
+ *                   referenceBookUsed:
+ *                     type: boolean
+ *                   customInstructions:
+ *                     type: string
+ *                   difficultyLevel:
+ *                     type: string
+ *                     enum: [EASY, MODERATE, TOUGHEST]
+ *                   twistedQuestionsPercentage:
+ *                     type: number
+ *     responses:
+ *       201:
+ *         description: Question paper created successfully
+ *       400:
+ *         description: Invalid input data
+ *       404:
+ *         description: Exam, subject, or class not found
+ */
+router.post("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Get all question papers with pagination and filtering
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [AI_GENERATED, PDF_UPLOADED, MANUAL]
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [DRAFT, GENERATED, PUBLISHED, ARCHIVED]
+ *     responses:
+ *       200:
+ *         description: List of question papers
+ */
+router.get("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPapers);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Get a single question paper by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question paper details
+ *       404:
+ *         description: Question paper not found
+ */
+router.get("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}:
+ *   put:
+ *     tags: [Admin - Question Papers]
+ *     summary: Update a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               markDistribution:
+ *                 type: object
+ *               bloomsDistribution:
+ *                 type: array
+ *     responses:
+ *       200:
+ *         description: Question paper updated successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.put("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}:
+ *   delete:
+ *     tags: [Admin - Question Papers]
+ *     summary: Delete a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question paper deleted successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/generate-ai:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Generate AI question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               customSettings:
+ *                 type: object
+ *                 properties:
+ *                   referenceBookUsed:
+ *                     type: boolean
+ *                   customInstructions:
+ *                     type: string
+ *                   difficultyLevel:
+ *                     type: string
+ *                     enum: [EASY, MODERATE, TOUGHEST]
+ *                   twistedQuestionsPercentage:
+ *                     type: number
+ *     responses:
+ *       200:
+ *         description: Question paper generated successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateAIQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/upload-pdf:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Upload PDF question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionPaper:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: PDF question paper uploaded successfully
+ *       400:
+ *         description: No PDF file uploaded
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadQuestionPaperPdf, uploadPDFQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/download:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Download question paper as PDF
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question paper PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Question paper not found
+ */
+router.get("/admin/question-papers/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadQuestionPaperPDF);
 export default router;
 //# sourceMappingURL=index.js.map

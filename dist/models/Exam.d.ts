@@ -7,6 +7,7 @@ export interface IExam extends Document {
     examType: ExamType;
     subjectId: mongoose.Types.ObjectId;
     classId: mongoose.Types.ObjectId;
+    adminId: mongoose.Types.ObjectId;
     totalMarks: number;
     duration: number;
     status: ExamStatus;

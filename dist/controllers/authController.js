@@ -6,7 +6,7 @@ import { env } from "../config/env";
 import createHttpError from "http-errors";
 const LoginSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(6),
+    password: z.string(),
 });
 export async function login(req, res, next) {
     try {
@@ -17,7 +17,12 @@ export async function login(req, res, next) {
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok)
             throw new createHttpError.Unauthorized("Invalid credentials");
-        const token = jwt.sign({ sub: user._id.toString(), role: user.role }, env.JWT_SECRET, {
+        const payload = { sub: user._id.toString(), role: user.role };
+        // Include adminId for ADMIN and SUPER_ADMIN roles
+        if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") {
+            payload.adminId = user._id.toString();
+        }
+        const token = jwt.sign(payload, env.JWT_SECRET, {
             expiresIn: env.JWT_EXPIRES_IN,
         });
         res.json({ success: true, token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
