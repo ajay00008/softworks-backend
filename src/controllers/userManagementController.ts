@@ -47,7 +47,7 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
       throw new createHttpError.BadRequest("Cannot create teachers. Please create at least one class first.");
     }
     
-    const exists = await User.findOne({ email });
+    const exists = await User.findOne({ email, role: "TEACHER" });
     if (exists) throw new createHttpError.Conflict("Email already in use");
     
     const passwordHash = await bcrypt.hash(password, 12);

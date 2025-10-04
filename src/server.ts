@@ -4,6 +4,8 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
+import path from "path";
+import { fileURLToPath } from "url";
 import { sanitizeRequests } from "./middleware/sanitize";
 import { env } from "./config/env";
 import routes from "./routes";
@@ -11,6 +13,10 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import logger from "./utils/logger";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
@@ -28,6 +34,9 @@ app.use(
   })
 );
 app.use(morgan("combined"));
+
+// Serve static files from public directory
+app.use("/public", express.static(path.resolve(__dirname, "../public")));
 
 // Swagger docs
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));

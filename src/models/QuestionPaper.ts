@@ -19,7 +19,6 @@ export interface IQuestionPaper extends Document {
     twoMark: number; // Number of 2-mark questions
     threeMark: number; // Number of 3-mark questions
     fiveMark: number; // Number of 5-mark questions
-    totalQuestions: number; // Max 100
     totalMarks: number;
   };
   
@@ -115,7 +114,6 @@ const QuestionPaperSchema = new Schema<IQuestionPaper>(
       twoMark: { type: Number, required: true, min: 0, max: 100 },
       threeMark: { type: Number, required: true, min: 0, max: 100 },
       fiveMark: { type: Number, required: true, min: 0, max: 100 },
-      totalQuestions: { type: Number, required: true, min: 1, max: 100 },
       totalMarks: { type: Number, required: true, min: 1, max: 1000 }
     },
     bloomsDistribution: [{
@@ -178,17 +176,19 @@ QuestionPaperSchema.index({ adminId: 1, subjectId: 1, classId: 1 });
 QuestionPaperSchema.index({ adminId: 1, status: 1 });
 QuestionPaperSchema.index({ createdBy: 1, isActive: 1 });
 
-// Validation to ensure total questions don't exceed 100 and percentages add up correctly
+// Validation to ensure total marks from questions match the total marks
 QuestionPaperSchema.pre('save', function(next) {
-  const total = this.markDistribution.oneMark + this.markDistribution.twoMark + 
-                this.markDistribution.threeMark + this.markDistribution.fiveMark;
+  const totalMarksFromQuestions = (this.markDistribution.oneMark * 1) + 
+                                  (this.markDistribution.twoMark * 2) + 
+                                  (this.markDistribution.threeMark * 3) + 
+                                  (this.markDistribution.fiveMark * 5);
   
-  if (total > 100) {
-    return next(new Error('Total questions cannot exceed 100'));
+  if (totalMarksFromQuestions > this.markDistribution.totalMarks) {
+    return next(new Error('Total marks from questions cannot exceed the total marks'));
   }
   
-  if (total !== this.markDistribution.totalQuestions) {
-    return next(new Error('Total questions count must match the sum of individual mark questions'));
+  if (this.markDistribution.totalMarks === 100 && totalMarksFromQuestions !== 100) {
+    return next(new Error('When total marks is 100, the calculated marks from questions must equal exactly 100'));
   }
   
   // Validate Blooms taxonomy percentages add up to 100

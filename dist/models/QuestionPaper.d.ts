@@ -15,7 +15,6 @@ export interface IQuestionPaper extends Document {
         twoMark: number;
         threeMark: number;
         fiveMark: number;
-        totalQuestions: number;
         totalMarks: number;
     };
     bloomsDistribution: {

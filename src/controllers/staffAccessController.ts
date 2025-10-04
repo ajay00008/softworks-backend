@@ -372,3 +372,32 @@ export const getStaffSubjects = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
+// Delete staff access
+export const deleteStaffAccess = async (req: Request, res: Response) => {
+  try {
+    const { staffAccessId } = req.params;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const staffAccess = await StaffAccess.findById(staffAccessId);
+    if (!staffAccess) {
+      return res.status(404).json({ success: false, error: 'Staff access not found' });
+    }
+
+    await StaffAccess.findByIdAndDelete(staffAccessId);
+
+    logger.info(`Staff access deleted: ${staffAccessId} by ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Staff access deleted successfully'
+    });
+  } catch (error) {
+    logger.error('Error deleting staff access:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};

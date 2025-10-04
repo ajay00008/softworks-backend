@@ -9,4 +9,5 @@ export declare function downloadQuestionPaperPDF(req: Request, res: Response, ne
 export declare function updateQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function deleteQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function publishQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function generateCompleteAIQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
 //# sourceMappingURL=enhancedQuestionPaperController.d.ts.map

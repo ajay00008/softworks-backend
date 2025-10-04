@@ -1,11 +1,14 @@
-import PDFDocument from 'pdfkit';
-import fs from 'fs';
-import path from 'path';
+import PDFDocument from "pdfkit"
+import * as fs from 'fs';
+import * as path from 'path';
 import { QuestionPaper } from '../models/QuestionPaper';
 import { Question } from '../models/Question';
 import { Subject } from '../models/Subject';
 import { Class } from '../models/Class';
 import { Exam } from '../models/Exam';
+
+// Type alias for PDFDocument
+type PDFDoc = typeof PDFDocument;
 
 export interface GeneratedQuestion {
   questionText: string;
@@ -58,52 +61,67 @@ export class PDFGenerationService {
     const filePath = path.join(this.QUESTION_PAPERS_FOLDER, fileName);
     const downloadUrl = `/question-papers/${fileName}`;
 
-    // Create PDF document
-    const doc = new PDFDocument({
-      size: 'A4',
-      margins: {
-        top: 50,
-        bottom: 50,
-        left: 50,
-        right: 50
-      }
-    });
-
-    // Create write stream
-    const stream = fs.createWriteStream(filePath);
-    doc.pipe(stream);
-
-    // Add header
-    this.addHeader(doc, subjectName, className, examTitle, totalMarks, duration);
-
-    // Add instructions
-    this.addInstructions(doc);
-
-    // Add questions
-    let questionNumber = 1;
-    for (const question of questions) {
-      this.addQuestion(doc, question, questionNumber);
-      questionNumber++;
-    }
-
-    // Add footer
-    this.addFooter(doc);
-
-    // Finalize PDF
-    doc.end();
-
     return new Promise((resolve, reject) => {
-      stream.on('finish', () => {
-        resolve({
-          fileName,
-          filePath,
-          downloadUrl
+      try {
+        // Create PDF document
+        const doc = new PDFDocument({
+          size: 'A4',
+          margins: {
+            top: 50,
+            bottom: 50,
+            left: 50,
+            right: 50
+          },
+          autoFirstPage: true
         });
-      });
-      
-      stream.on('error', (error) => {
-        reject(error);
-      });
+
+        // Create write stream
+        const stream = fs.createWriteStream(filePath);
+        doc.pipe(stream);
+
+        // Handle stream events
+        stream.on('error', (error) => {
+          console.error('Stream error:', error);
+          reject(error);
+        });
+
+        stream.on('finish', () => {
+          console.log('PDF generation completed successfully');
+          resolve({
+            fileName,
+            filePath,
+            downloadUrl
+          });
+        });
+
+        // Add content to PDF
+        try {
+          // Add header
+          this.addHeader(doc, subjectName, className, examTitle, totalMarks, duration);
+
+          // Add instructions
+          this.addInstructions(doc);
+
+          // Add questions
+          let questionNumber = 1;
+          for (const question of questions) {
+            this.addQuestion(doc, question, questionNumber);
+            questionNumber++;
+          }
+
+          // Add footer
+          this.addFooter(doc);
+
+          // Finalize PDF - this is crucial for proper PDF structure
+          doc.end();
+        } catch (contentError) {
+          console.error('Error adding content to PDF:', contentError);
+          reject(contentError);
+        }
+      } catch (error) {
+        console.error('Error creating PDF document:', error);
+        reject(error);  
+      }
     });
   }
 
@@ -111,7 +129,7 @@ export class PDFGenerationService {
    * Add header to the PDF
    */
   private static addHeader(
-    doc: PDFDocument,
+    doc: any,
     subjectName: string,
     className: string,
     examTitle: string,
@@ -148,7 +166,7 @@ export class PDFGenerationService {
   /**
    * Add instructions to the PDF
    */
-  private static addInstructions(doc: PDFDocument) {
+  private static addInstructions(doc: any) {
     doc.fontSize(12)
        .font('Helvetica-Bold')
        .text('INSTRUCTIONS:', { underline: true });
@@ -176,7 +194,7 @@ export class PDFGenerationService {
   /**
    * Add a question to the PDF
    */
-  private static addQuestion(doc: PDFDocument, question: GeneratedQuestion, questionNumber: number) {
+  private static addQuestion(doc: any, question: GeneratedQuestion, questionNumber: number) {
     // Check if we need a new page
     if (doc.y > 700) {
       doc.addPage();
@@ -235,7 +253,7 @@ export class PDFGenerationService {
   /**
    * Add multiple choice options
    */
-  private static addMultipleChoiceOptions(doc: PDFDocument, options: string[], multiple: boolean = false) {
+  private static addMultipleChoiceOptions(doc: any, options: string[], multiple: boolean = false) {
     if (options.length === 0) return;
 
     const prefix = multiple ? 'Choose all correct answers:' : 'Choose the best answer:';
@@ -256,7 +274,7 @@ export class PDFGenerationService {
   /**
    * Add True/False options
    */
-  private static addTrueFalseOptions(doc: PDFDocument) {
+  private static addTrueFalseOptions(doc: any) {
     doc.fontSize(10)
        .font('Helvetica')
        .text('A) True')
@@ -266,7 +284,7 @@ export class PDFGenerationService {
   /**
    * Add matching pairs
    */
-  private static addMatchingPairs(doc: PDFDocument, pairs: { left: string; right: string }[]) {
+  private static addMatchingPairs(doc: any, pairs: { left: string; right: string }[]) {
     if (pairs.length === 0) return;
 
     doc.fontSize(10)
@@ -285,7 +303,7 @@ export class PDFGenerationService {
   /**
    * Add drawing instructions
    */
-  private static addDrawingInstructions(doc: PDFDocument, instructions: string) {
+  private static addDrawingInstructions(doc: any, instructions: string) {
     doc.fontSize(10)
        .font('Helvetica-Bold')
        .text('Drawing Instructions:');
@@ -304,7 +322,7 @@ export class PDFGenerationService {
   /**
    * Add marking instructions
    */
-  private static addMarkingInstructions(doc: PDFDocument, instructions: string) {
+  private static addMarkingInstructions(doc: any, instructions: string) {
     doc.fontSize(10)
        .font('Helvetica-Bold')
        .text('Marking Instructions:');
@@ -319,7 +337,7 @@ export class PDFGenerationService {
   /**
    * Add fill in the blanks instructions
    */
-  private static addFillBlanksInstructions(doc: PDFDocument) {
+  private static addFillBlanksInstructions(doc: any) {
     doc.fontSize(10)
        .font('Helvetica-Bold')
        .text('Fill in the blanks with appropriate words:');
@@ -328,7 +346,7 @@ export class PDFGenerationService {
   /**
    * Add one word answer instructions
    */
-  private static addOneWordAnswerInstructions(doc: PDFDocument) {
+  private static addOneWordAnswerInstructions(doc: any) {
     doc.fontSize(10)
        .font('Helvetica-Bold')
        .text('Answer in one word:');
@@ -337,7 +355,7 @@ export class PDFGenerationService {
   /**
    * Add answer space based on marks
    */
-  private static addAnswerSpace(doc: PDFDocument, marks: number) {
+  private static addAnswerSpace(doc: any, marks: number) {
     const spaceHeight = Math.min(Math.max(marks * 2, 20), 100); // Proportional to marks
     
     doc.moveDown(0.3);
@@ -350,7 +368,7 @@ export class PDFGenerationService {
   /**
    * Add drawing space
    */
-  private static addDrawingSpace(doc: PDFDocument) {
+  private static addDrawingSpace(doc: any) {
     const spaceHeight = 80;
     
     doc.moveDown(0.3);
@@ -363,16 +381,21 @@ export class PDFGenerationService {
   /**
    * Add footer to the PDF
    */
-  private static addFooter(doc: PDFDocument) {
-    // Add page numbers if there are multiple pages
-    const pageCount = doc.bufferedPageRange().count;
-    if (pageCount > 1) {
-      for (let i = 0; i < pageCount; i++) {
-        doc.switchToPage(i);
-        doc.fontSize(8)
-           .font('Helvetica')
-           .text(`Page ${i + 1} of ${pageCount}`, 50, 750, { align: 'center' });
+  private static addFooter(doc: any) {
+    try {
+      // Add page numbers if there are multiple pages
+      const pageCount = doc.bufferedPageRange().count;
+      if (pageCount > 1) {
+        for (let i = 0; i < pageCount; i++) {
+          doc.switchToPage(i);
+          doc.fontSize(8)
+             .font('Helvetica')
+             .text(`Page ${i + 1} of ${pageCount}`, 50, 750, { align: 'center' });
+        }
       }
+    } catch (error) {
+      console.warn('Error adding footer to PDF:', error);
+      // Continue without footer if there's an error
     }
   }
 
@@ -380,7 +403,7 @@ export class PDFGenerationService {
    * Get download URL for a question paper PDF
    */
   static getDownloadUrl(fileName: string): string {
-    return `/question-papers/${fileName}`;
+    return `/public/question-papers/${fileName}`;
   }
 
   /**
