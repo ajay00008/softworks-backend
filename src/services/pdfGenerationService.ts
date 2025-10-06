@@ -359,9 +359,7 @@ export class PDFGenerationService {
     const spaceHeight = Math.min(Math.max(marks * 2, 20), 100); // Proportional to marks
     
     doc.moveDown(0.3);
-    doc.rect(50, doc.y, 500, spaceHeight)
-       .stroke();
-    
+    // Removed rectangular box - just add space without drawing
     doc.y += spaceHeight + 10;
   }
 
@@ -372,9 +370,7 @@ export class PDFGenerationService {
     const spaceHeight = 80;
     
     doc.moveDown(0.3);
-    doc.rect(50, doc.y, 500, spaceHeight)
-       .stroke();
-    
+    // Removed rectangular box - just add space without drawing
     doc.y += spaceHeight + 10;
   }
 

@@ -574,6 +574,13 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       status: 'DRAFT'
     });
 
+    // Populate the question paper with subject, class, and exam details
+    await questionPaper.populate([
+      { path: 'subjectId', select: 'name code' },
+      { path: 'classId', select: 'name displayName' },
+      { path: 'examId', select: 'title duration' }
+    ]);
+
     // Prepare AI request
     const aiRequest = {
       subjectId: questionPaper.subjectId._id.toString(),
