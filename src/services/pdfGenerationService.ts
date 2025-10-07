@@ -59,7 +59,7 @@ export class PDFGenerationService {
 
     const fileName = `question-paper-${questionPaperId}-${Date.now()}.pdf`;
     const filePath = path.join(this.QUESTION_PAPERS_FOLDER, fileName);
-    const downloadUrl = `/question-papers/${fileName}`;
+    const downloadUrl = `/public/question-papers/${fileName}`;
 
     return new Promise((resolve, reject) => {
       try {

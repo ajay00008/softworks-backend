@@ -8,4 +8,5 @@ export declare const checkClassAccess: (req: Request, res: Response) => Promise<
 export declare const checkSubjectAccess: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const getStaffClasses: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const getStaffSubjects: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const deleteStaffAccess: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=staffAccessController.d.ts.map
