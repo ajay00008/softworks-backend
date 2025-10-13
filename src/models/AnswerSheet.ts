@@ -15,22 +15,30 @@ export interface IAnswerSheet extends Document {
   isAligned: boolean;
   rollNumberDetected: string;
   rollNumberConfidence: number; // 0-100
+  confidence?: number; // Overall AI confidence score
   aiCorrectionResults?: {
+    answerSheetId: string;
+    status: string;
+    confidence: number;
     totalMarks: number;
-    answers: {
-      questionId: mongoose.Types.ObjectId;
-      detectedAnswer: string;
+    obtainedMarks: number;
+    percentage: number;
+    questionWiseResults: Array<{
+      questionNumber: number;
+      correctAnswer: string;
+      studentAnswer: string;
       isCorrect: boolean;
       marksObtained: number;
+      maxMarks: number;
+      feedback: string;
       confidence: number;
-      reasoning: string;
-      corrections: string[];
-    }[];
-    strengths: string[];
-    weakAreas: string[];
-    unansweredQuestions: mongoose.Types.ObjectId[];
-    irrelevantAnswers: string[];
+    }>;
     overallFeedback: string;
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+    processingTime: number;
+    errors?: string[];
   };
   manualOverrides?: {
     questionId: mongoose.Types.ObjectId;
@@ -111,22 +119,34 @@ const AnswerSheetSchema = new Schema<IAnswerSheet>(
       max: 100,
       default: 0
     },
+    confidence: { 
+      type: Number,
+      min: 0,
+      max: 1
+    },
     aiCorrectionResults: {
+      answerSheetId: { type: String },
+      status: { type: String },
+      confidence: { type: Number, min: 0, max: 1 },
       totalMarks: { type: Number, min: 0 },
-      answers: [{
-        questionId: { type: Schema.Types.ObjectId, ref: "Question", required: true },
-        detectedAnswer: { type: String, required: true },
+      obtainedMarks: { type: Number, min: 0 },
+      percentage: { type: Number, min: 0, max: 100 },
+      questionWiseResults: [{
+        questionNumber: { type: Number, required: true },
+        correctAnswer: { type: String, required: true },
+        studentAnswer: { type: String, required: true },
         isCorrect: { type: Boolean, required: true },
         marksObtained: { type: Number, required: true, min: 0 },
-        confidence: { type: Number, required: true, min: 0, max: 100 },
-        reasoning: { type: String, required: true },
-        corrections: [{ type: String }]
+        maxMarks: { type: Number, required: true, min: 0 },
+        feedback: { type: String, required: true },
+        confidence: { type: Number, required: true, min: 0, max: 1 }
       }],
+      overallFeedback: { type: String },
       strengths: [{ type: String }],
-      weakAreas: [{ type: String }],
-      unansweredQuestions: [{ type: Schema.Types.ObjectId, ref: "Question" }],
-      irrelevantAnswers: [{ type: String }],
-      overallFeedback: { type: String }
+      weaknesses: [{ type: String }],
+      suggestions: [{ type: String }],
+      processingTime: { type: Number, min: 0 },
+      errors: [{ type: String }]
     },
     manualOverrides: [{
       questionId: { type: Schema.Types.ObjectId, ref: "Question", required: true },

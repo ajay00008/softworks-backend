@@ -12,10 +12,29 @@ const CreateExamSchema = z.object({
     examType: z.enum(["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"]),
     subjectId: z.string().min(1),
     classId: z.string().min(1),
+    adminId: z.string().min(1).optional(), // Optional in request, will be set from auth if not provided
     totalMarks: z.number().min(1).max(1000),
     duration: z.number().min(15).max(480),
-    scheduledDate: z.string().transform(str => new Date(str)),
-    endDate: z.string().transform(str => new Date(str)).optional(),
+    scheduledDate: z.string().transform(str => {
+        if (!str || str.trim() === '') {
+            return undefined;
+        }
+        const date = new Date(str);
+        if (isNaN(date.getTime())) {
+            throw new Error('Invalid date format');
+        }
+        return date;
+    }).optional(),
+    endDate: z.string().transform(str => {
+        if (!str || str.trim() === '') {
+            return undefined;
+        }
+        const date = new Date(str);
+        if (isNaN(date.getTime())) {
+            throw new Error('Invalid date format');
+        }
+        return date;
+    }).optional(),
     questions: z.array(z.string()).optional(),
     questionDistribution: z.array(z.object({
         unit: z.string(),
@@ -65,10 +84,22 @@ export async function createExam(req, res, next) {
                 throw new createHttpError.BadRequest("One or more questions not found or inactive");
             }
         }
-        const exam = await Exam.create({
-            ...examData,
-            createdBy: userId
+        // Add fallback for scheduledDate if not provided
+        const fallbackDate = new Date();
+        const scheduledDate = examData.scheduledDate || fallbackDate;
+        console.log('Exam creation - Date handling:', {
+            providedDate: examData.scheduledDate,
+            fallbackDate: fallbackDate,
+            finalDate: scheduledDate,
+            dateString: scheduledDate.toISOString()
         });
+        const examDataWithFallback = {
+            ...examData,
+            scheduledDate: scheduledDate,
+            createdBy: userId,
+            adminId: examData.adminId || userId // Use provided adminId or default to current user
+        };
+        const exam = await Exam.create(examDataWithFallback);
         const populatedExam = await Exam.findById(exam._id)
             .populate('subjectId', 'code name shortName')
             .populate('classId', 'name displayName level section')

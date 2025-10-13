@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type ExamStatus = "DRAFT" | "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
-export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL";
+export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL" | "DAILY" | "WEEKLY" | "MONTHLY" | "UNIT_WISE" | "PAGE_WISE" | "TERM_TEST" | "ANNUAL_EXAM";
 
 export interface IExam extends Document {
   title: string;
@@ -10,7 +10,6 @@ export interface IExam extends Document {
   subjectId: mongoose.Types.ObjectId;
   classId: mongoose.Types.ObjectId;
   adminId: mongoose.Types.ObjectId; // references User with role ADMIN who created this exam
-  totalMarks: number;
   duration: number; // in minutes
   status: ExamStatus;
   scheduledDate: Date;
@@ -43,7 +42,7 @@ const ExamSchema = new Schema<IExam>(
     },
     examType: { 
       type: String, 
-      enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"],
+      enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL", "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"],
       required: true
     },
     subjectId: { 
@@ -59,12 +58,6 @@ const ExamSchema = new Schema<IExam>(
       index: true
     },
     adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    totalMarks: { 
-      type: Number, 
-      required: true,
-      min: 1,
-      max: 1000
-    },
     duration: { 
       type: Number, 
       required: true,

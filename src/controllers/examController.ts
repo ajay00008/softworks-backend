@@ -11,11 +11,13 @@ import { Student } from "../models/Student";
 const CreateExamSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
-  examType: z.enum(["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"]),
+  examType: z.enum([
+    "UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL",
+    "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"
+  ]),
   subjectId: z.string().min(1),
   classId: z.string().min(1),
   adminId: z.string().min(1).optional(), // Optional in request, will be set from auth if not provided
-  totalMarks: z.number().min(1).max(1000),
   duration: z.number().min(15).max(480),
   scheduledDate: z.string().transform(str => {
     if (!str || str.trim() === '') {
@@ -60,7 +62,10 @@ const GetExamsQuerySchema = z.object({
   search: z.string().optional(),
   subjectId: z.string().optional(),
   classId: z.string().optional(),
-  examType: z.enum(["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"]).optional(),
+  examType: z.enum([
+    "UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL",
+    "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"
+  ]).optional(),
   status: z.enum(["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "CANCELLED"]).optional(),
   isActive: z.string().transform(Boolean).optional()
 });

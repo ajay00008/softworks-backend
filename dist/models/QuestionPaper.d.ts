@@ -22,9 +22,23 @@ export interface IQuestionPaper extends Document {
         percentage: number;
     }[];
     questionTypeDistribution: {
-        type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
-        percentage: number;
-    }[];
+        oneMark?: {
+            type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+            percentage: number;
+        }[];
+        twoMark?: {
+            type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+            percentage: number;
+        }[];
+        threeMark?: {
+            type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+            percentage: number;
+        }[];
+        fiveMark?: {
+            type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+            percentage: number;
+        }[];
+    };
     questions: mongoose.Types.ObjectId[];
     generatedPdf?: {
         fileName: string;

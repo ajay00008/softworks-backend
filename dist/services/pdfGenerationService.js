@@ -1,6 +1,6 @@
-import PDFDocument from 'pdfkit';
-import fs from 'fs';
-import path from 'path';
+import PDFDocument from "pdfkit";
+import * as fs from 'fs';
+import * as path from 'path';
 import { QuestionPaper } from '../models/QuestionPaper';
 import { Question } from '../models/Question';
 import { Subject } from '../models/Subject';
@@ -29,45 +29,62 @@ export class PDFGenerationService {
         this.initialize();
         const fileName = `question-paper-${questionPaperId}-${Date.now()}.pdf`;
         const filePath = path.join(this.QUESTION_PAPERS_FOLDER, fileName);
-        const downloadUrl = `/question-papers/${fileName}`;
-        // Create PDF document
-        const doc = new PDFDocument({
-            size: 'A4',
-            margins: {
-                top: 50,
-                bottom: 50,
-                left: 50,
-                right: 50
-            }
-        });
-        // Create write stream
-        const stream = fs.createWriteStream(filePath);
-        doc.pipe(stream);
-        // Add header
-        this.addHeader(doc, subjectName, className, examTitle, totalMarks, duration);
-        // Add instructions
-        this.addInstructions(doc);
-        // Add questions
-        let questionNumber = 1;
-        for (const question of questions) {
-            this.addQuestion(doc, question, questionNumber);
-            questionNumber++;
-        }
-        // Add footer
-        this.addFooter(doc);
-        // Finalize PDF
-        doc.end();
+        const downloadUrl = `/public/question-papers/${fileName}`;
         return new Promise((resolve, reject) => {
-            stream.on('finish', () => {
-                resolve({
-                    fileName,
-                    filePath,
-                    downloadUrl
+            try {
+                // Create PDF document
+                const doc = new PDFDocument({
+                    size: 'A4',
+                    margins: {
+                        top: 50,
+                        bottom: 50,
+                        left: 50,
+                        right: 50
+                    },
+                    autoFirstPage: true
                 });
-            });
-            stream.on('error', (error) => {
+                // Create write stream
+                const stream = fs.createWriteStream(filePath);
+                doc.pipe(stream);
+                // Handle stream events
+                stream.on('error', (error) => {
+                    console.error('Stream error:', error);
+                    reject(error);
+                });
+                stream.on('finish', () => {
+                    console.log('PDF generation completed successfully');
+                    resolve({
+                        fileName,
+                        filePath,
+                        downloadUrl
+                    });
+                });
+                // Add content to PDF
+                try {
+                    // Add header
+                    this.addHeader(doc, subjectName, className, examTitle, totalMarks, duration);
+                    // Add instructions
+                    this.addInstructions(doc);
+                    // Add questions
+                    let questionNumber = 1;
+                    for (const question of questions) {
+                        this.addQuestion(doc, question, questionNumber);
+                        questionNumber++;
+                    }
+                    // Add footer
+                    this.addFooter(doc);
+                    // Finalize PDF - this is crucial for proper PDF structure
+                    doc.end();
+                }
+                catch (contentError) {
+                    console.error('Error adding content to PDF:', contentError);
+                    reject(contentError);
+                }
+            }
+            catch (error) {
+                console.error('Error creating PDF document:', error);
                 reject(error);
-            });
+            }
         });
     }
     /**
@@ -262,8 +279,7 @@ export class PDFGenerationService {
     static addAnswerSpace(doc, marks) {
         const spaceHeight = Math.min(Math.max(marks * 2, 20), 100); // Proportional to marks
         doc.moveDown(0.3);
-        doc.rect(50, doc.y, 500, spaceHeight)
-            .stroke();
+        // Removed rectangular box - just add space without drawing
         doc.y += spaceHeight + 10;
     }
     /**
@@ -272,30 +288,35 @@ export class PDFGenerationService {
     static addDrawingSpace(doc) {
         const spaceHeight = 80;
         doc.moveDown(0.3);
-        doc.rect(50, doc.y, 500, spaceHeight)
-            .stroke();
+        // Removed rectangular box - just add space without drawing
         doc.y += spaceHeight + 10;
     }
     /**
      * Add footer to the PDF
      */
     static addFooter(doc) {
-        // Add page numbers if there are multiple pages
-        const pageCount = doc.bufferedPageRange().count;
-        if (pageCount > 1) {
-            for (let i = 0; i < pageCount; i++) {
-                doc.switchToPage(i);
-                doc.fontSize(8)
-                    .font('Helvetica')
-                    .text(`Page ${i + 1} of ${pageCount}`, 50, 750, { align: 'center' });
+        try {
+            // Add page numbers if there are multiple pages
+            const pageCount = doc.bufferedPageRange().count;
+            if (pageCount > 1) {
+                for (let i = 0; i < pageCount; i++) {
+                    doc.switchToPage(i);
+                    doc.fontSize(8)
+                        .font('Helvetica')
+                        .text(`Page ${i + 1} of ${pageCount}`, 50, 750, { align: 'center' });
+                }
             }
+        }
+        catch (error) {
+            console.warn('Error adding footer to PDF:', error);
+            // Continue without footer if there's an error
         }
     }
     /**
      * Get download URL for a question paper PDF
      */
     static getDownloadUrl(fileName) {
-        return `/question-papers/${fileName}`;
+        return `/public/question-papers/${fileName}`;
     }
     /**
      * Delete a question paper PDF file

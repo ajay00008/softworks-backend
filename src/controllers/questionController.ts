@@ -9,7 +9,18 @@ import AIService from "../services/aiService";
 
 const CreateQuestionSchema = z.object({
   questionText: z.string().min(10),
-  questionType: z.enum(["MULTIPLE_CHOICE", "SHORT_ANSWER", "LONG_ANSWER", "TRUE_FALSE", "FILL_BLANKS"]),
+  questionType: z.enum([
+    "CHOOSE_BEST_ANSWER",
+    "FILL_BLANKS", 
+    "ONE_WORD_ANSWER",
+    "TRUE_FALSE",
+    "CHOOSE_MULTIPLE_ANSWERS",
+    "MATCHING_PAIRS",
+    "DRAWING_DIAGRAM",
+    "MARKING_PARTS",
+    "SHORT_ANSWER",
+    "LONG_ANSWER"
+  ]),
   subjectId: z.string().min(1),
   classId: z.string().min(1),
   unit: z.string().min(1),
@@ -22,7 +33,17 @@ const CreateQuestionSchema = z.object({
   marks: z.number().min(1).max(100),
   timeLimit: z.number().min(1).max(300).optional(),
   tags: z.array(z.string()).optional(),
-  language: z.enum(["ENGLISH", "TAMIL", "HINDI", "MALAYALAM", "TELUGU", "KANNADA"]).default("ENGLISH")
+  language: z.enum(["ENGLISH", "TAMIL", "HINDI", "MALAYALAM", "TELUGU", "KANNADA"]).default("ENGLISH"),
+  // Additional fields for new question types
+  matchingPairs: z.array(z.object({
+    left: z.string(),
+    right: z.string()
+  })).optional(),
+  multipleCorrectAnswers: z.array(z.string()).optional(),
+  drawingInstructions: z.string().optional(),
+  markingInstructions: z.string().optional(),
+  visualAids: z.array(z.string()).optional(),
+  interactiveElements: z.array(z.string()).optional()
 });
 
 const UpdateQuestionSchema = CreateQuestionSchema.partial();
@@ -93,8 +114,28 @@ export async function createQuestion(req: Request, res: Response, next: NextFunc
     }
     
     // Validate options for multiple choice questions
-    if (questionData.questionType === "MULTIPLE_CHOICE" && (!questionData.options || questionData.options.length < 2)) {
-      throw new createHttpError.BadRequest("Multiple choice questions must have at least 2 options");
+    if (questionData.questionType === "CHOOSE_BEST_ANSWER" && (!questionData.options || questionData.options.length < 2)) {
+      throw new createHttpError.BadRequest("Choose best answer questions must have at least 2 options");
+    }
+    
+    // Validate multiple correct answers for CHOOSE_MULTIPLE_ANSWERS
+    if (questionData.questionType === "CHOOSE_MULTIPLE_ANSWERS" && (!questionData.multipleCorrectAnswers || questionData.multipleCorrectAnswers.length < 2)) {
+      throw new createHttpError.BadRequest("Choose multiple answers questions must have at least 2 correct answers");
+    }
+    
+    // Validate matching pairs for MATCHING_PAIRS
+    if (questionData.questionType === "MATCHING_PAIRS" && (!questionData.matchingPairs || questionData.matchingPairs.length < 2)) {
+      throw new createHttpError.BadRequest("Matching pairs questions must have at least 2 pairs");
+    }
+    
+    // Validate drawing instructions for DRAWING_DIAGRAM
+    if (questionData.questionType === "DRAWING_DIAGRAM" && !questionData.drawingInstructions) {
+      throw new createHttpError.BadRequest("Drawing diagram questions must have drawing instructions");
+    }
+    
+    // Validate marking instructions for MARKING_PARTS
+    if (questionData.questionType === "MARKING_PARTS" && !questionData.markingInstructions) {
+      throw new createHttpError.BadRequest("Marking parts questions must have marking instructions");
     }
     
     const question = await Question.create({

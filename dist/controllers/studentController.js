@@ -155,31 +155,36 @@ export async function getStudents(req, res, next) {
                 .limit(limit),
             Student.countDocuments(query)
         ]);
-        // Transform the data to include all form fields
+        // Transform the data to include all form fields with fallbacks
         const transformedStudents = students.map(student => ({
             id: student.userId._id,
-            email: student.userId.email,
-            name: student.userId.name,
-            rollNumber: student.rollNumber,
+            email: student.userId.email || '',
+            name: student.userId.name || '',
+            rollNumber: student.rollNumber || '',
             class: {
-                id: student.classId._id,
-                name: student.classId.name,
-                displayName: student.classId.displayName,
-                level: student.classId.level,
-                section: student.classId.section,
-                academicYear: student.classId.academicYear
+                id: student.classId._id || '',
+                name: student.classId.name || '',
+                displayName: student.classId.displayName || '',
+                level: student.classId.level || 0,
+                section: student.classId.section || '',
+                academicYear: student.classId.academicYear || ''
             },
-            fatherName: student.fatherName,
-            motherName: student.motherName,
-            dateOfBirth: student.dateOfBirth,
-            parentsPhone: student.parentsPhone,
-            parentsEmail: student.parentsEmail,
-            address: student.address,
-            whatsappNumber: student.whatsappNumber,
-            isActive: student.userId.isActive,
-            createdAt: student.userId.createdAt,
-            updatedAt: student.updatedAt
+            fatherName: student.fatherName || '',
+            motherName: student.motherName || '',
+            dateOfBirth: student.dateOfBirth || '',
+            parentsPhone: student.parentsPhone || '',
+            parentsEmail: student.parentsEmail || '',
+            address: student.address || '',
+            whatsappNumber: student.whatsappNumber || '',
+            isActive: student.userId.isActive !== false,
+            createdAt: student.userId.createdAt || new Date().toISOString(),
+            updatedAt: student.updatedAt || new Date().toISOString()
         }));
+        // Debug log to see what data is being returned
+        console.log('getStudents - Returning data:', {
+            count: transformedStudents.length,
+            sample: transformedStudents[0] || 'No students found'
+        });
         res.json({
             success: true,
             data: transformedStudents,
@@ -204,30 +209,30 @@ export async function getStudent(req, res, next) {
             .populate('classId', 'name displayName level section academicYear');
         if (!student)
             throw new createHttpError.NotFound("Student not found");
-        // Transform the data to include all form fields
+        // Transform the data to include all form fields with fallbacks
         const transformedStudent = {
             id: student.userId._id,
-            email: student.userId.email,
-            name: student.userId.name,
-            rollNumber: student.rollNumber,
+            email: student.userId.email || '',
+            name: student.userId.name || '',
+            rollNumber: student.rollNumber || '',
             class: {
-                id: student.classId._id,
-                name: student.classId.name,
-                displayName: student.classId.displayName,
-                level: student.classId.level,
-                section: student.classId.section,
-                academicYear: student.classId.academicYear
+                id: student.classId._id || '',
+                name: student.classId.name || '',
+                displayName: student.classId.displayName || '',
+                level: student.classId.level || 0,
+                section: student.classId.section || '',
+                academicYear: student.classId.academicYear || ''
             },
-            fatherName: student.fatherName,
-            motherName: student.motherName,
-            dateOfBirth: student.dateOfBirth,
-            parentsPhone: student.parentsPhone,
-            parentsEmail: student.parentsEmail,
-            address: student.address,
-            whatsappNumber: student.whatsappNumber,
-            isActive: student.userId.isActive,
-            createdAt: student.userId.createdAt,
-            updatedAt: student.updatedAt
+            fatherName: student.fatherName || '',
+            motherName: student.motherName || '',
+            dateOfBirth: student.dateOfBirth || '',
+            parentsPhone: student.parentsPhone || '',
+            parentsEmail: student.parentsEmail || '',
+            address: student.address || '',
+            whatsappNumber: student.whatsappNumber || '',
+            isActive: student.userId.isActive !== false,
+            createdAt: student.userId.createdAt || new Date().toISOString(),
+            updatedAt: student.updatedAt || new Date().toISOString()
         };
         res.json({ success: true, student: transformedStudent });
     }
@@ -371,30 +376,30 @@ export async function getStudentsByClass(req, res, next) {
                 .limit(Number(limit)),
             Student.countDocuments({ classId })
         ]);
-        // Transform the data to include all form fields
+        // Transform the data to include all form fields with fallbacks
         const transformedStudents = students.map(student => ({
             id: student.userId._id,
-            email: student.userId.email,
-            name: student.userId.name,
-            rollNumber: student.rollNumber,
+            email: student.userId.email || '',
+            name: student.userId.name || '',
+            rollNumber: student.rollNumber || '',
             class: {
-                id: student.classId._id,
-                name: student.classId.name,
-                displayName: student.classId.displayName,
-                level: student.classId.level,
-                section: student.classId.section,
-                academicYear: student.classId.academicYear
+                id: student.classId._id || '',
+                name: student.classId.name || '',
+                displayName: student.classId.displayName || '',
+                level: student.classId.level || 0,
+                section: student.classId.section || '',
+                academicYear: student.classId.academicYear || ''
             },
-            fatherName: student.fatherName,
-            motherName: student.motherName,
-            dateOfBirth: student.dateOfBirth,
-            parentsPhone: student.parentsPhone,
-            parentsEmail: student.parentsEmail,
-            address: student.address,
-            whatsappNumber: student.whatsappNumber,
-            isActive: student.userId.isActive,
-            createdAt: student.userId.createdAt,
-            updatedAt: student.updatedAt
+            fatherName: student.fatherName || '',
+            motherName: student.motherName || '',
+            dateOfBirth: student.dateOfBirth || '',
+            parentsPhone: student.parentsPhone || '',
+            parentsEmail: student.parentsEmail || '',
+            address: student.address || '',
+            whatsappNumber: student.whatsappNumber || '',
+            isActive: student.userId.isActive !== false,
+            createdAt: student.userId.createdAt || new Date().toISOString(),
+            updatedAt: student.updatedAt || new Date().toISOString()
         }));
         res.json({
             success: true,

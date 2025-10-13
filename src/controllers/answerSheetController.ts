@@ -11,11 +11,16 @@ import { CloudStorageService } from '../services/cloudStorage';
 // Upload answer sheet
 export const uploadAnswerSheet = async (req: Request, res: Response) => {
   try {
-    const { examId, studentId, originalFileName, cloudStorageUrl, cloudStorageKey, language = 'ENGLISH' } = req.body;
+    const { examId, studentId, language = 'ENGLISH' } = req.body;
     const uploadedBy = (req as any).auth?.sub;
+    const file = req.file as Express.Multer.File;
 
     if (!uploadedBy) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
 
     // Check if staff has access to this exam's class
@@ -40,13 +45,23 @@ export const uploadAnswerSheet = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Answer sheet already exists for this student' });
     }
 
+    // Upload file to cloud storage
+    const cloudStorage = new CloudStorageService();
+    const uploadResult = await cloudStorage.uploadAnswerSheet(
+      file.buffer,
+      examId,
+      studentId,
+      file.originalname,
+      file.buffer // Use original buffer for now, can be processed later
+    );
+
     const answerSheet = new AnswerSheet({
       examId,
       studentId,
       uploadedBy,
-      originalFileName,
-      cloudStorageUrl,
-      cloudStorageKey,
+      originalFileName: file.originalname,
+      cloudStorageUrl: uploadResult.original.url,
+      cloudStorageKey: uploadResult.original.key,
       language,
       status: 'UPLOADED'
     });
@@ -425,6 +440,10 @@ export const batchUploadAnswerSheets = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
+    if (!examId) {
+      return res.status(400).json({ success: false, error: 'Exam ID is required' });
+    }
+
     if (!files || files.length === 0) {
       return res.status(400).json({ success: false, error: 'No files uploaded' });
     }
@@ -464,7 +483,7 @@ export const batchUploadAnswerSheets = async (req: Request, res: Response) => {
           examId,
           'unknown', // Will be updated after roll number detection
           file.originalname,
-          processingResult.processedImage
+          processingResult.processedImage || file.buffer
         );
 
         // Create answer sheet record
@@ -499,7 +518,7 @@ export const batchUploadAnswerSheets = async (req: Request, res: Response) => {
 
         logger.info(`Answer sheet processed: ${answerSheet._id}`);
       } catch (error) {
-        const errorMsg = `Failed to process ${file.originalname}: ${error.message}`;
+        const errorMsg = `Failed to process ${file.originalname}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
         logger.error(errorMsg);
       }
@@ -555,7 +574,10 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const answerSheet = await AnswerSheet.findById(answerSheetId);
+    const answerSheet = await AnswerSheet.findById(answerSheetId)
+      .populate('examId')
+      .populate('studentId');
+    
     if (!answerSheet) {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
     }
@@ -564,8 +586,35 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
     answerSheet.status = 'PROCESSING';
     await answerSheet.save();
 
-    // TODO: Trigger AI correction service
-    // This would typically be done asynchronously with a job queue
+    // Create notification for processing started
+    const { NotificationService } = await import('../services/notificationService');
+    await NotificationService.createAIProcessingStartedNotification(
+      answerSheet.uploadedBy.toString(),
+      answerSheetId,
+      answerSheet.studentId?.name || 'Unknown Student'
+    );
+
+    // Start AI processing asynchronously
+    processAnswerSheetWithAI(answerSheetId, answerSheet)
+      .catch(async error => {
+        logger.error(`AI processing failed for answer sheet ${answerSheetId}:`, error);
+        
+        // Update status to error
+        await AnswerSheet.findByIdAndUpdate(answerSheetId, { 
+          status: 'ERROR',
+          errorMessage: error.message 
+        });
+
+        // Create error notification
+        const { NotificationService } = await import('../services/notificationService');
+        await NotificationService.createAIProcessingFailedNotification(
+          answerSheet.uploadedBy.toString(),
+          answerSheetId,
+          answerSheet.studentId?.name || 'Unknown Student',
+          error.message
+        );
+      });
+
     logger.info(`Answer sheet processing started: ${answerSheetId}`);
 
     res.json({
@@ -582,3 +631,65 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 };
+
+// Async function to process answer sheet with AI
+async function processAnswerSheetWithAI(answerSheetId: string, answerSheet: any) {
+  try {
+    const { AICorrectionService } = await import('../services/aiCorrectionService');
+    
+    // Get exam details and question paper
+    const exam = await Exam.findById(answerSheet.examId).populate('questionPaperId');
+    if (!exam || !exam.questionPaperId) {
+      throw new Error('Exam or question paper not found');
+    }
+
+    // Prepare question paper data
+    const questionPaper = {
+      questions: exam.questionPaperId.questions.map((q: any) => ({
+        questionNumber: q.questionNumber,
+        questionText: q.questionText,
+        correctAnswer: q.correctAnswer,
+        maxMarks: q.marks,
+        questionType: q.questionType
+      })),
+      totalMarks: exam.totalMarks
+    };
+
+    // Prepare AI correction request
+    const correctionRequest = {
+      answerSheetId,
+      examId: answerSheet.examId,
+      studentId: answerSheet.studentId,
+      questionPaper,
+      answerSheetImage: answerSheet.cloudStorageUrl, // Assuming this is a base64 image or URL
+      language: answerSheet.language || 'ENGLISH'
+    };
+
+    // Process with AI
+    const aiResult = await AICorrectionService.processAnswerSheet(correctionRequest);
+
+    // Update answer sheet with AI results
+    await AnswerSheet.findByIdAndUpdate(answerSheetId, {
+      status: 'AI_CORRECTED',
+      aiCorrectionResults: aiResult,
+      processedAt: new Date(),
+      confidence: aiResult.confidence
+    });
+
+    // Create notification for teacher
+    const { NotificationService } = await import('../services/notificationService');
+    await NotificationService.createAICorrectionCompleteNotification(
+      answerSheet.uploadedBy.toString(),
+      answerSheetId,
+      answerSheet.studentId?.name || 'Unknown Student',
+      aiResult.percentage,
+      aiResult.confidence
+    );
+
+    logger.info(`AI correction completed for answer sheet: ${answerSheetId}`);
+
+  } catch (error) {
+    logger.error(`AI processing failed for answer sheet ${answerSheetId}:`, error);
+    throw error;
+  }
+}

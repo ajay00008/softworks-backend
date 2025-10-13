@@ -50,7 +50,6 @@ const QuestionPaperSchema = new Schema({
         twoMark: { type: Number, required: true, min: 0, max: 100 },
         threeMark: { type: Number, required: true, min: 0, max: 100 },
         fiveMark: { type: Number, required: true, min: 0, max: 100 },
-        totalQuestions: { type: Number, required: true, min: 1, max: 100 },
         totalMarks: { type: Number, required: true, min: 1, max: 1000 }
     },
     bloomsDistribution: [{
@@ -61,14 +60,40 @@ const QuestionPaperSchema = new Schema({
             },
             percentage: { type: Number, required: true, min: 0, max: 100 }
         }],
-    questionTypeDistribution: [{
-            type: {
-                type: String,
-                enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
-                required: true
-            },
-            percentage: { type: Number, required: true, min: 0, max: 100 }
-        }],
+    questionTypeDistribution: {
+        oneMark: [{
+                type: {
+                    type: String,
+                    enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+                    required: true
+                },
+                percentage: { type: Number, required: true, min: 0, max: 100 }
+            }],
+        twoMark: [{
+                type: {
+                    type: String,
+                    enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+                    required: true
+                },
+                percentage: { type: Number, required: true, min: 0, max: 100 }
+            }],
+        threeMark: [{
+                type: {
+                    type: String,
+                    enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+                    required: true
+                },
+                percentage: { type: Number, required: true, min: 0, max: 100 }
+            }],
+        fiveMark: [{
+                type: {
+                    type: String,
+                    enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+                    required: true
+                },
+                percentage: { type: Number, required: true, min: 0, max: 100 }
+            }]
+    },
     questions: [{
             type: Schema.Types.ObjectId,
             ref: "Question"
@@ -109,25 +134,33 @@ QuestionPaperSchema.index({ adminId: 1, examId: 1 });
 QuestionPaperSchema.index({ adminId: 1, subjectId: 1, classId: 1 });
 QuestionPaperSchema.index({ adminId: 1, status: 1 });
 QuestionPaperSchema.index({ createdBy: 1, isActive: 1 });
-// Validation to ensure total questions don't exceed 100 and percentages add up correctly
+// Validation to ensure total marks from questions match the total marks
 QuestionPaperSchema.pre('save', function (next) {
-    const total = this.markDistribution.oneMark + this.markDistribution.twoMark +
-        this.markDistribution.threeMark + this.markDistribution.fiveMark;
-    if (total > 100) {
-        return next(new Error('Total questions cannot exceed 100'));
+    const totalMarksFromQuestions = (this.markDistribution.oneMark * 1) +
+        (this.markDistribution.twoMark * 2) +
+        (this.markDistribution.threeMark * 3) +
+        (this.markDistribution.fiveMark * 5);
+    if (totalMarksFromQuestions > this.markDistribution.totalMarks) {
+        return next(new Error('Total marks from questions cannot exceed the total marks'));
     }
-    if (total !== this.markDistribution.totalQuestions) {
-        return next(new Error('Total questions count must match the sum of individual mark questions'));
+    if (this.markDistribution.totalMarks === 100 && totalMarksFromQuestions !== 100) {
+        return next(new Error('When total marks is 100, the calculated marks from questions must equal exactly 100'));
     }
     // Validate Blooms taxonomy percentages add up to 100
     const bloomsTotal = this.bloomsDistribution.reduce((sum, dist) => sum + dist.percentage, 0);
     if (Math.abs(bloomsTotal - 100) > 0.01) { // Allow small floating point errors
         return next(new Error('Blooms taxonomy percentages must add up to 100%'));
     }
-    // Validate question type percentages add up to 100
-    const typeTotal = this.questionTypeDistribution.reduce((sum, dist) => sum + dist.percentage, 0);
-    if (Math.abs(typeTotal - 100) > 0.01) { // Allow small floating point errors
-        return next(new Error('Question type percentages must add up to 100%'));
+    // Validate question type percentages add up to 100 for each mark category
+    const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'];
+    for (const mark of markCategories) {
+        const distributions = this.questionTypeDistribution[mark];
+        if (distributions && distributions.length > 0) {
+            const typeTotal = distributions.reduce((sum, dist) => sum + dist.percentage, 0);
+            if (Math.abs(typeTotal - 100) > 0.01) { // Allow small floating point errors
+                return next(new Error(`Question type percentages for ${mark.replace('Mark', ' Mark')} must add up to 100%. Current total: ${typeTotal}%`));
+            }
+        }
     }
     next();
 });

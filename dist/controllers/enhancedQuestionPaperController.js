@@ -38,29 +38,73 @@ const upload = multer({
     }
 });
 export const uploadQuestionPaperPdf = upload.single('questionPaper');
+// Helper function to flatten question type distribution for AI service
+function flattenQuestionTypeDistribution(questionTypeDistribution) {
+    const flattened = [];
+    const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'];
+    for (const mark of markCategories) {
+        const distributions = questionTypeDistribution[mark];
+        if (distributions && distributions.length > 0) {
+            // Calculate the weight for this mark category
+            const markWeight = mark === 'oneMark' ? 1 : mark === 'twoMark' ? 2 : mark === 'threeMark' ? 3 : 5;
+            // Add each distribution with weighted percentage
+            distributions.forEach((dist) => {
+                flattened.push({
+                    type: dist.type,
+                    percentage: dist.percentage * markWeight / 100 // Normalize to overall percentage
+                });
+            });
+        }
+    }
+    return flattened;
+}
 // Validation schemas
 const CreateQuestionPaperSchema = z.object({
     title: z.string().min(1).max(200),
     description: z.string().max(500).optional(),
     examId: z.string().min(1),
-    subjectId: z.string().min(1),
-    classId: z.string().min(1),
+    subjectId: z.union([z.string(), z.object({
+            _id: z.string(),
+            code: z.string().optional(),
+            name: z.string().optional(),
+            shortName: z.string().optional()
+        })]).optional(),
+    classId: z.union([z.string(), z.object({
+            _id: z.string(),
+            name: z.string().optional(),
+            displayName: z.string().optional(),
+            level: z.number().optional(),
+            section: z.string().optional()
+        })]).optional(),
     markDistribution: z.object({
         oneMark: z.number().min(0).max(100),
         twoMark: z.number().min(0).max(100),
         threeMark: z.number().min(0).max(100),
         fiveMark: z.number().min(0).max(100),
-        totalQuestions: z.number().min(1).max(100),
         totalMarks: z.number().min(1).max(1000)
     }),
     bloomsDistribution: z.array(z.object({
         level: z.enum(['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE']),
         percentage: z.number().min(0).max(100)
     })),
-    questionTypeDistribution: z.array(z.object({
-        type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
-        percentage: z.number().min(0).max(100)
-    })),
+    questionTypeDistribution: z.object({
+        oneMark: z.array(z.object({
+            type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+            percentage: z.number().min(0).max(100)
+        })).optional(),
+        twoMark: z.array(z.object({
+            type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+            percentage: z.number().min(0).max(100)
+        })).optional(),
+        threeMark: z.array(z.object({
+            type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+            percentage: z.number().min(0).max(100)
+        })).optional(),
+        fiveMark: z.array(z.object({
+            type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+            percentage: z.number().min(0).max(100)
+        })).optional()
+    }),
     aiSettings: z.object({
         useSubjectBook: z.boolean().default(false),
         customInstructions: z.string().max(1000).optional(),
@@ -80,35 +124,38 @@ export async function createQuestionPaper(req, res, next) {
         if (!adminId) {
             throw new createHttpError.Unauthorized("Admin ID not found in token");
         }
-        // Validate exam exists and belongs to admin
+        // Validate exam exists and belongs to admin, and get subject/class IDs from exam
         const exam = await Exam.findOne({
             _id: questionPaperData.examId,
             adminId,
             isActive: true
-        });
+        }).populate([
+            { path: 'subjectId', select: 'name code classIds' },
+            { path: 'classId', select: 'name displayName' }
+        ]);
         if (!exam) {
             throw new createHttpError.NotFound("Exam not found or not accessible");
         }
-        // Validate subject exists and belongs to admin
-        const subject = await Subject.findOne({
-            _id: questionPaperData.subjectId,
-            adminId,
-            isActive: true
-        });
-        if (!subject) {
-            throw new createHttpError.NotFound("Subject not found or not accessible");
+        // Extract subject and class IDs from exam
+        const subjectId = exam.subjectId._id.toString();
+        const classId = exam.classId._id.toString();
+        // Handle case where frontend sends subjectId and classId as objects
+        let finalSubjectId = subjectId;
+        let finalClassId = classId;
+        if (questionPaperData.subjectId && typeof questionPaperData.subjectId === 'object') {
+            finalSubjectId = questionPaperData.subjectId._id;
         }
-        // Validate class exists and belongs to admin
-        const classExists = await Class.findOne({
-            _id: questionPaperData.classId,
-            adminId,
-            isActive: true
-        });
-        if (!classExists) {
-            throw new createHttpError.NotFound("Class not found or not accessible");
+        else if (questionPaperData.subjectId) {
+            finalSubjectId = questionPaperData.subjectId;
+        }
+        if (questionPaperData.classId && typeof questionPaperData.classId === 'object') {
+            finalClassId = questionPaperData.classId._id;
+        }
+        else if (questionPaperData.classId) {
+            finalClassId = questionPaperData.classId;
         }
         // Validate that subject is available for this class
-        if (!subject.classIds.includes(questionPaperData.classId)) {
+        if (!exam.subjectId.classIds.includes(finalClassId)) {
             throw new createHttpError.BadRequest("Subject is not available for this class");
         }
         // Validate percentages add up to 100
@@ -116,13 +163,22 @@ export async function createQuestionPaper(req, res, next) {
         if (Math.abs(bloomsTotal - 100) > 0.01) {
             throw new createHttpError.BadRequest("Blooms taxonomy percentages must add up to 100%");
         }
-        const typeTotal = questionPaperData.questionTypeDistribution.reduce((sum, dist) => sum + dist.percentage, 0);
-        if (Math.abs(typeTotal - 100) > 0.01) {
-            throw new createHttpError.BadRequest("Question type percentages must add up to 100%");
+        // Validate question type distributions for each mark category
+        const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'];
+        for (const mark of markCategories) {
+            const distributions = questionPaperData.questionTypeDistribution[mark];
+            if (distributions && distributions.length > 0) {
+                const typeTotal = distributions.reduce((sum, dist) => sum + dist.percentage, 0);
+                if (Math.abs(typeTotal - 100) > 0.01) {
+                    throw new createHttpError.BadRequest(`Question type percentages for ${mark.replace('Mark', ' Mark')} must add up to 100%. Current total: ${typeTotal}%`);
+                }
+            }
         }
-        // Create question paper
+        // Create question paper with derived subject and class IDs
         const questionPaper = await QuestionPaper.create({
             ...questionPaperData,
+            subjectId: finalSubjectId,
+            classId: finalClassId,
             adminId,
             createdBy: auth.sub,
             type: 'AI_GENERATED',
@@ -252,9 +308,12 @@ export async function generateAIQuestionPaper(req, res, next) {
             subjectName: questionPaper.subjectId.name,
             className: questionPaper.classId.name,
             examTitle: questionPaper.examId.title,
-            markDistribution: questionPaper.markDistribution,
+            markDistribution: {
+                ...questionPaper.markDistribution,
+                totalQuestions: questionPaper.markDistribution.oneMark + questionPaper.markDistribution.twoMark + questionPaper.markDistribution.threeMark + questionPaper.markDistribution.fiveMark
+            },
             bloomsDistribution: questionPaper.bloomsDistribution,
-            questionTypeDistribution: questionPaper.questionTypeDistribution,
+            questionTypeDistribution: flattenQuestionTypeDistribution(questionPaper.questionTypeDistribution),
             useSubjectBook: questionPaper.aiSettings?.useSubjectBook || false,
             customInstructions: questionPaper.aiSettings?.customInstructions || '',
             difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
@@ -319,7 +378,7 @@ export async function uploadPDFQuestionPaper(req, res, next) {
             filePath: req.file.path,
             fileSize: req.file.size,
             generatedAt: new Date(),
-            downloadUrl: `/question-papers/${req.file.filename}`
+            downloadUrl: `/public/question-papers/${req.file.filename}`
         };
         await questionPaper.save();
         res.json({
@@ -461,6 +520,110 @@ export async function publishQuestionPaper(req, res, next) {
             success: true,
             message: "Question paper published successfully",
             questionPaper
+        });
+    }
+    catch (err) {
+        next(err);
+    }
+}
+// Generate Complete Question Paper with AI (Direct Generation)
+export async function generateCompleteAIQuestionPaper(req, res, next) {
+    try {
+        const questionPaperData = CreateQuestionPaperSchema.parse(req.body);
+        const auth = req.auth;
+        const adminId = auth?.adminId;
+        if (!adminId) {
+            throw new createHttpError.Unauthorized("Admin ID not found in token");
+        }
+        // Validate exam exists and belongs to admin, and get subject/class IDs from exam
+        const exam = await Exam.findOne({
+            _id: questionPaperData.examId,
+            adminId,
+            isActive: true
+        }).populate([
+            { path: 'subjectId', select: 'name code classIds' },
+            { path: 'classId', select: 'name displayName' }
+        ]);
+        if (!exam) {
+            throw new createHttpError.NotFound("Exam not found or not accessible");
+        }
+        // Extract subject and class IDs from exam
+        const subjectId = exam.subjectId._id.toString();
+        const classId = exam.classId._id.toString();
+        // Handle case where frontend sends subjectId and classId as objects
+        let finalSubjectId = subjectId;
+        let finalClassId = classId;
+        if (questionPaperData.subjectId && typeof questionPaperData.subjectId === 'object') {
+            finalSubjectId = questionPaperData.subjectId._id;
+        }
+        else if (questionPaperData.subjectId) {
+            finalSubjectId = questionPaperData.subjectId;
+        }
+        if (questionPaperData.classId && typeof questionPaperData.classId === 'object') {
+            finalClassId = questionPaperData.classId._id;
+        }
+        else if (questionPaperData.classId) {
+            finalClassId = questionPaperData.classId;
+        }
+        // Validate that subject is available for this class
+        if (!exam.subjectId.classIds.includes(finalClassId)) {
+            throw new createHttpError.BadRequest("Subject is not available for this class");
+        }
+        // Create question paper with derived subject and class IDs
+        const questionPaper = await QuestionPaper.create({
+            ...questionPaperData,
+            subjectId: finalSubjectId, // Now derived
+            classId: finalClassId, // Now derived
+            adminId,
+            createdBy: auth.sub,
+            type: 'AI_GENERATED',
+            status: 'DRAFT'
+        });
+        // Populate the question paper with subject, class, and exam details
+        await questionPaper.populate([
+            { path: 'subjectId', select: 'name code' },
+            { path: 'classId', select: 'name displayName' },
+            { path: 'examId', select: 'title duration' }
+        ]);
+        // Prepare AI request
+        const aiRequest = {
+            subjectId: finalSubjectId,
+            classId: finalClassId,
+            subjectName: questionPaper.subjectId.name,
+            className: questionPaper.classId.name,
+            examTitle: questionPaper.examId.title,
+            markDistribution: {
+                ...questionPaper.markDistribution,
+                totalQuestions: questionPaper.markDistribution.oneMark + questionPaper.markDistribution.twoMark + questionPaper.markDistribution.threeMark + questionPaper.markDistribution.fiveMark
+            },
+            bloomsDistribution: questionPaper.bloomsDistribution,
+            questionTypeDistribution: flattenQuestionTypeDistribution(questionPaper.questionTypeDistribution),
+            useSubjectBook: questionPaper.aiSettings?.useSubjectBook || false,
+            customInstructions: questionPaper.aiSettings?.customInstructions || '',
+            difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
+            twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
+            language: 'ENGLISH'
+        };
+        // Generate questions using AI
+        const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest);
+        // Generate PDF
+        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaper._id.toString(), generatedQuestions, questionPaper.subjectId.name, questionPaper.classId.name, questionPaper.examId.title, questionPaper.markDistribution.totalMarks, questionPaper.examId.duration);
+        // Update question paper
+        questionPaper.status = 'GENERATED';
+        questionPaper.generatedAt = new Date();
+        questionPaper.generatedPdf = {
+            fileName: pdfResult.fileName,
+            filePath: pdfResult.filePath,
+            fileSize: fs.statSync(pdfResult.filePath).size,
+            generatedAt: new Date(),
+            downloadUrl: pdfResult.downloadUrl
+        };
+        await questionPaper.save();
+        res.json({
+            success: true,
+            message: "Question paper generated successfully with AI",
+            questionPaper,
+            downloadUrl: pdfResult.downloadUrl
         });
     }
     catch (err) {

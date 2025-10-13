@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
@@ -12,14 +13,33 @@ import { createSubject, getSubjects, getSubject, updateSubject, deleteSubject, g
 import { createQuestion, getQuestions, getQuestion, updateQuestion, deleteQuestion, generateQuestions, getQuestionStatistics } from "../controllers/questionController";
 import { createExam, getExams, getExam, updateExam, deleteExam, startExam, endExam, getExamResults, getExamStatistics } from "../controllers/examController";
 import { getIndividualPerformance, getClassPerformance, getPerformanceAnalytics, getPerformanceReport } from "../controllers/performanceController";
+import { getTeacherAccess, createTeacherQuestionPaper, uploadAnswerSheets, markStudentStatus, evaluateAnswerSheets, getResults, getPerformanceGraphs, getTeacherExams, downloadResults, getAnswerSheets } from "../controllers/teacherDashboardController";
+import { createStaffAccess, getAllStaffAccess, getStaffAccess, updateStaffAccess, deleteStaffAccess } from "../controllers/staffAccessController";
 import { createSyllabus, getSyllabi, getSyllabus, updateSyllabus, deleteSyllabus, getSyllabusBySubjectClass, uploadSyllabusFile, getSyllabusStatistics } from "../controllers/syllabusController";
 import { reportAbsenteeism, getAbsenteeismReports, getAbsenteeismReport, acknowledgeAbsenteeism, resolveAbsenteeism, escalateAbsenteeism, updateAbsenteeism, deleteAbsenteeism, getAbsenteeismStatistics } from "../controllers/absenteeismController";
 import { printAllStudentsAnswers, printIndividualStudentAnswer, printClassResultsSummary, printPerformanceReport } from "../controllers/printingController";
 import { sendResultsToParents, sendBulkMessage, sendIndividualResult } from "../controllers/communicationController";
 import { getAIConfig, updateAIConfig, testAIConfig, getAIProviders, generateQuestionsWithConfig } from "../controllers/aiController";
 import { generateQuestionPaper } from "../controllers/questionPaperController";
-import { createQuestionPaper, getQuestionPapers, getQuestionPaper, updateQuestionPaper, deleteQuestionPaper, generateAIQuestionPaper, uploadQuestionPaperPdf, uploadPDFQuestionPaper, downloadQuestionPaperPDF } from "../controllers/enhancedQuestionPaperController";
+import { createQuestionPaper, getQuestionPapers, getQuestionPaper, updateQuestionPaper, deleteQuestionPaper, generateAIQuestionPaper, generateCompleteAIQuestionPaper, uploadQuestionPaperPdf, uploadPDFQuestionPaper, downloadQuestionPaperPDF } from "../controllers/enhancedQuestionPaperController";
 const router = Router();
+// Multer configuration for answer sheet uploads
+const answerSheetUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit per file
+        files: 10 // Maximum 10 files per upload
+    },
+    fileFilter: (req, file, cb) => {
+        // Only allow PDF files
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        }
+        else {
+            cb(null, false);
+        }
+    }
+});
 // Health
 router.get("/health", (_req, res) => res.json({ ok: true }));
 /**
@@ -2093,7 +2113,7 @@ router.get("/admin/performance/class/:classId", requireAuth, requireRoles("ADMIN
  *       200:
  *         description: Performance analytics dashboard data
  */
-router.get("/admin/performance/analytics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getPerformanceAnalytics);
+router.get("/admin/performance/analytics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getPerformanceAnalytics);
 /**
  * @openapi
  * /api/admin/performance/reports/{type}:
@@ -2860,21 +2880,21 @@ import { uploadAnswerSheet, getAnswerSheetsByExam, markAsMissing, markAsAbsent, 
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [examId, studentId, originalFileName, cloudStorageUrl, cloudStorageKey]
+ *             required: [examId, studentId, file]
  *             properties:
  *               examId:
  *                 type: string
+ *                 description: Exam ID
  *               studentId:
  *                 type: string
- *               originalFileName:
+ *                 description: Student ID
+ *               file:
  *                 type: string
- *               cloudStorageUrl:
- *                 type: string
- *               cloudStorageKey:
- *                 type: string
+ *                 format: binary
+ *                 description: Answer sheet PDF file
  *               language:
  *                 type: string
  *                 enum: [ENGLISH, TAMIL, HINDI, MALAYALAM, TELUGU, KANNADA, FRENCH]
@@ -2883,13 +2903,13 @@ import { uploadAnswerSheet, getAnswerSheetsByExam, markAsMissing, markAsAbsent, 
  *       201:
  *         description: Answer sheet uploaded successfully
  *       400:
- *         description: Answer sheet already exists for this student
+ *         description: Answer sheet already exists for this student or no file uploaded
  *       403:
  *         description: Access denied to this class
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/answer-sheets/upload", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadAnswerSheet);
+router.post("/admin/answer-sheets/upload", answerSheetUpload.single('file'), requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadAnswerSheet);
 /**
  * @openapi
  * /api/admin/answer-sheets/batch/{examId}:
@@ -2926,7 +2946,7 @@ router.post("/admin/answer-sheets/upload", requireAuth, requireRoles("ADMIN", "S
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/answer-sheets/batch/:examId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), batchUploadAnswerSheets);
+router.post("/admin/answer-sheets/batch/:examId", answerSheetUpload.array('files', 10), requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), batchUploadAnswerSheets);
 /**
  * @openapi
  * /api/admin/answer-sheets/exam/{examId}:
@@ -3870,6 +3890,54 @@ router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "
 router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateAIQuestionPaper);
 /**
  * @openapi
+ * /api/admin/question-papers/generate-complete-ai:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Generate complete question paper with AI (direct generation)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, examId, markDistribution, bloomsDistribution, questionTypeDistribution]
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               examId:
+ *                 type: string
+ *               markDistribution:
+ *                 type: object
+ *                 properties:
+ *                   oneMark:
+ *                     type: number
+ *                   twoMark:
+ *                     type: number
+ *                   threeMark:
+ *                     type: number
+ *                   fiveMark:
+ *                     type: number
+ *                   totalMarks:
+ *                     type: number
+ *               bloomsDistribution:
+ *                 type: array
+ *               questionTypeDistribution:
+ *                 type: array
+ *               aiSettings:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Question paper generated successfully
+ *       400:
+ *         description: Invalid input data
+ */
+router.post("/admin/question-papers/generate-complete-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateCompleteAIQuestionPaper);
+/**
+ * @openapi
  * /api/admin/question-papers/{id}/upload-pdf:
  *   post:
  *     tags: [Admin - Question Papers]
@@ -3927,5 +3995,711 @@ router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("
  *         description: Question paper not found
  */
 router.get("/admin/question-papers/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadQuestionPaperPDF);
+// ==================== TEACHER DASHBOARD ROUTES ====================
+/**
+ * @openapi
+ * /api/teacher/access:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get teacher's assigned classes and subjects
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Teacher access permissions
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: No access permissions found
+ */
+router.get("/teacher/access", requireAuth, requireRoles("TEACHER"), getTeacherAccess);
+/**
+ * @openapi
+ * /api/teacher/questions:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Create question paper for assigned subjects
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, examId, subjectId, classId, markDistribution, bloomsDistribution, questionTypeDistribution]
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               examId:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               markDistribution:
+ *                 type: object
+ *                 properties:
+ *                   oneMark:
+ *                     type: number
+ *                   twoMark:
+ *                     type: number
+ *                   threeMark:
+ *                     type: number
+ *                   fiveMark:
+ *                     type: number
+ *                   totalMarks:
+ *                     type: number
+ *               bloomsDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     level:
+ *                       type: string
+ *                       enum: [REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE]
+ *                     percentage:
+ *                       type: number
+ *               questionTypeDistribution:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       enum: [CHOOSE_BEST_ANSWER, FILL_BLANKS, ONE_WORD_ANSWER, TRUE_FALSE, CHOOSE_MULTIPLE_ANSWERS, MATCHING_PAIRS, DRAWING_DIAGRAM, MARKING_PARTS, SHORT_ANSWER, LONG_ANSWER]
+ *                     percentage:
+ *                       type: number
+ *               aiSettings:
+ *                 type: object
+ *                 properties:
+ *                   useSubjectBook:
+ *                     type: boolean
+ *                   customInstructions:
+ *                     type: string
+ *                   difficultyLevel:
+ *                     type: string
+ *                     enum: [EASY, MODERATE, TOUGHEST]
+ *                   twistedQuestionsPercentage:
+ *                     type: number
+ *     responses:
+ *       201:
+ *         description: Question paper created
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/questions", requireAuth, requireRoles("TEACHER"), createTeacherQuestionPaper);
+/**
+ * @openapi
+ * /api/teacher/upload-answers:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Upload answer sheets for evaluation
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [examId, studentId, files]
+ *             properties:
+ *               examId:
+ *                 type: string
+ *               studentId:
+ *                 type: string
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheets uploaded successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/upload-answers", answerSheetUpload.array('files', 10), requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/upload/{examId}:
+ *   post:
+ *     summary: Upload answer sheets for a specific exam
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Exam ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Answer sheet PDF files
+ *     responses:
+ *       200:
+ *         description: Answer sheets uploaded successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/answer-sheets/upload/:examId", answerSheetUpload.array('files', 10), requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{examId}:
+ *   get:
+ *     summary: Get answer sheets for an exam
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Exam ID
+ *     responses:
+ *       200:
+ *         description: Answer sheets retrieved successfully
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.get("/teacher/answer-sheets/:examId", requireAuth, requireRoles("TEACHER"), getAnswerSheets);
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{sheetId}/process:
+ *   post:
+ *     summary: Process answer sheet with AI
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Answer sheet ID
+ *     responses:
+ *       200:
+ *         description: Answer sheet processing started
+ *       404:
+ *         description: Answer sheet not found
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/answer-sheets/:sheetId/process", requireAuth, requireRoles("TEACHER"), processAnswerSheet);
+/**
+ * @openapi
+ * /api/teacher/notifications:
+ *   get:
+ *     summary: Get notifications for teacher
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Notifications retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/teacher/notifications", requireAuth, requireRoles("TEACHER"), async (req, res) => {
+    try {
+        const userId = req.auth?.sub;
+        const { limit = 20, offset = 0 } = req.query;
+        const { NotificationService } = await import('../services/notificationService');
+        const notifications = await NotificationService.getNotifications(userId, Number(limit), Number(offset));
+        res.json({
+            success: true,
+            data: notifications
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+/**
+ * @openapi
+ * /api/teacher/notifications/{notificationId}/read:
+ *   post:
+ *     summary: Mark notification as read
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *       404:
+ *         description: Notification not found
+ */
+router.post("/teacher/notifications/:notificationId/read", requireAuth, requireRoles("TEACHER"), async (req, res) => {
+    try {
+        const userId = req.auth?.sub;
+        const { notificationId } = req.params;
+        const { NotificationService } = await import('../services/notificationService');
+        const notification = await NotificationService.markAsRead(notificationId, userId);
+        res.json({
+            success: true,
+            data: notification
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+/**
+ * @openapi
+ * /api/teacher/notifications/read-all:
+ *   post:
+ *     summary: Mark all notifications as read
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
+ */
+router.post("/teacher/notifications/read-all", requireAuth, requireRoles("TEACHER"), async (req, res) => {
+    try {
+        const userId = req.auth?.sub;
+        const { NotificationService } = await import('../services/notificationService');
+        const count = await NotificationService.markAllAsRead(userId);
+        res.json({
+            success: true,
+            data: { markedCount: count }
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+/**
+ * @openapi
+ * /api/teacher/mark-status:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Mark student as absent or missing
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [studentId, examId, status]
+ *             properties:
+ *               studentId:
+ *                 type: string
+ *               examId:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [ABSENT, MISSING]
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Student status marked
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/mark-status", requireAuth, requireRoles("TEACHER"), markStudentStatus);
+/**
+ * @openapi
+ * /api/teacher/evaluate:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Evaluate answer sheets with AI and manual override
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [answerSheetId]
+ *             properties:
+ *               answerSheetId:
+ *                 type: string
+ *               manualOverrides:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     questionId:
+ *                       type: string
+ *                     awardedMarks:
+ *                       type: number
+ *                     reason:
+ *                       type: string
+ *                     improvementSuggestions:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheets evaluated successfully
+ *       400:
+ *         description: Validation error
+ */
+router.post("/teacher/evaluate", requireAuth, requireRoles("TEACHER"), evaluateAnswerSheets);
+/**
+ * @openapi
+ * /api/teacher/results:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get results for assigned classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Results retrieved successfully
+ *       403:
+ *         description: Access denied
+ */
+router.get("/teacher/results", requireAuth, requireRoles("TEACHER"), getResults);
+/**
+ * @openapi
+ * /api/teacher/performance-graph:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get performance graphs and analytics
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Performance graphs retrieved
+ *       403:
+ *         description: No permission to access analytics
+ */
+router.get("/teacher/performance-graph", requireAuth, requireRoles("TEACHER"), getPerformanceGraphs);
+/**
+ * @openapi
+ * /api/teacher/exams:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get exams for assigned classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Exams retrieved successfully
+ *       403:
+ *         description: Access denied
+ */
+router.get("/teacher/exams", requireAuth, requireRoles("TEACHER"), getTeacherExams);
+/**
+ * @openapi
+ * /api/teacher/results/download:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Download results in various formats
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [PDF, EXCEL, CSV]
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Results download URL
+ *       403:
+ *         description: No permission to download results
+ */
+router.get("/teacher/results/download", requireAuth, requireRoles("TEACHER"), downloadResults);
+/**
+ * @openapi
+ * /api/admin/staff-access:
+ *   post:
+ *     tags: [Admin - Staff Access]
+ *     summary: Create staff access privileges
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [staffId, classAccess, subjectAccess, globalPermissions]
+ *             properties:
+ *               staffId:
+ *                 type: string
+ *               classAccess:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     classId:
+ *                       type: string
+ *                     className:
+ *                       type: string
+ *                     accessLevel:
+ *                       type: string
+ *                       enum: [READ_ONLY, READ_WRITE, FULL_ACCESS]
+ *                     canUploadSheets:
+ *                       type: boolean
+ *                     canMarkAbsent:
+ *                       type: boolean
+ *                     canMarkMissing:
+ *                       type: boolean
+ *                     canOverrideAI:
+ *                       type: boolean
+ *               subjectAccess:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     subjectId:
+ *                       type: string
+ *                     subjectName:
+ *                       type: string
+ *                     accessLevel:
+ *                       type: string
+ *                       enum: [READ_ONLY, READ_WRITE, FULL_ACCESS]
+ *                     canCreateQuestions:
+ *                       type: boolean
+ *                     canUploadSyllabus:
+ *                       type: boolean
+ *               globalPermissions:
+ *                 type: object
+ *                 properties:
+ *                   canViewAllClasses:
+ *                     type: boolean
+ *                   canViewAllSubjects:
+ *                     type: boolean
+ *                   canAccessAnalytics:
+ *                     type: boolean
+ *                   canPrintReports:
+ *                     type: boolean
+ *                   canSendNotifications:
+ *                     type: boolean
+ *               expiresAt:
+ *                 type: string
+ *                 format: date-time
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Staff access created successfully
+ *       400:
+ *         description: Validation error or staff access already exists
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/staff-access", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createStaffAccess);
+/**
+ * @openapi
+ * /api/admin/staff-access:
+ *   get:
+ *     tags: [Admin - Staff Access]
+ *     summary: Get all staff access records
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of staff access records
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/staff-access", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAllStaffAccess);
+/**
+ * @openapi
+ * /api/admin/staff-access/{id}:
+ *   get:
+ *     tags: [Admin - Staff Access]
+ *     summary: Get staff access by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Staff access details
+ *       404:
+ *         description: Staff access not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getStaffAccess);
+/**
+ * @openapi
+ * /api/admin/staff-access/{id}:
+ *   put:
+ *     tags: [Admin - Staff Access]
+ *     summary: Update staff access
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               classAccess:
+ *                 type: array
+ *               subjectAccess:
+ *                 type: array
+ *               globalPermissions:
+ *                 type: object
+ *               expiresAt:
+ *                 type: string
+ *                 format: date-time
+ *               notes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Staff access updated successfully
+ *       404:
+ *         description: Staff access not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.put("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateStaffAccess);
+/**
+ * @openapi
+ * /api/admin/staff-access/{id}:
+ *   delete:
+ *     tags: [Admin - Staff Access]
+ *     summary: Delete staff access
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Staff access deleted successfully
+ *       404:
+ *         description: Staff access not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteStaffAccess);
 export default router;
 //# sourceMappingURL=index.js.map

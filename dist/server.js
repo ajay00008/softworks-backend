@@ -4,6 +4,8 @@ import helmet from "helmet";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
 import morgan from "morgan";
+import path from "path";
+import { fileURLToPath } from "url";
 import { sanitizeRequests } from "./middleware/sanitize";
 import { env } from "./config/env";
 import routes from "./routes";
@@ -11,11 +13,34 @@ import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 import logger from "./utils/logger";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const app = express();
 app.set("trust proxy", true);
 app.use(helmet());
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+// Apply JSON and URL-encoded parsing only to non-file-upload routes
+app.use((req, res, next) => {
+    // Skip JSON/URL parsing for file upload routes
+    if (req.path.includes('/upload') ||
+        req.path.includes('/answer-sheets') ||
+        req.path.includes('/reference-book') ||
+        req.path.includes('/upload-pdf')) {
+        return next();
+    }
+    return express.json({ limit: "50mb" })(req, res, next);
+});
+app.use((req, res, next) => {
+    // Skip URL-encoded parsing for file upload routes
+    if (req.path.includes('/upload') ||
+        req.path.includes('/answer-sheets') ||
+        req.path.includes('/reference-book') ||
+        req.path.includes('/upload-pdf')) {
+        return next();
+    }
+    return express.urlencoded({ extended: true, limit: "50mb" })(req, res, next);
+});
 app.use(sanitizeRequests);
 app.use(rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -24,6 +49,8 @@ app.use(rateLimit({
     legacyHeaders: false,
 }));
 app.use(morgan("combined"));
+// Serve static files from public directory
+app.use("/public", express.static(path.resolve(__dirname, "../public")));
 // Swagger docs
 app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api", routes);

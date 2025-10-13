@@ -23,7 +23,28 @@ const app = express();
 app.set("trust proxy", true);
 app.use(helmet());
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
+// Apply JSON and URL-encoded parsing only to non-file-upload routes
+app.use((req, res, next) => {
+  // Skip JSON/URL parsing for file upload routes
+  if (req.path.includes('/upload') || 
+      req.path.includes('/answer-sheets') || 
+      req.path.includes('/reference-book') ||
+      req.path.includes('/upload-pdf')) {
+    return next();
+  }
+  return express.json({ limit: "50mb" })(req, res, next);
+});
+
+app.use((req, res, next) => {
+  // Skip URL-encoded parsing for file upload routes
+  if (req.path.includes('/upload') || 
+      req.path.includes('/answer-sheets') || 
+      req.path.includes('/reference-book') ||
+      req.path.includes('/upload-pdf')) {
+    return next();
+  }
+  return express.urlencoded({ extended: true, limit: "50mb" })(req, res, next);
+});
 app.use(sanitizeRequests);
 app.use(
   rateLimit({

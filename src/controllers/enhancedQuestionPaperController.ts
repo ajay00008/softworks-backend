@@ -42,11 +42,54 @@ const upload = multer({
 
 export const uploadQuestionPaperPdf = upload.single('questionPaper');
 
+// Helper function to flatten question type distribution for AI service
+function flattenQuestionTypeDistribution(questionTypeDistribution: any): Array<{
+  type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
+  percentage: number;
+}> {
+  const flattened: Array<{
+    type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
+    percentage: number;
+  }> = [];
+  
+  const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+  for (const mark of markCategories) {
+    const distributions = questionTypeDistribution[mark];
+    if (distributions && distributions.length > 0) {
+      // Calculate the weight for this mark category
+      const markWeight = mark === 'oneMark' ? 1 : mark === 'twoMark' ? 2 : mark === 'threeMark' ? 3 : 5;
+      
+      // Add each distribution with weighted percentage
+      distributions.forEach((dist: any) => {
+        flattened.push({
+          type: dist.type as 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER',
+          percentage: dist.percentage * markWeight / 100 // Normalize to overall percentage
+        });
+      });
+    }
+  }
+  
+  return flattened;
+}
+
 // Validation schemas
 const CreateQuestionPaperSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(500).optional(),
   examId: z.string().min(1),
+  subjectId: z.union([z.string(), z.object({
+    _id: z.string(),
+    code: z.string().optional(),
+    name: z.string().optional(),
+    shortName: z.string().optional()
+  })]).optional(),
+  classId: z.union([z.string(), z.object({
+    _id: z.string(),
+    name: z.string().optional(),
+    displayName: z.string().optional(),
+    level: z.number().optional(),
+    section: z.string().optional()
+  })]).optional(),
   markDistribution: z.object({
     oneMark: z.number().min(0).max(100),
     twoMark: z.number().min(0).max(100),
@@ -58,10 +101,24 @@ const CreateQuestionPaperSchema = z.object({
     level: z.enum(['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE']),
     percentage: z.number().min(0).max(100)
   })),
-  questionTypeDistribution: z.array(z.object({
-    type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
-    percentage: z.number().min(0).max(100)
-  })),
+  questionTypeDistribution: z.object({
+    oneMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional(),
+    twoMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional(),
+    threeMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional(),
+    fiveMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional()
+  }),
   aiSettings: z.object({
     useSubjectBook: z.boolean().default(false),
     customInstructions: z.string().max(1000).optional(),
@@ -102,9 +159,25 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
     // Extract subject and class IDs from exam
     const subjectId = exam.subjectId._id.toString();
     const classId = exam.classId._id.toString();
+    
+    // Handle case where frontend sends subjectId and classId as objects
+    let finalSubjectId: string = subjectId;
+    let finalClassId: string = classId;
+    
+    if (questionPaperData.subjectId && typeof questionPaperData.subjectId === 'object') {
+      finalSubjectId = questionPaperData.subjectId._id;
+    } else if (questionPaperData.subjectId) {
+      finalSubjectId = questionPaperData.subjectId as string;
+    }
+    
+    if (questionPaperData.classId && typeof questionPaperData.classId === 'object') {
+      finalClassId = questionPaperData.classId._id;
+    } else if (questionPaperData.classId) {
+      finalClassId = questionPaperData.classId as string;
+    }
 
     // Validate that subject is available for this class
-    if (!(exam.subjectId as any).classIds.includes(classId)) {
+    if (!(exam.subjectId as any).classIds.includes(finalClassId)) {
       throw new createHttpError.BadRequest("Subject is not available for this class");
     }
 
@@ -114,16 +187,23 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
       throw new createHttpError.BadRequest("Blooms taxonomy percentages must add up to 100%");
     }
 
-    const typeTotal = questionPaperData.questionTypeDistribution.reduce((sum, dist) => sum + dist.percentage, 0);
-    if (Math.abs(typeTotal - 100) > 0.01) {
-      throw new createHttpError.BadRequest("Question type percentages must add up to 100%");
+    // Validate question type distributions for each mark category
+    const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+    for (const mark of markCategories) {
+      const distributions = questionPaperData.questionTypeDistribution[mark];
+      if (distributions && distributions.length > 0) {
+        const typeTotal = distributions.reduce((sum, dist) => sum + dist.percentage, 0);
+        if (Math.abs(typeTotal - 100) > 0.01) {
+          throw new createHttpError.BadRequest(`Question type percentages for ${mark.replace('Mark', ' Mark')} must add up to 100%. Current total: ${typeTotal}%`);
+        }
+      }
     }
 
     // Create question paper with derived subject and class IDs
     const questionPaper = await QuestionPaper.create({
       ...questionPaperData,
-      subjectId,
-      classId,
+      subjectId: finalSubjectId,
+      classId: finalClassId,
       adminId,
       createdBy: auth.sub,
       type: 'AI_GENERATED',
@@ -271,7 +351,7 @@ export async function generateAIQuestionPaper(req: Request, res: Response, next:
         totalQuestions: questionPaper.markDistribution.oneMark + questionPaper.markDistribution.twoMark + questionPaper.markDistribution.threeMark + questionPaper.markDistribution.fiveMark
       },
       bloomsDistribution: questionPaper.bloomsDistribution,
-      questionTypeDistribution: questionPaper.questionTypeDistribution,
+      questionTypeDistribution: flattenQuestionTypeDistribution(questionPaper.questionTypeDistribution),
       useSubjectBook: questionPaper.aiSettings?.useSubjectBook || false,
       customInstructions: questionPaper.aiSettings?.customInstructions || '',
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
@@ -558,16 +638,32 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     const subjectId = exam.subjectId._id.toString();
     const classId = exam.classId._id.toString();
     
+    // Handle case where frontend sends subjectId and classId as objects
+    let finalSubjectId: string = subjectId;
+    let finalClassId: string = classId;
+    
+    if (questionPaperData.subjectId && typeof questionPaperData.subjectId === 'object') {
+      finalSubjectId = questionPaperData.subjectId._id;
+    } else if (questionPaperData.subjectId) {
+      finalSubjectId = questionPaperData.subjectId as string;
+    }
+    
+    if (questionPaperData.classId && typeof questionPaperData.classId === 'object') {
+      finalClassId = questionPaperData.classId._id;
+    } else if (questionPaperData.classId) {
+      finalClassId = questionPaperData.classId as string;
+    }
+    
     // Validate that subject is available for this class
-    if (!(exam.subjectId as any).classIds.includes(classId)) {
+    if (!(exam.subjectId as any).classIds.includes(finalClassId)) {
       throw new createHttpError.BadRequest("Subject is not available for this class");
     }
 
     // Create question paper with derived subject and class IDs
     const questionPaper = await QuestionPaper.create({
       ...questionPaperData,
-      subjectId, // Now derived
-      classId,   // Now derived
+      subjectId: finalSubjectId, // Now derived
+      classId: finalClassId,   // Now derived
       adminId,
       createdBy: auth.sub,
       type: 'AI_GENERATED',
@@ -583,8 +679,8 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
 
     // Prepare AI request
     const aiRequest = {
-      subjectId: questionPaper.subjectId._id.toString(),
-      classId: questionPaper.classId._id.toString(),
+      subjectId: finalSubjectId,
+      classId: finalClassId,
       subjectName: (questionPaper.subjectId as any).name,
       className: (questionPaper.classId as any).name,
       examTitle: (questionPaper.examId as any).title,
@@ -593,7 +689,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
         totalQuestions: questionPaper.markDistribution.oneMark + questionPaper.markDistribution.twoMark + questionPaper.markDistribution.threeMark + questionPaper.markDistribution.fiveMark
       },
       bloomsDistribution: questionPaper.bloomsDistribution,
-      questionTypeDistribution: questionPaper.questionTypeDistribution,
+      questionTypeDistribution: flattenQuestionTypeDistribution(questionPaper.questionTypeDistribution),
       useSubjectBook: questionPaper.aiSettings?.useSubjectBook || false,
       customInstructions: questionPaper.aiSettings?.customInstructions || '',
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',

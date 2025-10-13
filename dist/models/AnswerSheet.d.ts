@@ -13,22 +13,30 @@ export interface IAnswerSheet extends Document {
     isAligned: boolean;
     rollNumberDetected: string;
     rollNumberConfidence: number;
+    confidence?: number;
     aiCorrectionResults?: {
+        answerSheetId: string;
+        status: string;
+        confidence: number;
         totalMarks: number;
-        answers: {
-            questionId: mongoose.Types.ObjectId;
-            detectedAnswer: string;
+        obtainedMarks: number;
+        percentage: number;
+        questionWiseResults: Array<{
+            questionNumber: number;
+            correctAnswer: string;
+            studentAnswer: string;
             isCorrect: boolean;
             marksObtained: number;
+            maxMarks: number;
+            feedback: string;
             confidence: number;
-            reasoning: string;
-            corrections: string[];
-        }[];
-        strengths: string[];
-        weakAreas: string[];
-        unansweredQuestions: mongoose.Types.ObjectId[];
-        irrelevantAnswers: string[];
+        }>;
         overallFeedback: string;
+        strengths: string[];
+        weaknesses: string[];
+        suggestions: string[];
+        processingTime: number;
+        errors?: string[];
     };
     manualOverrides?: {
         questionId: mongoose.Types.ObjectId;

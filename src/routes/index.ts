@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
@@ -93,7 +94,9 @@ import {
   evaluateAnswerSheets,
   getResults,
   getPerformanceGraphs,
-  downloadResults
+  getTeacherExams,
+  downloadResults,
+  getAnswerSheets
 } from "../controllers/teacherDashboardController";
 import {
   createStaffAccess,
@@ -158,6 +161,23 @@ import {
 } from "../controllers/enhancedQuestionPaperController";
 
 const router = Router();
+
+// Multer configuration for answer sheet uploads
+const answerSheetUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit per file
+    files: 10 // Maximum 10 files per upload
+  },
+  fileFilter: (req, file, cb) => {
+    // Only allow PDF files
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  }
+});
 
 // Health
 router.get("/health", (_req, res) => res.json({ ok: true }));
@@ -3113,21 +3133,21 @@ import {
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [examId, studentId, originalFileName, cloudStorageUrl, cloudStorageKey]
+ *             required: [examId, studentId, file]
  *             properties:
  *               examId:
  *                 type: string
+ *                 description: Exam ID
  *               studentId:
  *                 type: string
- *               originalFileName:
+ *                 description: Student ID
+ *               file:
  *                 type: string
- *               cloudStorageUrl:
- *                 type: string
- *               cloudStorageKey:
- *                 type: string
+ *                 format: binary
+ *                 description: Answer sheet PDF file
  *               language:
  *                 type: string
  *                 enum: [ENGLISH, TAMIL, HINDI, MALAYALAM, TELUGU, KANNADA, FRENCH]
@@ -3136,13 +3156,13 @@ import {
  *       201:
  *         description: Answer sheet uploaded successfully
  *       400:
- *         description: Answer sheet already exists for this student
+ *         description: Answer sheet already exists for this student or no file uploaded
  *       403:
  *         description: Access denied to this class
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/answer-sheets/upload", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadAnswerSheet);
+router.post("/admin/answer-sheets/upload", answerSheetUpload.single('file'), requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadAnswerSheet);
 
 /**
  * @openapi
@@ -3180,7 +3200,7 @@ router.post("/admin/answer-sheets/upload", requireAuth, requireRoles("ADMIN", "S
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/answer-sheets/batch/:examId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), batchUploadAnswerSheets);
+router.post("/admin/answer-sheets/batch/:examId", answerSheetUpload.array('files', 10), requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), batchUploadAnswerSheets);
 
 /**
  * @openapi
@@ -4394,7 +4414,206 @@ router.post("/teacher/questions", requireAuth, requireRoles("TEACHER"), createTe
  *       403:
  *         description: Access denied
  */
-router.post("/teacher/upload-answers", requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+router.post("/teacher/upload-answers", answerSheetUpload.array('files', 10), requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/upload/{examId}:
+ *   post:
+ *     summary: Upload answer sheets for a specific exam
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Exam ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *                 description: Answer sheet PDF files
+ *     responses:
+ *       200:
+ *         description: Answer sheets uploaded successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/answer-sheets/upload/:examId", answerSheetUpload.array('files', 10), requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{examId}:
+ *   get:
+ *     summary: Get answer sheets for an exam
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Exam ID
+ *     responses:
+ *       200:
+ *         description: Answer sheets retrieved successfully
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.get("/teacher/answer-sheets/:examId", requireAuth, requireRoles("TEACHER"), getAnswerSheets);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{sheetId}/process:
+ *   post:
+ *     summary: Process answer sheet with AI
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: sheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Answer sheet ID
+ *     responses:
+ *       200:
+ *         description: Answer sheet processing started
+ *       404:
+ *         description: Answer sheet not found
+ *       403:
+ *         description: Access denied
+ */
+router.post("/teacher/answer-sheets/:sheetId/process", requireAuth, requireRoles("TEACHER"), processAnswerSheet);
+
+/**
+ * @openapi
+ * /api/teacher/notifications:
+ *   get:
+ *     summary: Get notifications for teacher
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Notifications retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/teacher/notifications", requireAuth, requireRoles("TEACHER"), async (req: any, res: any) => {
+  try {
+    const userId = req.auth?.sub;
+    const { limit = 20, offset = 0 } = req.query;
+
+    const { NotificationService } = await import('../services/notificationService');
+    const notifications = await NotificationService.getNotifications(
+      userId,
+      Number(limit),
+      Number(offset)
+    );
+
+    res.json({
+      success: true,
+      data: notifications
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/teacher/notifications/{notificationId}/read:
+ *   post:
+ *     summary: Mark notification as read
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *       404:
+ *         description: Notification not found
+ */
+router.post("/teacher/notifications/:notificationId/read", requireAuth, requireRoles("TEACHER"), async (req: any, res: any) => {
+  try {
+    const userId = req.auth?.sub;
+    const { notificationId } = req.params;
+
+    const { NotificationService } = await import('../services/notificationService');
+    const notification = await NotificationService.markAsRead(notificationId, userId);
+
+    res.json({
+      success: true,
+      data: notification
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+/**
+ * @openapi
+ * /api/teacher/notifications/read-all:
+ *   post:
+ *     summary: Mark all notifications as read
+ *     tags: [Teacher]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
+ */
+router.post("/teacher/notifications/read-all", requireAuth, requireRoles("TEACHER"), async (req: any, res: any) => {
+  try {
+    const userId = req.auth?.sub;
+
+    const { NotificationService } = await import('../services/notificationService');
+    const count = await NotificationService.markAllAsRead(userId);
+
+    res.json({
+      success: true,
+      data: { markedCount: count }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
 
 /**
  * @openapi
@@ -4525,6 +4744,35 @@ router.get("/teacher/results", requireAuth, requireRoles("TEACHER"), getResults)
  *         description: No permission to access analytics
  */
 router.get("/teacher/performance-graph", requireAuth, requireRoles("TEACHER"), getPerformanceGraphs);
+
+/**
+ * @openapi
+ * /api/teacher/exams:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get exams for assigned classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Exams retrieved successfully
+ *       403:
+ *         description: Access denied
+ */
+router.get("/teacher/exams", requireAuth, requireRoles("TEACHER"), getTeacherExams);
 
 /**
  * @openapi

@@ -28,11 +28,25 @@ export interface IQuestionPaper extends Document {
     percentage: number;
   }[];
   
-  // Question type distribution
+  // Question type distribution per mark category
   questionTypeDistribution: {
-    type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
-    percentage: number;
-  }[];
+    oneMark?: {
+      type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+      percentage: number;
+    }[];
+    twoMark?: {
+      type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+      percentage: number;
+    }[];
+    threeMark?: {
+      type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+      percentage: number;
+    }[];
+    fiveMark?: {
+      type: "CHOOSE_BEST_ANSWER" | "FILL_BLANKS" | "ONE_WORD_ANSWER" | "TRUE_FALSE" | "CHOOSE_MULTIPLE_ANSWERS" | "MATCHING_PAIRS" | "DRAWING_DIAGRAM" | "MARKING_PARTS" | "SHORT_ANSWER" | "LONG_ANSWER";
+      percentage: number;
+    }[];
+  };
   
   // Generated questions (not stored individually, just references)
   questions: mongoose.Types.ObjectId[];
@@ -124,14 +138,40 @@ const QuestionPaperSchema = new Schema<IQuestionPaper>(
       },
       percentage: { type: Number, required: true, min: 0, max: 100 }
     }],
-    questionTypeDistribution: [{
-      type: { 
-        type: String, 
-        enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
-        required: true
-      },
-      percentage: { type: Number, required: true, min: 0, max: 100 }
-    }],
+    questionTypeDistribution: {
+      oneMark: [{
+        type: { 
+          type: String, 
+          enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+          required: true
+        },
+        percentage: { type: Number, required: true, min: 0, max: 100 }
+      }],
+      twoMark: [{
+        type: { 
+          type: String, 
+          enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+          required: true
+        },
+        percentage: { type: Number, required: true, min: 0, max: 100 }
+      }],
+      threeMark: [{
+        type: { 
+          type: String, 
+          enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+          required: true
+        },
+        percentage: { type: Number, required: true, min: 0, max: 100 }
+      }],
+      fiveMark: [{
+        type: { 
+          type: String, 
+          enum: ["CHOOSE_BEST_ANSWER", "FILL_BLANKS", "ONE_WORD_ANSWER", "TRUE_FALSE", "CHOOSE_MULTIPLE_ANSWERS", "MATCHING_PAIRS", "DRAWING_DIAGRAM", "MARKING_PARTS", "SHORT_ANSWER", "LONG_ANSWER"],
+          required: true
+        },
+        percentage: { type: Number, required: true, min: 0, max: 100 }
+      }]
+    },
     questions: [{ 
       type: Schema.Types.ObjectId, 
       ref: "Question"
@@ -197,10 +237,16 @@ QuestionPaperSchema.pre('save', function(next) {
     return next(new Error('Blooms taxonomy percentages must add up to 100%'));
   }
   
-  // Validate question type percentages add up to 100
-  const typeTotal = this.questionTypeDistribution.reduce((sum, dist) => sum + dist.percentage, 0);
-  if (Math.abs(typeTotal - 100) > 0.01) { // Allow small floating point errors
-    return next(new Error('Question type percentages must add up to 100%'));
+  // Validate question type percentages add up to 100 for each mark category
+  const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+  for (const mark of markCategories) {
+    const distributions = this.questionTypeDistribution[mark];
+    if (distributions && distributions.length > 0) {
+      const typeTotal = distributions.reduce((sum, dist) => sum + dist.percentage, 0);
+      if (Math.abs(typeTotal - 100) > 0.01) { // Allow small floating point errors
+        return next(new Error(`Question type percentages for ${mark.replace('Mark', ' Mark')} must add up to 100%. Current total: ${typeTotal}%`));
+      }
+    }
   }
   
   next();

@@ -125,8 +125,8 @@ Requirements:
 1. Each question must be pedagogically sound and age-appropriate for the specified class level
 2. Questions should test the specific Bloom's Taxonomy level indicated
 3. Difficulty should match the specified level (EASY, MODERATE, TOUGHEST)
-4. Include a mix of question types: Multiple Choice, Short Answer, Long Answer, True/False, Fill in the Blanks
-5. For multiple choice questions, provide 4 plausible options with only one correct answer
+4. Include a mix of question types: Choose Best Answer, Fill in the Blanks, One Word Answer, True/False, Choose Multiple Answers, Matching Pairs, Drawing/Diagram, Marking Parts, Short Answer, Long Answer
+5. For choose best answer questions, provide 4 plausible options with only one correct answer
 6. Include detailed explanations for each answer
 7. Assign appropriate marks based on difficulty (1-3 for easy, 2-5 for moderate, 3-8 for toughest)
 8. Include relevant tags for categorization
@@ -137,8 +137,8 @@ Return a JSON array of objects with the following structure:
 [
   {
     "questionText": "The actual question text",
-    "questionType": "MULTIPLE_CHOICE|SHORT_ANSWER|LONG_ANSWER|TRUE_FALSE|FILL_BLANKS",
-    "options": ["Option A", "Option B", "Option C", "Option D"], // Only for MULTIPLE_CHOICE
+    "questionType": "CHOOSE_BEST_ANSWER|FILL_BLANKS|ONE_WORD_ANSWER|TRUE_FALSE|CHOOSE_MULTIPLE_ANSWERS|MATCHING_PAIRS|DRAWING_DIAGRAM|MARKING_PARTS|SHORT_ANSWER|LONG_ANSWER",
+    "options": ["Option A", "Option B", "Option C", "Option D"], // Only for CHOOSE_BEST_ANSWER
     "correctAnswer": "The correct answer",
     "explanation": "Detailed explanation of why this is correct",
     "marks": 2,

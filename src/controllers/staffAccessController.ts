@@ -70,14 +70,14 @@ export const createStaffAccess = async (req: Request, res: Response) => {
 // Get staff access by staff ID
 export const getStaffAccess = async (req: Request, res: Response) => {
   try {
-    const { staffId } = req.params;
+    const { id } = req.params;
     const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const staffAccess = await StaffAccess.findOne({ staffId, isActive: true })
+    const staffAccess = await StaffAccess.findById(id)
       .populate('staffId', 'name email role')
       .populate('assignedBy', 'name email')
       .populate('classAccess.classId', 'name')
@@ -100,7 +100,7 @@ export const getStaffAccess = async (req: Request, res: Response) => {
 // Update staff access
 export const updateStaffAccess = async (req: Request, res: Response) => {
   try {
-    const { staffAccessId } = req.params;
+    const { id } = req.params;
     const { classAccess, subjectAccess, globalPermissions, expiresAt, notes } = req.body;
     const userId = (req as any).auth?.sub;
 
@@ -108,7 +108,7 @@ export const updateStaffAccess = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const staffAccess = await StaffAccess.findById(staffAccessId);
+    const staffAccess = await StaffAccess.findById(id);
     if (!staffAccess) {
       return res.status(404).json({ success: false, error: 'Staff access not found' });
     }
@@ -141,7 +141,7 @@ export const updateStaffAccess = async (req: Request, res: Response) => {
 
     await staffAccess.save();
 
-    logger.info(`Staff access updated: ${staffAccessId} by ${userId}`);
+    logger.info(`Staff access updated: ${id} by ${userId}`);
 
     res.json({
       success: true,
@@ -202,14 +202,14 @@ export const getAllStaffAccess = async (req: Request, res: Response) => {
 // Deactivate staff access
 export const deactivateStaffAccess = async (req: Request, res: Response) => {
   try {
-    const { staffAccessId } = req.params;
+    const { id } = req.params;
     const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const staffAccess = await StaffAccess.findById(staffAccessId);
+    const staffAccess = await StaffAccess.findById(id);
     if (!staffAccess) {
       return res.status(404).json({ success: false, error: 'Staff access not found' });
     }
@@ -217,7 +217,7 @@ export const deactivateStaffAccess = async (req: Request, res: Response) => {
     staffAccess.isActive = false;
     await staffAccess.save();
 
-    logger.info(`Staff access deactivated: ${staffAccessId} by ${userId}`);
+    logger.info(`Staff access deactivated: ${id} by ${userId}`);
 
     res.json({
       success: true,
@@ -376,21 +376,21 @@ export const getStaffSubjects = async (req: Request, res: Response) => {
 // Delete staff access
 export const deleteStaffAccess = async (req: Request, res: Response) => {
   try {
-    const { staffAccessId } = req.params;
+    const { id } = req.params;
     const userId = (req as any).auth?.sub;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const staffAccess = await StaffAccess.findById(staffAccessId);
+    const staffAccess = await StaffAccess.findById(id);
     if (!staffAccess) {
       return res.status(404).json({ success: false, error: 'Staff access not found' });
     }
 
-    await StaffAccess.findByIdAndDelete(staffAccessId);
+    await StaffAccess.findByIdAndDelete(id);
 
-    logger.info(`Staff access deleted: ${staffAccessId} by ${userId}`);
+    logger.info(`Staff access deleted: ${id} by ${userId}`);
 
     res.json({
       success: true,

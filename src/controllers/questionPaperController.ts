@@ -29,10 +29,24 @@ const CreateQuestionPaperSchema = z.object({
     level: z.enum(['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE']),
     percentage: z.number().min(0).max(100)
   })),
-  questionTypeDistribution: z.array(z.object({
-    type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
-    percentage: z.number().min(0).max(100)
-  })),
+  questionTypeDistribution: z.object({
+    oneMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional(),
+    twoMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional(),
+    threeMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional(),
+    fiveMark: z.array(z.object({
+      type: z.enum(['CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER']),
+      percentage: z.number().min(0).max(100)
+    })).optional()
+  }),
   aiSettings: z.object({
     useSubjectBook: z.boolean().default(false),
     customInstructions: z.string().max(1000).optional(),
@@ -97,9 +111,16 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
       throw new createHttpError.BadRequest("Blooms taxonomy percentages must add up to 100%");
     }
 
-    const typeTotal = questionPaperData.questionTypeDistribution.reduce((sum, dist) => sum + dist.percentage, 0);
-    if (Math.abs(typeTotal - 100) > 0.01) {
-      throw new createHttpError.BadRequest("Question type percentages must add up to 100%");
+    // Validate question type distributions for each mark category
+    const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+    for (const mark of markCategories) {
+      const distributions = questionPaperData.questionTypeDistribution[mark];
+      if (distributions && distributions.length > 0) {
+        const typeTotal = distributions.reduce((sum, dist) => sum + dist.percentage, 0);
+        if (Math.abs(typeTotal - 100) > 0.01) {
+          throw new createHttpError.BadRequest(`Question type percentages for ${mark.replace('Mark', ' Mark')} must add up to 100%. Current total: ${typeTotal}%`);
+        }
+      }
     }
 
     // Create question paper
