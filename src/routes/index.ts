@@ -156,6 +156,8 @@ import {
   generateAIQuestionPaper,
   generateCompleteAIQuestionPaper,
   uploadQuestionPaperPdf,
+  uploadPatternFile,
+  uploadPatternFileEndpoint,
   uploadPDFQuestionPaper,
   downloadQuestionPaperPDF
 } from "../controllers/enhancedQuestionPaperController";
@@ -4219,6 +4221,33 @@ router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles(
  *         description: Invalid input data
  */
 router.post("/admin/question-papers/generate-complete-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateCompleteAIQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/upload-pattern:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Upload pattern file for question paper generation
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               patternFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: Pattern file (PDF, PNG, JPG, JPEG)
+ *     responses:
+ *       200:
+ *         description: Pattern file uploaded successfully
+ *       400:
+ *         description: Invalid file or no file uploaded
+ */
+router.post("/admin/question-papers/upload-pattern", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadPatternFile, uploadPatternFileEndpoint);
 
 /**
  * @openapi

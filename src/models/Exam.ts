@@ -7,7 +7,7 @@ export interface IExam extends Document {
   title: string;
   description?: string;
   examType: ExamType;
-  subjectId: mongoose.Types.ObjectId;
+  subjectIds: mongoose.Types.ObjectId[]; // Array of subject IDs for multi-subject exams
   classId: mongoose.Types.ObjectId;
   adminId: mongoose.Types.ObjectId; // references User with role ADMIN who created this exam
   duration: number; // in minutes
@@ -45,12 +45,11 @@ const ExamSchema = new Schema<IExam>(
       enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL", "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"],
       required: true
     },
-    subjectId: { 
+    subjectIds: [{ 
       type: Schema.Types.ObjectId, 
       ref: "Subject", 
-      required: true,
-      index: true
-    },
+      required: true
+    }],
     classId: { 
       type: Schema.Types.ObjectId, 
       ref: "Class", 

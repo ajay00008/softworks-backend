@@ -26,6 +26,21 @@ const storage = multer.diskStorage({
   }
 });
 
+// Multer configuration for pattern uploads
+const patternStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(process.cwd(), 'public', 'question-patterns');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `pattern-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
 const upload = multer({
   storage: storage,
   limits: {
@@ -40,7 +55,57 @@ const upload = multer({
   }
 });
 
+const patternUpload = multer({
+  storage: patternStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only PDF, PNG, JPG, and JPEG files are allowed') as any, false);
+    }
+  }
+});
+
 export const uploadQuestionPaperPdf = upload.single('questionPaper');
+export const uploadPatternFile = patternUpload.single('patternFile');
+
+// Upload pattern file endpoint
+export async function uploadPatternFileEndpoint(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.file) {
+      throw new createHttpError.BadRequest("No pattern file uploaded");
+    }
+
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    // Return pattern file information
+    res.status(200).json({
+      success: true,
+      message: "Pattern file uploaded successfully",
+      data: {
+        patternId: req.file.filename,
+        fileName: req.file.originalname,
+        filePath: req.file.path,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error uploading pattern file:', error);
+    next(error);
+  }
+}
 
 // Helper function to flatten question type distribution for AI service
 function flattenQuestionTypeDistribution(questionTypeDistribution: any): Array<{
@@ -124,7 +189,8 @@ const CreateQuestionPaperSchema = z.object({
     customInstructions: z.string().max(1000).optional(),
     difficultyLevel: z.enum(['EASY', 'MODERATE', 'TOUGHEST']).default('MODERATE'),
     twistedQuestionsPercentage: z.number().min(0).max(50).default(0)
-  }).optional()
+  }).optional(),
+  patternId: z.string().optional() // Optional pattern file ID
 });
 
 const GenerateQuestionPaperSchema = z.object({
@@ -148,7 +214,7 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
       adminId, 
       isActive: true 
     }).populate([
-      { path: 'subjectId', select: 'name code classIds' },
+      { path: 'subjectIds', select: 'name code classIds' },
       { path: 'classId', select: 'name displayName' }
     ]);
     
@@ -157,7 +223,13 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
     }
 
     // Extract subject and class IDs from exam
-    const subjectId = exam.subjectId._id.toString();
+    if (!exam.subjectIds || exam.subjectIds.length === 0) {
+      throw new createHttpError.BadRequest("Exam has no subjects assigned");
+    }
+    const subjectId = exam.subjectIds[0]?._id?.toString();
+    if (!subjectId) {
+      throw new createHttpError.BadRequest("Invalid subject data in exam");
+    }
     const classId = exam.classId._id.toString();
     
     // Handle case where frontend sends subjectId and classId as objects
@@ -177,7 +249,7 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
     }
 
     // Validate that subject is available for this class
-    if (!(exam.subjectId as any).classIds.includes(finalClassId)) {
+    if (!(exam.subjectIds[0] as any).classIds.includes(finalClassId)) {
       throw new createHttpError.BadRequest("Subject is not available for this class");
     }
 
@@ -626,7 +698,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       adminId, 
       isActive: true 
     }).populate([
-      { path: 'subjectId', select: 'name code classIds' },
+      { path: 'subjectIds', select: 'name code classIds' },
       { path: 'classId', select: 'name displayName' }
     ]);
     
@@ -635,7 +707,13 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     }
     
     // Extract subject and class IDs from exam
-    const subjectId = exam.subjectId._id.toString();
+    if (!exam.subjectIds || exam.subjectIds.length === 0) {
+      throw new createHttpError.BadRequest("Exam has no subjects assigned");
+    }
+    const subjectId = exam.subjectIds[0]?._id?.toString();
+    if (!subjectId) {
+      throw new createHttpError.BadRequest("Invalid subject data in exam");
+    }
     const classId = exam.classId._id.toString();
     
     // Handle case where frontend sends subjectId and classId as objects
@@ -655,7 +733,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     }
     
     // Validate that subject is available for this class
-    if (!(exam.subjectId as any).classIds.includes(finalClassId)) {
+    if (!(exam.subjectIds[0] as any).classIds.includes(finalClassId)) {
       throw new createHttpError.BadRequest("Subject is not available for this class");
     }
 
@@ -677,6 +755,18 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       { path: 'examId', select: 'title duration' }
     ]);
 
+    // Handle pattern file if provided
+    let patternFilePath = null;
+    if (questionPaperData.patternId) {
+      // Construct pattern file path from pattern ID
+      patternFilePath = path.join(process.cwd(), 'public', 'question-patterns', questionPaperData.patternId);
+      
+      // Check if pattern file exists
+      if (!fs.existsSync(patternFilePath)) {
+        throw new createHttpError.NotFound("Pattern file not found");
+      }
+    }
+
     // Prepare AI request
     const aiRequest = {
       subjectId: finalSubjectId,
@@ -694,7 +784,8 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       customInstructions: questionPaper.aiSettings?.customInstructions || '',
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
-      language: 'ENGLISH' as const
+      language: 'ENGLISH' as const,
+      ...(patternFilePath && { patternFilePath }) // Add pattern file path to AI request only if it exists
     };
 
     // Generate questions using AI

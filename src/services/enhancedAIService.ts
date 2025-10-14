@@ -28,6 +28,7 @@ export interface EnhancedQuestionGenerationRequest {
   difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
   twistedQuestionsPercentage: number;
   language: 'ENGLISH' | 'TAMIL' | 'HINDI' | 'MALAYALAM' | 'TELUGU' | 'KANNADA';
+  patternFilePath?: string; // Optional pattern file path
 }
 
 export interface EnhancedGeneratedQuestion {
@@ -97,8 +98,18 @@ export class EnhancedAIService {
         }
       }
 
+      // Handle pattern file if provided
+      let patternInfo = '';
+      if (request.patternFilePath) {
+        patternInfo = `\n\nPattern File Information:
+- Pattern file has been uploaded to guide the question paper format
+- Follow the structure and style of the uploaded pattern
+- Use the pattern as a reference for formatting and question arrangement
+- Maintain consistency with the pattern's layout and presentation style`;
+      }
+
       // Create comprehensive prompt for question paper generation
-      const prompt = this.createQuestionPaperPrompt(request, subjectBookInfo);
+      const prompt = this.createQuestionPaperPrompt(request, subjectBookInfo + patternInfo);
 
       let response: string;
 
