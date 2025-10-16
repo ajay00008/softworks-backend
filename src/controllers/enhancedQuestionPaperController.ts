@@ -434,6 +434,39 @@ export async function generateAIQuestionPaper(req: Request, res: Response, next:
     // Generate questions using AI
     const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest);
 
+    // Save questions to database
+    const { Question } = await import('../models/Question');
+    const savedQuestions = [];
+    
+    for (const aiQuestion of generatedQuestions) {
+      const question = new Question({
+        questionText: aiQuestion.questionText,
+        questionType: aiQuestion.questionType,
+        subjectId: questionPaper.subjectId,
+        classId: questionPaper.classId,
+        adminId: adminId, // Add the required adminId field
+        unit: 'AI Generated',
+        bloomsTaxonomyLevel: aiQuestion.bloomsLevel,
+        difficulty: aiQuestion.difficulty,
+        isTwisted: aiQuestion.isTwisted,
+        options: aiQuestion.options || [],
+        correctAnswer: aiQuestion.correctAnswer,
+        explanation: aiQuestion.explanation || '',
+        marks: aiQuestion.marks,
+        timeLimit: 1, // Set minimum time limit (1 minute)
+        createdBy: adminId,
+        isActive: true,
+        tags: aiQuestion.tags || [],
+        language: 'ENGLISH'
+      });
+      
+      await question.save();
+      savedQuestions.push(question);
+    }
+
+    // Update question paper with question references
+    questionPaper.questions = savedQuestions.map(q => q._id);
+
     // Generate PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
       questionPaperId,
@@ -624,6 +657,15 @@ export async function deleteQuestionPaper(req: Request, res: Response, next: Nex
       throw new createHttpError.NotFound("Question paper not found");
     }
 
+    // Delete associated questions
+    if (questionPaper.questions && questionPaper.questions.length > 0) {
+      const { Question } = await import('../models/Question');
+      await Question.updateMany(
+        { _id: { $in: questionPaper.questions } },
+        { isActive: false }
+      );
+    }
+
     // Delete PDF file if exists
     if (questionPaper.generatedPdf?.fileName) {
       await PDFGenerationService.deleteQuestionPaperPDF(questionPaper.generatedPdf.fileName);
@@ -791,6 +833,39 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     // Generate questions using AI
     const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest);
 
+    // Save questions to database
+    const { Question } = await import('../models/Question');
+    const savedQuestions = [];
+    
+    for (const aiQuestion of generatedQuestions) {
+      const question = new Question({
+        questionText: aiQuestion.questionText,
+        questionType: aiQuestion.questionType,
+        subjectId: questionPaper.subjectId,
+        classId: questionPaper.classId,
+        adminId: adminId, // Add the required adminId field
+        unit: 'AI Generated',
+        bloomsTaxonomyLevel: aiQuestion.bloomsLevel,
+        difficulty: aiQuestion.difficulty,
+        isTwisted: aiQuestion.isTwisted,
+        options: aiQuestion.options || [],
+        correctAnswer: aiQuestion.correctAnswer,
+        explanation: aiQuestion.explanation || '',
+        marks: aiQuestion.marks,
+        timeLimit: 1, // Set minimum time limit (1 minute)
+        createdBy: adminId,
+        isActive: true,
+        tags: aiQuestion.tags || [],
+        language: 'ENGLISH'
+      });
+      
+      await question.save();
+      savedQuestions.push(question);
+    }
+
+    // Update question paper with question references
+    questionPaper.questions = savedQuestions.map(q => q._id);
+
     // Generate PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
       (questionPaper._id as any).toString(),
@@ -817,6 +892,361 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     res.json({
       success: true,
       message: "Question paper generated successfully with AI",
+      questionPaper,
+      downloadUrl: pdfResult.downloadUrl
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Get all questions for a question paper
+export async function getQuestionPaperQuestions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    // Get question paper
+    const questionPaper = await QuestionPaper.findOne({ 
+      _id: id, 
+      adminId, 
+      isActive: true 
+    });
+
+    if (!questionPaper) {
+      throw new createHttpError.NotFound("Question paper not found");
+    }
+
+    // Get questions from the question paper's questions array
+    const { Question } = await import('../models/Question');
+    const questions = await Question.find({ 
+      _id: { $in: questionPaper.questions },
+      isActive: true 
+    }).sort({ createdAt: 1 });
+
+    res.json({
+      success: true,
+      questions
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Add a question to a question paper
+export async function addQuestionToPaper(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    // Get question paper
+    const questionPaper = await QuestionPaper.findOne({ 
+      _id: id, 
+      adminId, 
+      isActive: true 
+    }).populate(['subjectId', 'classId']);
+
+    if (!questionPaper) {
+      throw new createHttpError.NotFound("Question paper not found");
+    }
+
+    // Create new question
+    const { Question } = await import('../models/Question');
+    const question = new Question({
+      questionText: req.body.questionText,
+      questionType: req.body.questionType,
+      subjectId: questionPaper.subjectId,
+      classId: questionPaper.classId,
+      unit: req.body.unit || 'General',
+      bloomsTaxonomyLevel: req.body.bloomsTaxonomyLevel,
+      difficulty: req.body.difficulty,
+      isTwisted: req.body.isTwisted || false,
+      options: req.body.options || [],
+      correctAnswer: req.body.correctAnswer,
+      explanation: req.body.explanation || '',
+      marks: req.body.marks,
+      timeLimit: req.body.timeLimit || 0,
+      createdBy: adminId,
+      isActive: true,
+      tags: req.body.tags || [],
+      language: req.body.language || 'en'
+    });
+
+    await question.save();
+
+    // Add question to question paper
+    questionPaper.questions.push(question._id);
+    await questionPaper.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Question added successfully",
+      question
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Update a question in a question paper
+export async function updateQuestionInPaper(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id, questionId } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    // Get question paper
+    const questionPaper = await QuestionPaper.findOne({ 
+      _id: id, 
+      adminId, 
+      isActive: true 
+    });
+
+    if (!questionPaper) {
+      throw new createHttpError.NotFound("Question paper not found");
+    }
+
+    // Check if question belongs to this question paper
+    if (!questionPaper.questions.includes(questionId as any)) {
+      throw new createHttpError.NotFound("Question not found in this question paper");
+    }
+
+    // Update question
+    const { Question } = await import('../models/Question');
+    const question = await Question.findOneAndUpdate(
+      { _id: questionId, isActive: true },
+      {
+        questionText: req.body.questionText,
+        questionType: req.body.questionType,
+        bloomsTaxonomyLevel: req.body.bloomsTaxonomyLevel,
+        difficulty: req.body.difficulty,
+        isTwisted: req.body.isTwisted,
+        options: req.body.options,
+        correctAnswer: req.body.correctAnswer,
+        explanation: req.body.explanation,
+        marks: req.body.marks,
+        timeLimit: req.body.timeLimit,
+        tags: req.body.tags,
+        language: req.body.language
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!question) {
+      throw new createHttpError.NotFound("Question not found");
+    }
+
+    res.json({
+      success: true,
+      message: "Question updated successfully",
+      question
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Delete a question from a question paper
+export async function deleteQuestionFromPaper(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id, questionId } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    // Get question paper
+    const questionPaper = await QuestionPaper.findOne({ 
+      _id: id, 
+      adminId, 
+      isActive: true 
+    });
+
+    if (!questionPaper) {
+      throw new createHttpError.NotFound("Question paper not found");
+    }
+
+    // Check if question belongs to this question paper
+    if (!questionPaper.questions.includes(questionId as any)) {
+      throw new createHttpError.NotFound("Question not found in this question paper");
+    }
+
+    // Remove question from question paper
+    questionPaper.questions = questionPaper.questions.filter(
+      (qId: any) => qId.toString() !== questionId
+    );
+    await questionPaper.save();
+
+    // Soft delete the question
+    const { Question } = await import('../models/Question');
+    await Question.findOneAndUpdate(
+      { _id: questionId },
+      { isActive: false }
+    );
+
+    res.json({
+      success: true,
+      message: "Question deleted successfully"
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Upload new PDF for a question paper
+export async function uploadQuestionPaperPDF(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    if (!req.file) {
+      throw new createHttpError.BadRequest("No PDF file uploaded");
+    }
+
+    const questionPaper = await QuestionPaper.findOne({ 
+      _id: id, 
+      adminId, 
+      isActive: true 
+    });
+
+    if (!questionPaper) {
+      throw new createHttpError.NotFound("Question paper not found");
+    }
+
+    // Delete old PDF if exists
+    if (questionPaper.generatedPdf?.fileName) {
+      await PDFGenerationService.deleteQuestionPaperPDF(questionPaper.generatedPdf.fileName);
+    }
+
+    // Update question paper with new PDF info
+    questionPaper.generatedPdf = {
+      fileName: req.file.filename,
+      filePath: req.file.path,
+      fileSize: req.file.size,
+      generatedAt: new Date(),
+      downloadUrl: `/public/question-papers/${req.file.filename}`
+    };
+
+    await questionPaper.save();
+
+    res.json({
+      success: true,
+      message: "PDF uploaded successfully",
+      questionPaper
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// Regenerate PDF for a question paper
+export async function regenerateQuestionPaperPDF(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth?.adminId;
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found in token");
+    }
+
+    // Get question paper with questions
+    const questionPaper = await QuestionPaper.findOne({ 
+      _id: id, 
+      adminId, 
+      isActive: true 
+    }).populate([
+      { path: 'examId', select: 'title duration' },
+      { path: 'subjectId', select: 'name code' },
+      { path: 'classId', select: 'name displayName' },
+      { path: 'questions', populate: { path: 'subjectId classId' } }
+    ]);
+
+    if (!questionPaper) {
+      throw new createHttpError.NotFound("Question paper not found");
+    }
+
+    if (!questionPaper.questions || questionPaper.questions.length === 0) {
+      throw new createHttpError.BadRequest("No questions found in question paper");
+    }
+
+    // Convert questions to the format expected by PDF generation
+    const { Question } = await import('../models/Question');
+    const questions = await Question.find({ 
+      _id: { $in: questionPaper.questions },
+      isActive: true 
+    });
+
+    const generatedQuestions = questions.map(q => ({
+      questionText: q.questionText,
+      questionType: q.questionType,
+      marks: q.marks,
+      bloomsLevel: q.bloomsTaxonomyLevel,
+      difficulty: q.difficulty,
+      isTwisted: q.isTwisted,
+      options: q.options || [],
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation || '',
+      tags: q.tags || []
+    }));
+
+    // Delete old PDF if exists
+    if (questionPaper.generatedPdf?.fileName) {
+      try {
+        const oldFilePath = path.join(process.cwd(), 'public', 'question-papers', questionPaper.generatedPdf.fileName);
+        if (fs.existsSync(oldFilePath)) {
+          fs.unlinkSync(oldFilePath);
+        }
+      } catch (error) {
+        console.warn('Could not delete old PDF file:', error);
+      }
+    }
+
+    // Generate new PDF
+    const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
+      (questionPaper._id as any).toString(),
+      generatedQuestions,
+      (questionPaper.subjectId as any).name,
+      (questionPaper.classId as any).name,
+      (questionPaper.examId as any).title,
+      questionPaper.markDistribution.totalMarks,
+      (questionPaper.examId as any).duration
+    );
+
+    // Update question paper with new PDF info
+    questionPaper.generatedPdf = {
+      fileName: pdfResult.fileName,
+      filePath: pdfResult.filePath,
+      fileSize: fs.statSync(pdfResult.filePath).size,
+      generatedAt: new Date(),
+      downloadUrl: pdfResult.downloadUrl
+    };
+    await questionPaper.save();
+
+    res.json({
+      success: true,
+      message: "PDF regenerated successfully",
       questionPaper,
       downloadUrl: pdfResult.downloadUrl
     });

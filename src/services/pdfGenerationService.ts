@@ -164,4 +164,16 @@ export class PDFGenerationService {
       doc.text(`Page ${i + 1} of ${pageCount}`, 500, 800, { align: "right" });
     }
   }
+
+  static async deleteQuestionPaperPDF(fileName: string): Promise<void> {
+    try {
+      const filePath = path.join(this.QUESTION_PAPERS_FOLDER, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (error) {
+      console.error('Error deleting PDF file:', error);
+      throw error;
+    }
+  }
 }

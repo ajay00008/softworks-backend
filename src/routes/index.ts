@@ -159,7 +159,13 @@ import {
   uploadPatternFile,
   uploadPatternFileEndpoint,
   uploadPDFQuestionPaper,
-  downloadQuestionPaperPDF
+  downloadQuestionPaperPDF,
+  getQuestionPaperQuestions,
+  addQuestionToPaper,
+  updateQuestionInPaper,
+  deleteQuestionFromPaper,
+  uploadQuestionPaperPDF,
+  regenerateQuestionPaperPDF
 } from "../controllers/enhancedQuestionPaperController";
 
 const router = Router();
@@ -4135,6 +4141,225 @@ router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "
 
 /**
  * @openapi
+ * /api/admin/question-papers/{id}/questions:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Get all questions for a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of questions for the question paper
+ *       404:
+ *         description: Question paper not found
+ */
+router.get("/admin/question-papers/:id/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPaperQuestions);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/questions:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Add a new question to a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [questionText, questionType, marks, bloomsTaxonomyLevel, difficulty, correctAnswer]
+ *             properties:
+ *               questionText:
+ *                 type: string
+ *               questionType:
+ *                 type: string
+ *                 enum: [CHOOSE_BEST_ANSWER, FILL_BLANKS, ONE_WORD_ANSWER, TRUE_FALSE, CHOOSE_MULTIPLE_ANSWERS, MATCHING_PAIRS, DRAWING_DIAGRAM, MARKING_PARTS, SHORT_ANSWER, LONG_ANSWER]
+ *               marks:
+ *                 type: number
+ *               bloomsTaxonomyLevel:
+ *                 type: string
+ *                 enum: [REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE]
+ *               difficulty:
+ *                 type: string
+ *                 enum: [EASY, MODERATE, HARD]
+ *               isTwisted:
+ *                 type: boolean
+ *               options:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               correctAnswer:
+ *                 type: string
+ *               explanation:
+ *                 type: string
+ *               timeLimit:
+ *                 type: number
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Question added successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), addQuestionToPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/questions/{questionId}:
+ *   put:
+ *     tags: [Admin - Question Papers]
+ *     summary: Update a question in a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionText:
+ *                 type: string
+ *               questionType:
+ *                 type: string
+ *               marks:
+ *                 type: number
+ *               bloomsTaxonomyLevel:
+ *                 type: string
+ *               difficulty:
+ *                 type: string
+ *               isTwisted:
+ *                 type: boolean
+ *               options:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               correctAnswer:
+ *                 type: string
+ *               explanation:
+ *                 type: string
+ *               timeLimit:
+ *                 type: number
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Question updated successfully
+ *       404:
+ *         description: Question paper or question not found
+ */
+router.put("/admin/question-papers/:id/questions/:questionId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateQuestionInPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/questions/{questionId}:
+ *   delete:
+ *     tags: [Admin - Question Papers]
+ *     summary: Delete a question from a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question deleted successfully
+ *       404:
+ *         description: Question paper or question not found
+ */
+router.delete("/admin/question-papers/:id/questions/:questionId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionFromPaper);
+
+/**
+ * @swagger
+ * /api/admin/question-papers/{id}/upload-pdf:
+ *   post:
+ *     summary: Upload a new PDF for a question paper
+ *     tags: [Question Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Question paper ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionPaper:
+ *                 type: string
+ *                 format: binary
+ *                 description: PDF file to upload
+ *     responses:
+ *       200:
+ *         description: PDF uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 questionPaper:
+ *                   $ref: '#/components/schemas/QuestionPaper'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadQuestionPaperPdf, uploadQuestionPaperPDF);
+
+/**
+ * @openapi
  * /api/admin/question-papers/{id}/generate-ai:
  *   post:
  *     tags: [Admin - Question Papers]
@@ -4221,6 +4446,29 @@ router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles(
  *         description: Invalid input data
  */
 router.post("/admin/question-papers/generate-complete-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateCompleteAIQuestionPaper);
+
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/regenerate-pdf:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Regenerate PDF for a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Question paper ID
+ *     responses:
+ *       200:
+ *         description: PDF regenerated successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/regenerate-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), regenerateQuestionPaperPDF);
 
 /**
  * @openapi
