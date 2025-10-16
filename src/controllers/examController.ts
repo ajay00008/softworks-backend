@@ -88,13 +88,13 @@ export async function createExam(req: Request, res: Response, next: NextFunction
     if (!classExists) throw new createHttpError.NotFound("Class not found");
     
     // Validate that all subjects are available for the selected class
-    const classSubjectIds = (classExists as any).subjectIds || [];
-    const invalidSubjects = examData.subjectIds.filter(subjectId => 
-      !classSubjectIds.includes(subjectId)
+    const invalidSubjects = subjects.filter(subject => 
+      !subject.classIds.includes(examData.classId)
     );
     
     if (invalidSubjects.length > 0) {
-      throw new createHttpError.BadRequest(`Subjects ${invalidSubjects.join(', ')} are not available for the selected class`);
+      const invalidSubjectIds = invalidSubjects.map(s => s._id.toString());
+      throw new createHttpError.BadRequest(`Subjects ${invalidSubjectIds.join(', ')} are not available for the selected class`);
     }
     
     // Validate questions if provided
@@ -123,6 +123,7 @@ export async function createExam(req: Request, res: Response, next: NextFunction
     const examDataWithFallback = {
       ...examData,
       scheduledDate: scheduledDate,
+      status: 'SCHEDULED', // Set status to SCHEDULED since exam has a scheduled date
       createdBy: userId,
       adminId: examData.adminId || userId // Use provided adminId or default to current user
     };
