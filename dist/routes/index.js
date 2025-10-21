@@ -21,7 +21,8 @@ import { printAllStudentsAnswers, printIndividualStudentAnswer, printClassResult
 import { sendResultsToParents, sendBulkMessage, sendIndividualResult } from "../controllers/communicationController";
 import { getAIConfig, updateAIConfig, testAIConfig, getAIProviders, generateQuestionsWithConfig } from "../controllers/aiController";
 import { generateQuestionPaper } from "../controllers/questionPaperController";
-import { createQuestionPaper, getQuestionPapers, getQuestionPaper, updateQuestionPaper, deleteQuestionPaper, generateAIQuestionPaper, generateCompleteAIQuestionPaper, uploadQuestionPaperPdf, uploadPDFQuestionPaper, downloadQuestionPaperPDF } from "../controllers/enhancedQuestionPaperController";
+import { createQuestionPaper, getQuestionPapers, getQuestionPaper, updateQuestionPaper, deleteQuestionPaper, generateAIQuestionPaper, generateCompleteAIQuestionPaper, uploadQuestionPaperPdf, uploadPatternFile, uploadPatternFileEndpoint, uploadPDFQuestionPaper, downloadQuestionPaperPDF, getQuestionPaperQuestions, addQuestionToPaper, updateQuestionInPaper, deleteQuestionFromPaper, uploadQuestionPaperPDF, regenerateQuestionPaperPDF } from "../controllers/enhancedQuestionPaperController";
+import { createTemplate, getTemplates, getTemplateById, updateTemplate, deleteTemplate, downloadTemplate, analyzeTemplate, uploadTemplate } from "../controllers/questionPaperTemplateController";
 const router = Router();
 // Multer configuration for answer sheet uploads
 const answerSheetUpload = multer({
@@ -3851,6 +3852,220 @@ router.put("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUP
 router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionPaper);
 /**
  * @openapi
+ * /api/admin/question-papers/{id}/questions:
+ *   get:
+ *     tags: [Admin - Question Papers]
+ *     summary: Get all questions for a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of questions for the question paper
+ *       404:
+ *         description: Question paper not found
+ */
+router.get("/admin/question-papers/:id/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPaperQuestions);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/questions:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Add a new question to a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [questionText, questionType, marks, bloomsTaxonomyLevel, difficulty, correctAnswer]
+ *             properties:
+ *               questionText:
+ *                 type: string
+ *               questionType:
+ *                 type: string
+ *                 enum: [CHOOSE_BEST_ANSWER, FILL_BLANKS, ONE_WORD_ANSWER, TRUE_FALSE, CHOOSE_MULTIPLE_ANSWERS, MATCHING_PAIRS, DRAWING_DIAGRAM, MARKING_PARTS, SHORT_ANSWER, LONG_ANSWER]
+ *               marks:
+ *                 type: number
+ *               bloomsTaxonomyLevel:
+ *                 type: string
+ *                 enum: [REMEMBER, UNDERSTAND, APPLY, ANALYZE, EVALUATE, CREATE]
+ *               difficulty:
+ *                 type: string
+ *                 enum: [EASY, MODERATE, HARD]
+ *               isTwisted:
+ *                 type: boolean
+ *               options:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               correctAnswer:
+ *                 type: string
+ *               explanation:
+ *                 type: string
+ *               timeLimit:
+ *                 type: number
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Question added successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), addQuestionToPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/questions/{questionId}:
+ *   put:
+ *     tags: [Admin - Question Papers]
+ *     summary: Update a question in a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionText:
+ *                 type: string
+ *               questionType:
+ *                 type: string
+ *               marks:
+ *                 type: number
+ *               bloomsTaxonomyLevel:
+ *                 type: string
+ *               difficulty:
+ *                 type: string
+ *               isTwisted:
+ *                 type: boolean
+ *               options:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               correctAnswer:
+ *                 type: string
+ *               explanation:
+ *                 type: string
+ *               timeLimit:
+ *                 type: number
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Question updated successfully
+ *       404:
+ *         description: Question paper or question not found
+ */
+router.put("/admin/question-papers/:id/questions/:questionId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateQuestionInPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/questions/{questionId}:
+ *   delete:
+ *     tags: [Admin - Question Papers]
+ *     summary: Delete a question from a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question deleted successfully
+ *       404:
+ *         description: Question paper or question not found
+ */
+router.delete("/admin/question-papers/:id/questions/:questionId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionFromPaper);
+/**
+ * @swagger
+ * /api/admin/question-papers/{id}/upload-pdf:
+ *   post:
+ *     summary: Upload a new PDF for a question paper
+ *     tags: [Question Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Question paper ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               questionPaper:
+ *                 type: string
+ *                 format: binary
+ *                 description: PDF file to upload
+ *     responses:
+ *       200:
+ *         description: PDF uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 questionPaper:
+ *                   $ref: '#/components/schemas/QuestionPaper'
+ *       400:
+ *         $ref: '#/components/responses/BadRequest'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadQuestionPaperPdf, uploadQuestionPaperPDF);
+/**
+ * @openapi
  * /api/admin/question-papers/{id}/generate-ai:
  *   post:
  *     tags: [Admin - Question Papers]
@@ -3936,6 +4151,54 @@ router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles(
  *         description: Invalid input data
  */
 router.post("/admin/question-papers/generate-complete-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateCompleteAIQuestionPaper);
+/**
+ * @openapi
+ * /api/admin/question-papers/{id}/regenerate-pdf:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Regenerate PDF for a question paper
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Question paper ID
+ *     responses:
+ *       200:
+ *         description: PDF regenerated successfully
+ *       404:
+ *         description: Question paper not found
+ */
+router.post("/admin/question-papers/:id/regenerate-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), regenerateQuestionPaperPDF);
+/**
+ * @openapi
+ * /api/admin/question-papers/upload-pattern:
+ *   post:
+ *     tags: [Admin - Question Papers]
+ *     summary: Upload pattern file for question paper generation
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               patternFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: Pattern file (PDF, PNG, JPG, JPEG)
+ *     responses:
+ *       200:
+ *         description: Pattern file uploaded successfully
+ *       400:
+ *         description: Invalid file or no file uploaded
+ */
+router.post("/admin/question-papers/upload-pattern", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadPatternFile, uploadPatternFileEndpoint);
 /**
  * @openapi
  * /api/admin/question-papers/{id}/upload-pdf:
@@ -4701,5 +4964,198 @@ router.put("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_
  *         description: Unauthorized
  */
 router.delete("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteStaffAccess);
+// Question Paper Template Management Routes
+/**
+ * @openapi
+ * /api/admin/question-paper-templates:
+ *   post:
+ *     summary: Create a new question paper template
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - subjectId
+ *               - classId
+ *               - templateFile
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               templateFile:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       201:
+ *         description: Template created successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadTemplate, createTemplate);
+/**
+ * @openapi
+ * /api/admin/question-paper-templates:
+ *   get:
+ *     summary: Get all question paper templates
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Templates retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTemplates);
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   get:
+ *     summary: Get template by ID
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template retrieved successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTemplateById);
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   put:
+ *     summary: Update template
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               aiSettings:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Template updated successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateTemplate);
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   delete:
+ *     summary: Delete template
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template deleted successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteTemplate);
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}/download:
+ *   get:
+ *     summary: Download template file
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template file downloaded
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/question-paper-templates/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadTemplate);
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}/analyze:
+ *   post:
+ *     summary: Analyze template to extract pattern
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template analyzed successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/question-paper-templates/:id/analyze", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), analyzeTemplate);
 export default router;
 //# sourceMappingURL=index.js.map

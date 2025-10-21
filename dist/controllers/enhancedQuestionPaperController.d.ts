@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 export declare const uploadQuestionPaperPdf: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+export declare const uploadPatternFile: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+export declare function uploadPatternFileEndpoint(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function createQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getQuestionPapers(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
@@ -10,4 +12,10 @@ export declare function updateQuestionPaper(req: Request, res: Response, next: N
 export declare function deleteQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function publishQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function generateCompleteAIQuestionPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function getQuestionPaperQuestions(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function addQuestionToPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function updateQuestionInPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function deleteQuestionFromPaper(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function uploadQuestionPaperPDF(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function regenerateQuestionPaperPDF(req: Request, res: Response, next: NextFunction): Promise<void>;
 //# sourceMappingURL=enhancedQuestionPaperController.d.ts.map

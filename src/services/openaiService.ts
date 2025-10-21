@@ -164,16 +164,33 @@ Ensure the JSON is valid and properly formatted.`;
       const questions = JSON.parse(jsonMatch[0]);
       
       // Validate and clean the questions
-      return questions.map((q: any) => ({
-        questionText: q.questionText || '',
-        questionType: q.questionType || 'SHORT_ANSWER',
-        options: q.options || [],
-        correctAnswer: q.correctAnswer || '',
-        explanation: q.explanation || '',
-        marks: Math.max(1, Math.min(10, q.marks || 2)),
-        timeLimit: Math.max(1, Math.min(10, q.timeLimit || 3)),
-        tags: q.tags || []
-      }));
+      return questions.map((q: any) => {
+        // Handle correctAnswer field - convert array to string if needed
+        let correctAnswer = '';
+        if (Array.isArray(q.correctAnswer)) {
+          correctAnswer = q.correctAnswer.join(', ');
+        } else if (typeof q.correctAnswer === 'string') {
+          correctAnswer = q.correctAnswer;
+        } else if (q.correctAnswer !== null && q.correctAnswer !== undefined) {
+          correctAnswer = String(q.correctAnswer);
+        }
+
+        // Ensure correctAnswer is not empty
+        if (!correctAnswer.trim()) {
+          correctAnswer = 'No answer provided';
+        }
+
+        return {
+          questionText: q.questionText || '',
+          questionType: q.questionType || 'SHORT_ANSWER',
+          options: q.options || [],
+          correctAnswer: correctAnswer,
+          explanation: q.explanation || '',
+          marks: Math.max(1, Math.min(10, q.marks || 2)),
+          timeLimit: Math.max(1, Math.min(10, q.timeLimit || 3)),
+          tags: q.tags || []
+        };
+      });
 
     } catch (error) {
       console.error('Error parsing generated questions:', error);

@@ -11,15 +11,14 @@ const ExamSchema = new Schema({
     },
     examType: {
         type: String,
-        enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"],
+        enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL", "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"],
         required: true
     },
-    subjectId: {
-        type: Schema.Types.ObjectId,
-        ref: "Subject",
-        required: true,
-        index: true
-    },
+    subjectIds: [{
+            type: Schema.Types.ObjectId,
+            ref: "Subject",
+            required: true
+        }],
     classId: {
         type: Schema.Types.ObjectId,
         ref: "Class",
@@ -27,12 +26,6 @@ const ExamSchema = new Schema({
         index: true
     },
     adminId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    totalMarks: {
-        type: Number,
-        required: true,
-        min: 1,
-        max: 1000
-    },
     duration: {
         type: Number,
         required: true,

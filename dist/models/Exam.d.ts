@@ -1,14 +1,13 @@
 import mongoose, { Document, Model } from "mongoose";
 export type ExamStatus = "DRAFT" | "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
-export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL";
+export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL" | "DAILY" | "WEEKLY" | "MONTHLY" | "UNIT_WISE" | "PAGE_WISE" | "TERM_TEST" | "ANNUAL_EXAM";
 export interface IExam extends Document {
     title: string;
     description?: string;
     examType: ExamType;
-    subjectId: mongoose.Types.ObjectId;
+    subjectIds: mongoose.Types.ObjectId[];
     classId: mongoose.Types.ObjectId;
     adminId: mongoose.Types.ObjectId;
-    totalMarks: number;
     duration: number;
     status: ExamStatus;
     scheduledDate: Date;

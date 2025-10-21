@@ -167,6 +167,16 @@ import {
   uploadQuestionPaperPDF,
   regenerateQuestionPaperPDF
 } from "../controllers/enhancedQuestionPaperController";
+import {
+  createTemplate,
+  getTemplates,
+  getTemplateById,
+  updateTemplate,
+  deleteTemplate,
+  downloadTemplate,
+  analyzeTemplate,
+  uploadTemplate
+} from "../controllers/questionPaperTemplateController";
 
 const router = Router();
 
@@ -5291,6 +5301,207 @@ router.put("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_
  *         description: Unauthorized
  */
 router.delete("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteStaffAccess);
+
+// Question Paper Template Management Routes
+/**
+ * @openapi
+ * /api/admin/question-paper-templates:
+ *   post:
+ *     summary: Create a new question paper template
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - subjectId
+ *               - classId
+ *               - templateFile
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               templateFile:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       201:
+ *         description: Template created successfully
+ *       400:
+ *         description: Invalid input data
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadTemplate, createTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates:
+ *   get:
+ *     summary: Get all question paper templates
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Templates retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTemplates);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   get:
+ *     summary: Get template by ID
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template retrieved successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTemplateById);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   put:
+ *     summary: Update template
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               aiSettings:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Template updated successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}:
+ *   delete:
+ *     summary: Delete template
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template deleted successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}/download:
+ *   get:
+ *     summary: Download template file
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template file downloaded
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/question-paper-templates/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadTemplate);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/{id}/analyze:
+ *   post:
+ *     summary: Analyze template to extract pattern
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template analyzed successfully
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/question-paper-templates/:id/analyze", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), analyzeTemplate);
+
 export default router;
 
 

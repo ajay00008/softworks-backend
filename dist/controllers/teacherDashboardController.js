@@ -664,7 +664,7 @@ export const getAnswerSheets = async (req, res) => {
         }
         const staffAccess = await StaffAccess.findOne({
             staffId: teacherId,
-            'classAccess.classId': exam.classId,
+            'classAccess.classId': exam.classId._id || exam.classId,
             isActive: true
         });
         if (!staffAccess) {

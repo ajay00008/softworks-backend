@@ -25,6 +25,7 @@ export interface EnhancedQuestionGenerationRequest {
     difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
     twistedQuestionsPercentage: number;
     language: 'ENGLISH' | 'TAMIL' | 'HINDI' | 'MALAYALAM' | 'TELUGU' | 'KANNADA';
+    patternFilePath?: string;
 }
 export interface EnhancedGeneratedQuestion {
     questionText: string;

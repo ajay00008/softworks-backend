@@ -9,11 +9,13 @@ import { Student } from "../models/Student";
 const CreateExamSchema = z.object({
     title: z.string().min(1),
     description: z.string().optional(),
-    examType: z.enum(["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"]),
-    subjectId: z.string().min(1),
+    examType: z.enum([
+        "UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL",
+        "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"
+    ]),
+    subjectIds: z.array(z.string().min(1)).min(1, "At least one subject must be selected"),
     classId: z.string().min(1),
     adminId: z.string().min(1).optional(), // Optional in request, will be set from auth if not provided
-    totalMarks: z.number().min(1).max(1000),
     duration: z.number().min(15).max(480),
     scheduledDate: z.string().transform(str => {
         if (!str || str.trim() === '') {
@@ -56,7 +58,10 @@ const GetExamsQuerySchema = z.object({
     search: z.string().optional(),
     subjectId: z.string().optional(),
     classId: z.string().optional(),
-    examType: z.enum(["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL"]).optional(),
+    examType: z.enum([
+        "UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL",
+        "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"
+    ]).optional(),
     status: z.enum(["DRAFT", "SCHEDULED", "ONGOING", "COMPLETED", "CANCELLED"]).optional(),
     isActive: z.string().transform(Boolean).optional()
 });
@@ -65,15 +70,22 @@ export async function createExam(req, res, next) {
     try {
         const examData = CreateExamSchema.parse(req.body);
         const userId = req.auth?.sub;
-        // Validate subject and class exist
-        const [subject, classExists] = await Promise.all([
-            Subject.findById(examData.subjectId),
+        // Validate subjects and class exist
+        const [subjects, classExists] = await Promise.all([
+            Subject.find({ _id: { $in: examData.subjectIds } }),
             Class.findById(examData.classId)
         ]);
-        if (!subject)
-            throw new createHttpError.NotFound("Subject not found");
+        if (subjects.length !== examData.subjectIds.length) {
+            throw new createHttpError.NotFound("One or more subjects not found");
+        }
         if (!classExists)
             throw new createHttpError.NotFound("Class not found");
+        // Validate that all subjects are available for the selected class
+        const invalidSubjects = subjects.filter(subject => !subject.classIds.includes(examData.classId));
+        if (invalidSubjects.length > 0) {
+            const invalidSubjectIds = invalidSubjects.map(s => s._id.toString());
+            throw new createHttpError.BadRequest(`Subjects ${invalidSubjectIds.join(', ')} are not available for the selected class`);
+        }
         // Validate questions if provided
         if (examData.questions && examData.questions.length > 0) {
             const questions = await Question.find({
@@ -96,12 +108,13 @@ export async function createExam(req, res, next) {
         const examDataWithFallback = {
             ...examData,
             scheduledDate: scheduledDate,
+            status: 'SCHEDULED', // Set status to SCHEDULED since exam has a scheduled date
             createdBy: userId,
             adminId: examData.adminId || userId // Use provided adminId or default to current user
         };
         const exam = await Exam.create(examDataWithFallback);
         const populatedExam = await Exam.findById(exam._id)
-            .populate('subjectId', 'code name shortName')
+            .populate('subjectIds', 'code name shortName')
             .populate('classId', 'name displayName level section')
             .populate('createdBy', 'name email')
             .populate('questions');
@@ -121,7 +134,7 @@ export async function getExams(req, res, next) {
         const { page, limit, search, subjectId, classId, examType, status, isActive } = queryParams;
         const query = {};
         if (subjectId)
-            query.subjectId = subjectId;
+            query.subjectIds = { $in: [subjectId] };
         if (classId)
             query.classId = classId;
         if (examType)
@@ -139,7 +152,7 @@ export async function getExams(req, res, next) {
         const skip = (page - 1) * limit;
         const [exams, total] = await Promise.all([
             Exam.find(query)
-                .populate('subjectId', 'code name shortName')
+                .populate('subjectIds', 'code name shortName')
                 .populate('classId', 'name displayName level section')
                 .populate('createdBy', 'name email')
                 .populate('questions')
@@ -168,7 +181,7 @@ export async function getExam(req, res, next) {
     try {
         const { id } = req.params;
         const exam = await Exam.findById(id)
-            .populate('subjectId', 'code name shortName')
+            .populate('subjectIds', 'code name shortName')
             .populate('classId', 'name displayName level section')
             .populate('createdBy', 'name email')
             .populate('questions');
@@ -191,11 +204,12 @@ export async function updateExam(req, res, next) {
         const exam = await Exam.findById(id);
         if (!exam)
             throw new createHttpError.NotFound("Exam not found");
-        // Validate subject and class if being updated
-        if (updateData.subjectId) {
-            const subject = await Subject.findById(updateData.subjectId);
-            if (!subject)
-                throw new createHttpError.NotFound("Subject not found");
+        // Validate subjects and class if being updated
+        if (updateData.subjectIds && updateData.subjectIds.length > 0) {
+            const subjects = await Subject.find({ _id: { $in: updateData.subjectIds } });
+            if (subjects.length !== updateData.subjectIds.length) {
+                throw new createHttpError.NotFound("One or more subjects not found");
+            }
         }
         if (updateData.classId) {
             const classExists = await Class.findById(updateData.classId);
@@ -212,7 +226,7 @@ export async function updateExam(req, res, next) {
                 throw new createHttpError.BadRequest("One or more questions not found or inactive");
             }
         }
-        const updatedExam = await Exam.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).populate('subjectId', 'code name shortName')
+        const updatedExam = await Exam.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).populate('subjectIds', 'code name shortName')
             .populate('classId', 'name displayName level section')
             .populate('createdBy', 'name email')
             .populate('questions');

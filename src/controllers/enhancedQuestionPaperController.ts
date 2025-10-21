@@ -467,15 +467,24 @@ export async function generateAIQuestionPaper(req: Request, res: Response, next:
     // Update question paper with question references
     questionPaper.questions = savedQuestions.map(q => q._id);
 
+    // Debug logging for PDF generation
+    console.log('PDF Generation Data:', {
+      subjectName: (questionPaper.subjectId as any).name,
+      className: (questionPaper.classId as any).name,
+      examTitle: (questionPaper.examId as any).title,
+      totalMarks: questionPaper.markDistribution.totalMarks,
+      duration: (questionPaper.examId as any).duration
+    });
+
     // Generate PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
       questionPaperId,
       generatedQuestions,
-      (questionPaper.subjectId as any).name,
-      (questionPaper.classId as any).name,
-      (questionPaper.examId as any).title,
-      questionPaper.markDistribution.totalMarks,
-      (questionPaper.examId as any).duration
+      (questionPaper.subjectId as any).name || 'Mathematics',
+      (questionPaper.classId as any).name || 'Class 10',
+      (questionPaper.examId as any).title || 'Question Paper',
+      questionPaper.markDistribution.totalMarks || 100,
+      (questionPaper.examId as any).duration || 180
     );
 
     // Update question paper
@@ -866,15 +875,24 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     // Update question paper with question references
     questionPaper.questions = savedQuestions.map(q => q._id);
 
+    // Debug logging for PDF generation
+    console.log('PDF Generation Data (Complete):', {
+      subjectName: (questionPaper.subjectId as any).name,
+      className: (questionPaper.classId as any).name,
+      examTitle: (questionPaper.examId as any).title,
+      totalMarks: questionPaper.markDistribution.totalMarks,
+      duration: (questionPaper.examId as any).duration
+    });
+
     // Generate PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
       (questionPaper._id as any).toString(),
       generatedQuestions,
-      (questionPaper.subjectId as any).name,
-      (questionPaper.classId as any).name,
-      (questionPaper.examId as any).title,
-      questionPaper.markDistribution.totalMarks,
-      (questionPaper.examId as any).duration
+      (questionPaper.subjectId as any).name || 'Mathematics',
+      (questionPaper.classId as any).name || 'Class 10',
+      (questionPaper.examId as any).title || 'Question Paper',
+      questionPaper.markDistribution.totalMarks || 100,
+      (questionPaper.examId as any).duration || 180
     );
 
     // Update question paper
@@ -1223,15 +1241,24 @@ export async function regenerateQuestionPaperPDF(req: Request, res: Response, ne
       }
     }
 
+    // Debug logging for PDF generation
+    console.log('PDF Generation Data (Regenerate):', {
+      subjectName: (questionPaper.subjectId as any).name,
+      className: (questionPaper.classId as any).name,
+      examTitle: (questionPaper.examId as any).title,
+      totalMarks: questionPaper.markDistribution.totalMarks,
+      duration: (questionPaper.examId as any).duration
+    });
+
     // Generate new PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
       (questionPaper._id as any).toString(),
       generatedQuestions,
-      (questionPaper.subjectId as any).name,
-      (questionPaper.classId as any).name,
-      (questionPaper.examId as any).title,
-      questionPaper.markDistribution.totalMarks,
-      (questionPaper.examId as any).duration
+      (questionPaper.subjectId as any).name || 'Mathematics',
+      (questionPaper.classId as any).name || 'Class 10',
+      (questionPaper.examId as any).title || 'Question Paper',
+      questionPaper.markDistribution.totalMarks || 100,
+      (questionPaper.examId as any).duration || 180
     );
 
     // Update question paper with new PDF info

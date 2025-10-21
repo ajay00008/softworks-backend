@@ -36,8 +36,17 @@ export class EnhancedAIService {
 - Note: Use this book as the primary source for generating questions.`;
                 }
             }
+            // Handle pattern file if provided
+            let patternInfo = '';
+            if (request.patternFilePath) {
+                patternInfo = `\n\nPattern File Information:
+- Pattern file has been uploaded to guide the question paper format
+- Follow the structure and style of the uploaded pattern
+- Use the pattern as a reference for formatting and question arrangement
+- Maintain consistency with the pattern's layout and presentation style`;
+            }
             // Create comprehensive prompt for question paper generation
-            const prompt = this.createQuestionPaperPrompt(request, subjectBookInfo);
+            const prompt = this.createQuestionPaperPrompt(request, subjectBookInfo + patternInfo);
             let response;
             switch (this.config.provider) {
                 case 'GEMINI':
@@ -98,16 +107,57 @@ ${questionTypesText}
 **TWISTED QUESTIONS:** ${twistedQuestionsPercentage}% of questions should be twisted/challenging
 
 **QUESTION TYPES TO INCLUDE:**
-1. CHOOSE_BEST_ANSWER - Multiple choice with one correct answer
-2. FILL_BLANKS - Fill in the blanks with appropriate words
-3. ONE_WORD_ANSWER - Answer in one word
-4. TRUE_FALSE - True or false questions
-5. CHOOSE_MULTIPLE_ANSWERS - Multiple choice with multiple correct answers
-6. MATCHING_PAIRS - Match items from two columns using arrows
-7. DRAWING_DIAGRAM - Draw diagrams, maps, or mark parts
-8. MARKING_PARTS - Mark correct objects or parts
-9. SHORT_ANSWER - Brief text responses
-10. LONG_ANSWER - Detailed text responses
+1. CHOOSE_BEST_ANSWER - Multiple choice with one correct answer (provide 4 options)
+2. FILL_BLANKS - Fill in the blanks with appropriate words (use ___ for blanks)
+3. ONE_WORD_ANSWER - Answer in one word (brief, precise answers)
+4. TRUE_FALSE - True or false questions (binary choice)
+5. CHOOSE_MULTIPLE_ANSWERS - Multiple choice with multiple correct answers (provide 4-6 options, 2-3 correct)
+6. MATCHING_PAIRS - Match items from two columns using arrows (provide 3-5 pairs)
+7. DRAWING_DIAGRAM - Draw diagrams, maps, or mark parts (provide clear drawing instructions)
+8. MARKING_PARTS - Mark correct objects or parts (specify what to mark)
+9. SHORT_ANSWER - Brief text responses (2-3 sentences)
+10. LONG_ANSWER - Detailed text responses (paragraph length)
+
+**SPECIFIC INSTRUCTIONS FOR EACH TYPE:**
+
+**TRUE_FALSE Questions:**
+- Format: "Statement that can be definitively true or false"
+- Example: "The capital of France is Paris. (True/False)"
+- Correct Answer: "True" or "False"
+- NO options array needed
+
+**FILL_BLANKS Questions:**
+- Format: "Complete the sentence: The process of photosynthesis occurs in the _____ of plant cells."
+- Use ___ to indicate blanks
+- Correct Answer: "chloroplasts" (single word/phrase)
+- NO options array needed
+
+**CHOOSE_BEST_ANSWER Questions:**
+- Format: "What is the primary function of mitochondria?"
+- Provide exactly 4 options: ["Energy production", "Protein synthesis", "DNA replication", "Waste removal"]
+- Correct Answer: "Energy production" (single option)
+- Include options array
+
+**CHOOSE_MULTIPLE_ANSWERS Questions:**
+- Format: "Which of the following are renewable energy sources?"
+- Provide 4-6 options: ["Solar", "Coal", "Wind", "Natural Gas", "Hydroelectric", "Nuclear"]
+- Correct Answer: "Solar, Wind, Hydroelectric" (multiple options)
+- Include options array AND multipleCorrectAnswers array
+
+**ONE_WORD_ANSWER Questions:**
+- Format: "What is the chemical symbol for gold?"
+- Correct Answer: "Au" (single word)
+- NO options array needed
+
+**SHORT_ANSWER Questions:**
+- Format: "Explain the difference between mitosis and meiosis."
+- Correct Answer: Brief 2-3 sentence explanation
+- NO options array needed
+
+**LONG_ANSWER Questions:**
+- Format: "Analyze the impact of climate change on biodiversity and suggest mitigation strategies."
+- Correct Answer: Detailed paragraph response
+- NO options array needed
 
 **BLOOM'S TAXONOMY LEVELS:**
 - REMEMBER: Recall facts, terms, basic concepts
@@ -125,16 +175,20 @@ ${customInstructions ? `\n**CUSTOM INSTRUCTIONS:**\n${customInstructions}` : ''}
 1. Generate exactly ${markDistribution.totalQuestions} questions
 2. Follow the mark distribution precisely
 3. Distribute questions according to Bloom's taxonomy percentages
-4. Include all specified question types according to their percentages
-5. Ensure questions are age-appropriate for ${className}
-6. Make questions relevant to ${subjectName}
-7. Include ${twistedQuestionsPercentage}% twisted/challenging questions
-8. Provide clear, unambiguous questions
-9. Include appropriate options for multiple choice questions
-10. Provide correct answers and explanations
-11. For matching pairs, provide clear left and right items
-12. For drawing questions, provide clear instructions
-13. For marking questions, specify what to mark
+4. **CRITICAL: Generate ONLY the specified question types according to their exact percentages**
+5. **For 1-mark questions: Generate ONLY ${questionTypeDistribution.oneMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
+6. **For 2-mark questions: Generate ONLY ${questionTypeDistribution.twoMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
+7. **For 3-mark questions: Generate ONLY ${questionTypeDistribution.threeMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
+8. **For 5-mark questions: Generate ONLY ${questionTypeDistribution.fiveMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
+9. Ensure questions are age-appropriate for ${className}
+10. Make questions relevant to ${subjectName}
+11. Include ${twistedQuestionsPercentage}% twisted/challenging questions
+12. Provide clear, unambiguous questions
+13. Include appropriate options for multiple choice questions
+14. Provide correct answers and explanations
+15. For matching pairs, provide clear left and right items
+16. For drawing questions, provide clear instructions
+17. For marking questions, specify what to mark
 
 **OUTPUT FORMAT:**
 Return a JSON array of questions with the following structure:
@@ -156,6 +210,15 @@ Return a JSON array of questions with the following structure:
     "tags": ["tag1", "tag2"]
   }
 ]
+
+**FINAL CRITICAL INSTRUCTIONS:**
+1. **MUST follow the exact question type distribution specified above**
+2. **For CHOOSE_MULTIPLE_ANSWERS: Include both 'options' array AND 'multipleCorrectAnswers' array**
+3. **For TRUE_FALSE: Do NOT include options array, just set correctAnswer to "True" or "False"**
+4. **For FILL_BLANKS: Use ___ in question text, do NOT include options array**
+5. **For CHOOSE_BEST_ANSWER: Include options array with exactly 4 options**
+6. **Each question MUST match the specified questionType exactly**
+7. **Do NOT mix question types - follow the distribution precisely**
 
 Generate the question paper now:`;
     }
@@ -327,22 +390,63 @@ Generate the question paper now:`;
             if (!Array.isArray(questions)) {
                 throw new Error('Response is not an array of questions');
             }
-            return questions.map((q) => ({
-                questionText: q.questionText || '',
-                questionType: q.questionType || 'SHORT_ANSWER',
-                marks: q.marks || 1,
-                bloomsLevel: q.bloomsLevel || 'REMEMBER',
-                difficulty: q.difficulty || 'MODERATE',
-                isTwisted: q.isTwisted || false,
-                options: q.options || [],
-                correctAnswer: q.correctAnswer || '',
-                explanation: q.explanation || '',
-                matchingPairs: q.matchingPairs || [],
-                multipleCorrectAnswers: q.multipleCorrectAnswers || [],
-                drawingInstructions: q.drawingInstructions || '',
-                markingInstructions: q.markingInstructions || '',
-                tags: q.tags || []
-            }));
+            return questions.map((q) => {
+                // Handle correctAnswer field - convert array to string if needed
+                let correctAnswer = '';
+                if (Array.isArray(q.correctAnswer)) {
+                    correctAnswer = q.correctAnswer.join(', ');
+                }
+                else if (typeof q.correctAnswer === 'string') {
+                    correctAnswer = q.correctAnswer;
+                }
+                else if (q.correctAnswer !== null && q.correctAnswer !== undefined) {
+                    correctAnswer = String(q.correctAnswer);
+                }
+                // Ensure correctAnswer is not empty
+                if (!correctAnswer.trim()) {
+                    correctAnswer = 'No answer provided';
+                }
+                // Handle questionType validation - fix common AI mistakes
+                let questionType = q.questionType || 'SHORT_ANSWER';
+                const validQuestionTypes = [
+                    'CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE',
+                    'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM',
+                    'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER'
+                ];
+                // If questionType is a Blooms level, map it to a valid question type
+                const bloomsLevels = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
+                if (bloomsLevels.includes(questionType)) {
+                    // Map Blooms levels to appropriate question types
+                    const bloomsToQuestionType = {
+                        'REMEMBER': 'CHOOSE_BEST_ANSWER',
+                        'UNDERSTAND': 'FILL_BLANKS',
+                        'APPLY': 'SHORT_ANSWER',
+                        'ANALYZE': 'SHORT_ANSWER',
+                        'EVALUATE': 'LONG_ANSWER',
+                        'CREATE': 'LONG_ANSWER'
+                    };
+                    questionType = bloomsToQuestionType[questionType] || 'SHORT_ANSWER';
+                }
+                else if (!validQuestionTypes.includes(questionType)) {
+                    questionType = 'SHORT_ANSWER';
+                }
+                return {
+                    questionText: q.questionText || '',
+                    questionType: questionType,
+                    marks: q.marks || 1,
+                    bloomsLevel: q.bloomsLevel || 'REMEMBER',
+                    difficulty: q.difficulty || 'MODERATE',
+                    isTwisted: q.isTwisted || false,
+                    options: q.options || [],
+                    correctAnswer: correctAnswer,
+                    explanation: q.explanation || '',
+                    matchingPairs: q.matchingPairs || [],
+                    multipleCorrectAnswers: q.multipleCorrectAnswers || [],
+                    drawingInstructions: q.drawingInstructions || '',
+                    markingInstructions: q.markingInstructions || '',
+                    tags: q.tags || []
+                };
+            });
         }
         catch (error) {
             console.error('Error parsing AI response:', error);
