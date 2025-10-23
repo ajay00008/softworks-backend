@@ -66,7 +66,12 @@ export class EnhancedAIService {
             }
             // Parse the JSON response
             const generatedQuestions = this.parseGeneratedQuestions(response);
-            return generatedQuestions;
+            // Post-process to enforce mark-based question types
+            const processedQuestions = this.enforceMarkBasedQuestionTypes(generatedQuestions);
+            // Ensure we only return the exact number of questions requested
+            const finalQuestions = processedQuestions.slice(0, request.markDistribution.totalQuestions);
+            console.log(`Generated ${generatedQuestions.length} questions, returning ${finalQuestions.length} questions`);
+            return finalQuestions;
         }
         catch (error) {
             console.error('Error generating question paper with AI:', error);
@@ -83,7 +88,7 @@ export class EnhancedAIService {
         // Build question type distribution text
         const questionTypesText = questionTypeDistribution.map(dist => `${this.getQuestionTypeName(dist.type)}: ${dist.percentage}%`).join(', ');
         // Build mark distribution text
-        const markDistributionText = `1-mark questions: ${markDistribution.oneMark}, 2-mark questions: ${markDistribution.twoMark}, 3-mark questions: ${markDistribution.threeMark}, 5-mark questions: ${markDistribution.fiveMark}`;
+        const markDistributionText = `1-mark questions: ${markDistribution.oneMark} (brief, simple answers), 2-mark questions: ${markDistribution.twoMark} (short explanations), 3-mark questions: ${markDistribution.threeMark} (moderate detail), 5-mark questions: ${markDistribution.fiveMark} (comprehensive, detailed answers)`;
         return `You are an expert educational content creator specializing in creating comprehensive question papers based on Bloom's Taxonomy. Generate a complete question paper with the following specifications:
 
 **EXAM DETAILS:**
@@ -172,23 +177,24 @@ ${subjectBookInfo}
 ${customInstructions ? `\n**CUSTOM INSTRUCTIONS:**\n${customInstructions}` : ''}
 
 **REQUIREMENTS:**
-1. Generate exactly ${markDistribution.totalQuestions} questions
+1. **CRITICAL: Generate EXACTLY ${markDistribution.totalQuestions} questions - NO MORE, NO LESS**
 2. Follow the mark distribution precisely
 3. Distribute questions according to Bloom's taxonomy percentages
-4. **CRITICAL: Generate ONLY the specified question types according to their exact percentages**
-5. **For 1-mark questions: Generate ONLY ${questionTypeDistribution.oneMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
-6. **For 2-mark questions: Generate ONLY ${questionTypeDistribution.twoMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
-7. **For 3-mark questions: Generate ONLY ${questionTypeDistribution.threeMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
-8. **For 5-mark questions: Generate ONLY ${questionTypeDistribution.fiveMark?.map(qt => qt.type).join(', ') || 'no specific type'} questions**
-9. Ensure questions are age-appropriate for ${className}
-10. Make questions relevant to ${subjectName}
-11. Include ${twistedQuestionsPercentage}% twisted/challenging questions
-12. Provide clear, unambiguous questions
-13. Include appropriate options for multiple choice questions
-14. Provide correct answers and explanations
-15. For matching pairs, provide clear left and right items
-16. For drawing questions, provide clear instructions
-17. For marking questions, specify what to mark
+4. **DO NOT generate extra questions beyond the specified count**
+5. **CRITICAL: Generate question types based on marks when no specific type is specified**
+6. **For 1-mark questions: Generate ${questionTypeDistribution.oneMark?.map(qt => qt.type).join(', ') || 'SHORT_ANSWER or ONE_WORD_ANSWER based on content complexity'} questions**
+7. **For 2-mark questions: Generate ${questionTypeDistribution.twoMark?.map(qt => qt.type).join(', ') || 'SHORT_ANSWER or CHOOSE_BEST_ANSWER based on content complexity'} questions**
+8. **For 3-mark questions: Generate ${questionTypeDistribution.threeMark?.map(qt => qt.type).join(', ') || 'SHORT_ANSWER only (no multiple choice for 3+ marks)'} questions**
+9. **For 5-mark questions: Generate ${questionTypeDistribution.fiveMark?.map(qt => qt.type).join(', ') || 'LONG_ANSWER or detailed SHORT_ANSWER based on content complexity'} questions**
+10. Ensure questions are age-appropriate for ${className}
+11. Make questions relevant to ${subjectName}
+12. Include ${twistedQuestionsPercentage}% twisted/challenging questions
+13. Provide clear, unambiguous questions
+14. Include appropriate options for multiple choice questions
+15. Provide correct answers and explanations
+16. For matching pairs, provide clear left and right items
+17. For drawing questions, provide clear instructions
+18. For marking questions, specify what to mark
 
 **OUTPUT FORMAT:**
 Return a JSON array of questions with the following structure:
@@ -213,12 +219,29 @@ Return a JSON array of questions with the following structure:
 
 **FINAL CRITICAL INSTRUCTIONS:**
 1. **MUST follow the exact question type distribution specified above**
-2. **For CHOOSE_MULTIPLE_ANSWERS: Include both 'options' array AND 'multipleCorrectAnswers' array**
-3. **For TRUE_FALSE: Do NOT include options array, just set correctAnswer to "True" or "False"**
-4. **For FILL_BLANKS: Use ___ in question text, do NOT include options array**
-5. **For CHOOSE_BEST_ANSWER: Include options array with exactly 4 options**
-6. **Each question MUST match the specified questionType exactly**
-7. **Do NOT mix question types - follow the distribution precisely**
+2. **MARK-BASED QUESTION TYPE RULES (CRITICAL):**
+   - **1-mark questions**: ONLY use ONE_WORD_ANSWER, TRUE_FALSE, or simple SHORT_ANSWER
+   - **2-mark questions**: ONLY use SHORT_ANSWER or CHOOSE_BEST_ANSWER
+   - **3-mark questions**: ONLY use SHORT_ANSWER (no multiple choice for 3+ marks)
+   - **5-mark questions**: ONLY use LONG_ANSWER or detailed SHORT_ANSWER
+3. **ABSOLUTELY FORBIDDEN for 5-mark questions:**
+   - NO CHOOSE_BEST_ANSWER
+   - NO CHOOSE_MULTIPLE_ANSWERS
+   - NO FILL_BLANKS
+   - NO ONE_WORD_ANSWER
+   - NO TRUE_FALSE
+   - NO MATCHING_PAIRS
+   - NO DRAWING_DIAGRAM
+   - NO MARKING_PARTS
+4. **5-mark questions MUST be comprehensive, analytical, and require detailed written responses**
+5. **For CHOOSE_MULTIPLE_ANSWERS: Include both 'options' array AND 'multipleCorrectAnswers' array**
+6. **For TRUE_FALSE: Do NOT include options array, just set correctAnswer to "True" or "False"**
+7. **For FILL_BLANKS: Use ___ in question text, do NOT include options array**
+8. **For CHOOSE_BEST_ANSWER: Include options array with exactly 4 options**
+9. **Each question MUST match the specified questionType exactly**
+10. **Do NOT mix question types - follow the distribution precisely**
+11. **For 5-mark questions: Ensure they are comprehensive and detailed, requiring substantial answers**
+12. **REMEMBER: Question type should match the marks - higher marks = more detailed answer types**
 
 Generate the question paper now:`;
     }
@@ -380,6 +403,55 @@ Generate the question paper now:`;
         };
     }
     /**
+     * Enforce mark-based question types after AI generation
+     */
+    static enforceMarkBasedQuestionTypes(questions) {
+        return questions.map(question => {
+            const marks = question.marks;
+            let correctedQuestionType = question.questionType;
+            // Enforce mark-based question types
+            if (marks === 1) {
+                // 1-mark questions: Only simple types
+                if (!['ONE_WORD_ANSWER', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(question.questionType)) {
+                    correctedQuestionType = 'SHORT_ANSWER';
+                }
+            }
+            else if (marks === 2) {
+                // 2-mark questions: Short answers or simple multiple choice
+                if (!['SHORT_ANSWER', 'CHOOSE_BEST_ANSWER'].includes(question.questionType)) {
+                    correctedQuestionType = 'SHORT_ANSWER';
+                }
+            }
+            else if (marks === 3) {
+                // 3-mark questions: Short answers only (no multiple choice for 3+ marks)
+                if (!['SHORT_ANSWER'].includes(question.questionType)) {
+                    correctedQuestionType = 'SHORT_ANSWER';
+                }
+            }
+            else if (marks === 5) {
+                // 5-mark questions: ONLY long answers or detailed short answers
+                if (!['LONG_ANSWER', 'SHORT_ANSWER'].includes(question.questionType)) {
+                    correctedQuestionType = 'LONG_ANSWER';
+                }
+                // For 5-mark questions, ensure they are comprehensive
+                if (question.questionType === 'SHORT_ANSWER' && marks === 5) {
+                    // Convert to LONG_ANSWER for 5-mark questions to ensure they are comprehensive
+                    correctedQuestionType = 'LONG_ANSWER';
+                }
+            }
+            // Remove options for non-multiple choice questions
+            let options = question.options;
+            if (!['CHOOSE_BEST_ANSWER', 'CHOOSE_MULTIPLE_ANSWERS'].includes(correctedQuestionType)) {
+                options = undefined;
+            }
+            return {
+                ...question,
+                questionType: correctedQuestionType,
+                options: options
+            };
+        });
+    }
+    /**
      * Parse generated questions from AI response
      */
     static parseGeneratedQuestions(response) {
@@ -413,18 +485,62 @@ Generate the question paper now:`;
                     'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM',
                     'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER'
                 ];
-                // If questionType is a Blooms level, map it to a valid question type
+                // If questionType is a Blooms level, map it to a mark-appropriate question type
                 const bloomsLevels = ['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE'];
                 if (bloomsLevels.includes(questionType)) {
-                    // Map Blooms levels to appropriate question types
-                    const bloomsToQuestionType = {
-                        'REMEMBER': 'CHOOSE_BEST_ANSWER',
-                        'UNDERSTAND': 'FILL_BLANKS',
-                        'APPLY': 'SHORT_ANSWER',
-                        'ANALYZE': 'SHORT_ANSWER',
-                        'EVALUATE': 'LONG_ANSWER',
-                        'CREATE': 'LONG_ANSWER'
-                    };
+                    // Map Blooms levels to mark-appropriate question types based on marks
+                    const marks = q.marks || 1;
+                    let bloomsToQuestionType;
+                    if (marks === 1) {
+                        bloomsToQuestionType = {
+                            'REMEMBER': 'ONE_WORD_ANSWER',
+                            'UNDERSTAND': 'TRUE_FALSE',
+                            'APPLY': 'SHORT_ANSWER',
+                            'ANALYZE': 'SHORT_ANSWER',
+                            'EVALUATE': 'SHORT_ANSWER',
+                            'CREATE': 'SHORT_ANSWER'
+                        };
+                    }
+                    else if (marks === 2) {
+                        bloomsToQuestionType = {
+                            'REMEMBER': 'SHORT_ANSWER',
+                            'UNDERSTAND': 'CHOOSE_BEST_ANSWER',
+                            'APPLY': 'SHORT_ANSWER',
+                            'ANALYZE': 'SHORT_ANSWER',
+                            'EVALUATE': 'SHORT_ANSWER',
+                            'CREATE': 'SHORT_ANSWER'
+                        };
+                    }
+                    else if (marks === 3) {
+                        bloomsToQuestionType = {
+                            'REMEMBER': 'SHORT_ANSWER',
+                            'UNDERSTAND': 'SHORT_ANSWER',
+                            'APPLY': 'SHORT_ANSWER',
+                            'ANALYZE': 'SHORT_ANSWER',
+                            'EVALUATE': 'SHORT_ANSWER',
+                            'CREATE': 'SHORT_ANSWER'
+                        };
+                    }
+                    else if (marks === 5) {
+                        bloomsToQuestionType = {
+                            'REMEMBER': 'LONG_ANSWER',
+                            'UNDERSTAND': 'LONG_ANSWER',
+                            'APPLY': 'LONG_ANSWER',
+                            'ANALYZE': 'LONG_ANSWER',
+                            'EVALUATE': 'LONG_ANSWER',
+                            'CREATE': 'LONG_ANSWER'
+                        };
+                    }
+                    else {
+                        bloomsToQuestionType = {
+                            'REMEMBER': 'SHORT_ANSWER',
+                            'UNDERSTAND': 'SHORT_ANSWER',
+                            'APPLY': 'SHORT_ANSWER',
+                            'ANALYZE': 'SHORT_ANSWER',
+                            'EVALUATE': 'LONG_ANSWER',
+                            'CREATE': 'LONG_ANSWER'
+                        };
+                    }
                     questionType = bloomsToQuestionType[questionType] || 'SHORT_ANSWER';
                 }
                 else if (!validQuestionTypes.includes(questionType)) {

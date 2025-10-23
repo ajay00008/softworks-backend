@@ -3,9 +3,15 @@ import { z } from "zod";
 import createHttpError from "http-errors";
 import mongoose from "mongoose";
 import { Subject } from "../models/Subject";
+import QuestionPaperTemplate from "../models/QuestionPaperTemplate";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const CreateSubjectSchema = z.object({
   code: z.string().regex(/^[A-Z0-9_]+$/, "Subject code must contain only uppercase letters, numbers, and underscores"),
@@ -66,7 +72,33 @@ const upload = multer({
   }
 });
 
-export const uploadReferenceBook = upload.single('referenceBook');
+export const uploadReferenceBook = (req: Request, res: Response, next: NextFunction) => {
+  console.log('Multer middleware - Request headers:', req.headers);
+  console.log('Multer middleware - Content-Type:', req.headers['content-type']);
+  
+  upload.single('referenceBook')(req, res, (err) => {
+    console.log('Multer callback - Error:', err);
+    console.log('Multer callback - File:', req.file);
+    console.log('Multer callback - Body:', req.body);
+    
+    if (err) {
+      console.log('Multer error details:', {
+        code: err.code,
+        message: err.message,
+        field: err.field
+      });
+      
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return next(new createHttpError.BadRequest('File too large. Maximum size is 50MB.'));
+      }
+      if (err.message.includes('Only PDF files are allowed')) {
+        return next(new createHttpError.BadRequest('Only PDF files are allowed for reference books.'));
+      }
+      return next(new createHttpError.BadRequest(err.message));
+    }
+    next();
+  });
+};
 
 // Create Subject
 export async function createSubject(req: Request, res: Response, next: NextFunction) {
@@ -181,17 +213,42 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
     
     const [subjects, total] = await Promise.all([
       Subject.find(query)
-        .select('_id code name shortName category classIds description color isActive createdAt updatedAt')
+        .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt')
         .sort({ category: 1, name: 1 })
         .skip(skip)
         .limit(limit)
         .lean(),
       Subject.countDocuments(query)
     ]);
+
+    // Get templates for each subject
+    const subjectIds = subjects.map(subject => subject._id);
+    const templates = await QuestionPaperTemplate.find({
+      subjectId: { $in: subjectIds },
+      isActive: true
+    })
+    .select('_id title description subjectId classId templateFile analysis language version createdAt')
+    .lean();
+
+    // Group templates by subjectId
+    const templatesBySubject = templates.reduce((acc, template) => {
+      const subjectId = template.subjectId.toString();
+      if (!acc[subjectId]) {
+        acc[subjectId] = [];
+      }
+      acc[subjectId].push(template);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Add templates to each subject
+    const subjectsWithTemplates = subjects.map(subject => ({
+      ...subject,
+      templates: templatesBySubject[subject._id.toString()] || []
+    }));
     
     res.json({
       success: true,
-      data: subjects,
+      data: subjectsWithTemplates,
       pagination: {
         page,
         limit,
@@ -401,13 +458,117 @@ export async function getSubjectsByLevel(req: Request, res: Response, next: Next
   }
 }
 
-// Upload Reference Book
+// Upload Reference Book (Base64)
+export async function uploadReferenceBookBase64(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    const userId = auth.sub;
+    
+    const { fileName, fileSize, fileType, fileData } = req.body;
+    
+    console.log('Base64 upload request received:', {
+      subjectId: id,
+      adminId,
+      userId,
+      fileName,
+      fileSize,
+      fileType,
+      dataLength: fileData ? fileData.length : 0
+    });
+    
+    if (!fileData) {
+      throw new createHttpError.BadRequest("No file data provided");
+    }
+    
+    if (fileType !== 'application/pdf') {
+      throw new createHttpError.BadRequest("Only PDF files are allowed for reference books");
+    }
+    
+    if (fileSize > 50 * 1024 * 1024) { // 50MB limit
+      throw new createHttpError.BadRequest("File too large. Maximum size is 50MB");
+    }
+    
+    const subject = await Subject.findOne({ _id: id, adminId });
+    if (!subject) {
+      throw new createHttpError.NotFound("Subject not found");
+    }
+    
+    // Convert base64 to buffer
+    const fileBuffer = Buffer.from(fileData, 'base64');
+    
+    // Create unique filename
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const fileExtension = path.extname(fileName);
+    const uniqueFileName = `reference-book-${uniqueSuffix}${fileExtension}`;
+    
+    // Create upload directory if it doesn't exist
+    const uploadPath = path.join(__dirname, '../../uploads/reference-books');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    
+    const filePath = path.join(uploadPath, uniqueFileName);
+    
+    // Delete existing reference book if it exists
+    if (subject.referenceBook && fs.existsSync(subject.referenceBook.filePath)) {
+      fs.unlinkSync(subject.referenceBook.filePath);
+    }
+    
+    // Write file to disk
+    fs.writeFileSync(filePath, fileBuffer);
+    
+    // Update subject with new reference book information
+    subject.referenceBook = {
+      fileName: uniqueFileName,
+      originalName: fileName,
+      filePath: filePath,
+      fileSize: fileSize,
+      uploadedAt: new Date(),
+      uploadedBy: userId
+    };
+    
+    await subject.save();
+    
+    console.log('Base64 upload successful:', {
+      fileName: subject.referenceBook.fileName,
+      originalName: subject.referenceBook.originalName,
+      fileSize: subject.referenceBook.fileSize
+    });
+    
+    res.json({
+      success: true,
+      subject: subject
+    });
+  } catch (err) {
+    console.error('Base64 upload error:', err);
+    next(err);
+  }
+}
+
+// Upload Reference Book (Original FormData method)
 export async function uploadReferenceBookToSubject(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params;
     const auth = (req as any).auth;
     const adminId = auth.adminId;
     const userId = auth.sub;
+    
+    console.log('Upload request received:', {
+      subjectId: id,
+      adminId,
+      userId,
+      hasFile: !!req.file,
+      fileInfo: req.file ? {
+        fieldname: req.file.fieldname,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        filename: req.file.filename
+      } : null,
+      body: req.body
+    });
     
     if (!req.file) {
       throw new createHttpError.BadRequest("No PDF file uploaded");

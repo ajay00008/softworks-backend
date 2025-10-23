@@ -60,7 +60,30 @@ const upload = multer({
         }
     }
 });
-export const uploadReferenceBook = upload.single('referenceBook');
+export const uploadReferenceBook = (req, res, next) => {
+    console.log('Multer middleware - Request headers:', req.headers);
+    console.log('Multer middleware - Content-Type:', req.headers['content-type']);
+    upload.single('referenceBook')(req, res, (err) => {
+        console.log('Multer callback - Error:', err);
+        console.log('Multer callback - File:', req.file);
+        console.log('Multer callback - Body:', req.body);
+        if (err) {
+            console.log('Multer error details:', {
+                code: err.code,
+                message: err.message,
+                field: err.field
+            });
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return next(new createHttpError.BadRequest('File too large. Maximum size is 50MB.'));
+            }
+            if (err.message.includes('Only PDF files are allowed')) {
+                return next(new createHttpError.BadRequest('Only PDF files are allowed for reference books.'));
+            }
+            return next(new createHttpError.BadRequest(err.message));
+        }
+        next();
+    });
+};
 // Create Subject
 export async function createSubject(req, res, next) {
     try {
@@ -378,6 +401,20 @@ export async function uploadReferenceBookToSubject(req, res, next) {
         const auth = req.auth;
         const adminId = auth.adminId;
         const userId = auth.sub;
+        console.log('Upload request received:', {
+            subjectId: id,
+            adminId,
+            userId,
+            hasFile: !!req.file,
+            fileInfo: req.file ? {
+                fieldname: req.file.fieldname,
+                originalname: req.file.originalname,
+                mimetype: req.file.mimetype,
+                size: req.file.size,
+                filename: req.file.filename
+            } : null,
+            body: req.body
+        });
         if (!req.file) {
             throw new createHttpError.BadRequest("No PDF file uploaded");
         }

@@ -57,6 +57,7 @@ import {
   getSubjectsByLevel,
   uploadReferenceBook,
   uploadReferenceBookToSubject,
+  uploadReferenceBookBase64,
   downloadReferenceBook,
   deleteReferenceBook
 } from "../controllers/subjectController";
@@ -1503,6 +1504,46 @@ router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "S
  *         description: Subject not found
  */
 router.post("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadReferenceBook, uploadReferenceBookToSubject);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book-base64:
+ *   post:
+ *     tags: [Admin - Subjects]
+ *     summary: Upload reference book PDF for a subject using base64
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fileName:
+ *                 type: string
+ *               fileSize:
+ *                 type: number
+ *               fileType:
+ *                 type: string
+ *               fileData:
+ *                 type: string
+ *                 format: base64
+ *     responses:
+ *       200:
+ *         description: Reference book uploaded successfully
+ *       400:
+ *         description: Invalid file data or file too large
+ *       404:
+ *         description: Subject not found
+ */
+router.post("/admin/subjects/:id/reference-book-base64", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadReferenceBookBase64);
 
 /**
  * @openapi

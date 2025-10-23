@@ -94,6 +94,10 @@ export declare class EnhancedAIService {
      */
     private static createMockQuestion;
     /**
+     * Enforce mark-based question types after AI generation
+     */
+    private static enforceMarkBasedQuestionTypes;
+    /**
      * Parse generated questions from AI response
      */
     private static parseGeneratedQuestions;

@@ -29,6 +29,36 @@ export interface EnhancedQuestionGenerationRequest {
   twistedQuestionsPercentage: number;
   language: 'ENGLISH' | 'TAMIL' | 'HINDI' | 'MALAYALAM' | 'TELUGU' | 'KANNADA';
   patternFilePath?: string; // Optional pattern file path
+  referenceBookContent?: string; // Reference book content for AI generation
+  templates?: Array<{
+    _id: string;
+    title: string;
+    description?: string;
+    templateFile: {
+      fileName: string;
+      filePath: string;
+      fileSize: number;
+    };
+    analysis: {
+      totalQuestions: number;
+      questionTypes: string[];
+      markDistribution: {
+        oneMark: number;
+        twoMark: number;
+        threeMark: number;
+        fiveMark: number;
+        totalMarks: number;
+      };
+      difficultyLevels: string[];
+      sections: Array<{
+        name: string;
+        questions: number;
+        marks: number;
+      }>;
+    };
+    language: string;
+    version: string;
+  }>; // Available templates for design guidance
 }
 
 export interface EnhancedGeneratedQuestion {
@@ -98,6 +128,11 @@ export class EnhancedAIService {
         }
       }
 
+      // Use provided reference book content if available
+      if (request.referenceBookContent) {
+        subjectBookInfo += `\n\nReference Book Content Available: ${request.referenceBookContent}`;
+      }
+
       // Handle pattern file if provided
       let patternInfo = '';
       if (request.patternFilePath) {
@@ -155,7 +190,7 @@ export class EnhancedAIService {
     request: EnhancedQuestionGenerationRequest,
     subjectBookInfo: string
   ): string {
-    const { subjectName, className, examTitle, markDistribution, bloomsDistribution, questionTypeDistribution, customInstructions, difficultyLevel, twistedQuestionsPercentage, language } = request;
+    const { subjectName, className, examTitle, markDistribution, bloomsDistribution, questionTypeDistribution, customInstructions, difficultyLevel, twistedQuestionsPercentage, language, referenceBookContent, templates } = request;
 
     // Build Blooms taxonomy distribution text
     const bloomsText = bloomsDistribution.map(dist => 
@@ -254,6 +289,18 @@ ${questionTypesText}
 - CREATE: Produce new or original work, design solutions
 
 ${subjectBookInfo}
+
+${referenceBookContent ? `\n**REFERENCE BOOK CONTENT:**\n${referenceBookContent}\n\n**IMPORTANT:** Use the reference book content as the primary source for generating questions. Ensure all questions are based on the content from this reference material.` : ''}
+
+${templates && templates.length > 0 ? `\n**AVAILABLE TEMPLATES FOR DESIGN GUIDANCE:**\n${templates.map(template => `
+- Template: ${template.title}
+- Description: ${template.description || 'No description'}
+- Language: ${template.language}
+- Version: ${template.version}
+- Analysis: ${template.analysis.totalQuestions} questions, ${template.analysis.markDistribution.totalMarks} total marks
+- Question Types: ${template.analysis.questionTypes.join(', ')}
+- Sections: ${template.analysis.sections.map(s => `${s.name} (${s.questions} questions, ${s.marks} marks)`).join(', ')}
+`).join('\n')}\n\n**DESIGN GUIDANCE:** Use the template analysis to guide the question paper structure and maintain consistency with proven patterns.` : ''}
 
 ${customInstructions ? `\n**CUSTOM INSTRUCTIONS:**\n${customInstructions}` : ''}
 

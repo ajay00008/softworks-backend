@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-export declare const uploadReferenceBook: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
+export declare const uploadReferenceBook: (req: Request, res: Response, next: NextFunction) => void;
 export declare function createSubject(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getSubjects(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getSubject(req: Request, res: Response, next: NextFunction): Promise<void>;

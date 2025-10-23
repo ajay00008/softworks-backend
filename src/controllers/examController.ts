@@ -7,6 +7,7 @@ import { Result } from "../models/Result";
 import { Subject } from "../models/Subject";
 import { Class } from "../models/Class";
 import { Student } from "../models/Student";
+import QuestionPaperTemplate from "../models/QuestionPaperTemplate";
 
 const CreateExamSchema = z.object({
   title: z.string().min(1),
@@ -76,25 +77,72 @@ export async function createExam(req: Request, res: Response, next: NextFunction
     const examData = CreateExamSchema.parse(req.body);
     const userId = (req as any).auth?.sub;
     
-    // Validate subjects and class exist
+    // Validate subjects and class exist, and fetch complete subject data with reference books and templates
     const [subjects, classExists] = await Promise.all([
-      Subject.find({ _id: { $in: examData.subjectIds } }),
+      Subject.find({ _id: { $in: examData.subjectIds } })
+        .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt')
+        .lean(),
       Class.findById(examData.classId)
     ]);
+
+    // Get templates for each subject
+    const subjectIds = subjects.map(subject => subject._id);
+    const templates = await QuestionPaperTemplate.find({
+      subjectId: { $in: subjectIds },
+      isActive: true
+    })
+    .select('_id title description subjectId classId templateFile analysis language version createdAt')
+    .lean();
+
+    // Group templates by subjectId
+    const templatesBySubject = templates.reduce((acc, template) => {
+      const subjectId = template.subjectId.toString();
+      if (!acc[subjectId]) {
+        acc[subjectId] = [];
+      }
+      acc[subjectId].push(template);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Add templates to each subject
+    const subjectsWithTemplates = subjects.map(subject => ({
+      ...subject,
+      templates: templatesBySubject[subject._id.toString()] || []
+    }));
     
-    if (subjects.length !== examData.subjectIds.length) {
+    if (subjectsWithTemplates.length !== examData.subjectIds.length) {
       throw new createHttpError.NotFound("One or more subjects not found");
     }
     if (!classExists) throw new createHttpError.NotFound("Class not found");
     
     // Validate that all subjects are available for the selected class
-    const invalidSubjects = subjects.filter(subject => 
-      !subject.classIds.includes(examData.classId)
+    const invalidSubjects = subjectsWithTemplates.filter(subject => 
+      !subject.classIds.some(classId => classId.toString() === examData.classId)
     );
     
     if (invalidSubjects.length > 0) {
       const invalidSubjectIds = invalidSubjects.map(s => s._id.toString());
       throw new createHttpError.BadRequest(`Subjects ${invalidSubjectIds.join(', ')} are not available for the selected class`);
+    }
+
+    // Check if reference books are uploaded for all subjects
+    const subjectsWithoutReferenceBooks = subjectsWithTemplates.filter(subject => 
+      !subject.referenceBook || !subject.referenceBook.fileName
+    );
+    
+    if (subjectsWithoutReferenceBooks.length > 0) {
+      const subjectNames = subjectsWithoutReferenceBooks.map(s => s.name).join(', ');
+      throw new createHttpError.BadRequest(`Reference books are not uploaded for subjects: ${subjectNames}. Please upload reference books first.`);
+    }
+
+    // Check if templates are available for all subjects
+    const subjectsWithoutTemplates = subjectsWithTemplates.filter(subject => 
+      !subject.templates || subject.templates.length === 0
+    );
+    
+    if (subjectsWithoutTemplates.length > 0) {
+      const subjectNames = subjectsWithoutTemplates.map(s => s.name).join(', ');
+      console.warn(`Warning: No templates found for subjects: ${subjectNames}. AI generation will proceed without template guidance.`);
     }
     
     // Validate questions if provided
@@ -136,9 +184,16 @@ export async function createExam(req: Request, res: Response, next: NextFunction
       .populate('createdBy', 'name email')
       .populate('questions');
     
+    // Add subject data with reference books and templates to the response
+    const examWithSubjectData = {
+      ...populatedExam.toObject(),
+      subjectData: subjectsWithTemplates
+    };
+    
     res.status(201).json({
       success: true,
-      exam: populatedExam
+      exam: examWithSubjectData,
+      message: "Exam created successfully with reference books and templates validated"
     });
   } catch (err) {
     next(err);

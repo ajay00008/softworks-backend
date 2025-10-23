@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import createHttpError from 'http-errors';
 import { QuestionPaper } from '../models/QuestionPaper';
+import QuestionPaperTemplate from '../models/QuestionPaperTemplate';
 import { Exam } from '../models/Exam';
 import { Subject } from '../models/Subject';
 import { Class } from '../models/Class';
@@ -160,7 +161,7 @@ const CreateQuestionPaperSchema = z.object({
     twoMark: z.number().min(0).max(100),
     threeMark: z.number().min(0).max(100),
     fiveMark: z.number().min(0).max(100),
-    totalMarks: z.number().min(1).max(1000)
+    totalMarks: z.number().min(1).max(1000).optional()
   }),
   bloomsDistribution: z.array(z.object({
     level: z.enum(['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE']),
@@ -801,10 +802,42 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
 
     // Populate the question paper with subject, class, and exam details
     await questionPaper.populate([
-      { path: 'subjectId', select: 'name code' },
+      { path: 'subjectId', select: 'name code referenceBook' },
       { path: 'classId', select: 'name displayName' },
       { path: 'examId', select: 'title duration' }
     ]);
+
+    // Get reference book content for AI generation
+    let referenceBookContent = '';
+    const subject = questionPaper.subjectId as any;
+    if (subject.referenceBook && subject.referenceBook.filePath) {
+      try {
+        // Read the reference book file content
+        const referenceBookPath = subject.referenceBook.filePath;
+        if (fs.existsSync(referenceBookPath)) {
+          // For PDF files, we would need a PDF parser, but for now we'll use the file path
+          // In a real implementation, you'd extract text from the PDF
+          referenceBookContent = `Reference book available: ${subject.referenceBook.originalName} (${subject.referenceBook.fileSize} bytes)`;
+          console.log('Reference book found for AI generation:', {
+            fileName: subject.referenceBook.fileName,
+            originalName: subject.referenceBook.originalName,
+            fileSize: subject.referenceBook.fileSize
+          });
+        }
+      } catch (error) {
+        console.warn('Could not read reference book content:', error);
+      }
+    }
+
+    // Get templates for the subject
+    const templates = await QuestionPaperTemplate.find({
+      subjectId: finalSubjectId,
+      isActive: true
+    })
+    .select('_id title description templateFile analysis language version')
+    .lean();
+
+    console.log('Templates found for AI generation:', templates.length);
 
     // Handle pattern file if provided
     let patternFilePath = null;
@@ -818,7 +851,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       }
     }
 
-    // Prepare AI request
+    // Prepare AI request with reference book and template data
     const aiRequest = {
       subjectId: finalSubjectId,
       classId: finalClassId,
@@ -836,6 +869,8 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
       language: 'ENGLISH' as const,
+      referenceBookContent: referenceBookContent,
+      templates: templates,
       ...(patternFilePath && { patternFilePath }) // Add pattern file path to AI request only if it exists
     };
 

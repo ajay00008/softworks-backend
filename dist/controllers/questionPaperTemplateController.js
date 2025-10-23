@@ -1,12 +1,11 @@
-import { Request, Response, NextFunction } from 'express';
 import * as createHttpError from 'http-errors';
 import * as z from 'zod';
-import path from 'path';
-import fs from 'fs';
+import * as path from 'path';
+import * as fs from 'fs';
 import multer from 'multer';
 import QuestionPaperTemplate from '../models/QuestionPaperTemplate';
-import Subject from '../models/Subject';
-import Class from '../models/Class';
+import { Subject } from '../models/Subject';
+import { Class } from '../models/Class';
 import { PDFGenerationService } from '../services/pdfGenerationService';
 // Validation schemas
 const CreateTemplateSchema = z.object({
@@ -50,7 +49,7 @@ const upload = multer({
             cb(null, true);
         }
         else {
-            cb(new Error('Only PDF files are allowed'), false);
+            cb(null, false);
         }
     }
 });

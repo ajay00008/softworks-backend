@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 export declare const uploadTemplate: import("express").RequestHandler<import("express-serve-static-core").ParamsDictionary, any, any, import("qs").ParsedQs, Record<string, any>>;
 export declare function createTemplate(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getTemplates(req: Request, res: Response, next: NextFunction): Promise<void>;

@@ -418,8 +418,16 @@ export async function generateAIQuestionPaper(req, res, next) {
         }
         // Update question paper with question references
         questionPaper.questions = savedQuestions.map(q => q._id);
+        // Debug logging for PDF generation
+        console.log('PDF Generation Data:', {
+            subjectName: questionPaper.subjectId.name,
+            className: questionPaper.classId.name,
+            examTitle: questionPaper.examId.title,
+            totalMarks: questionPaper.markDistribution.totalMarks,
+            duration: questionPaper.examId.duration
+        });
         // Generate PDF
-        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaperId, generatedQuestions, questionPaper.subjectId.name, questionPaper.classId.name, questionPaper.examId.title, questionPaper.markDistribution.totalMarks, questionPaper.examId.duration);
+        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaperId, generatedQuestions, questionPaper.subjectId.name || 'Mathematics', questionPaper.classId.name || 'Class 10', questionPaper.examId.title || 'Question Paper', questionPaper.markDistribution.totalMarks || 100, questionPaper.examId.duration || 180);
         // Update question paper
         questionPaper.status = 'GENERATED';
         questionPaper.generatedAt = new Date();
@@ -753,8 +761,16 @@ export async function generateCompleteAIQuestionPaper(req, res, next) {
         }
         // Update question paper with question references
         questionPaper.questions = savedQuestions.map(q => q._id);
+        // Debug logging for PDF generation
+        console.log('PDF Generation Data (Complete):', {
+            subjectName: questionPaper.subjectId.name,
+            className: questionPaper.classId.name,
+            examTitle: questionPaper.examId.title,
+            totalMarks: questionPaper.markDistribution.totalMarks,
+            duration: questionPaper.examId.duration
+        });
         // Generate PDF
-        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaper._id.toString(), generatedQuestions, questionPaper.subjectId.name, questionPaper.classId.name, questionPaper.examId.title, questionPaper.markDistribution.totalMarks, questionPaper.examId.duration);
+        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaper._id.toString(), generatedQuestions, questionPaper.subjectId.name || 'Mathematics', questionPaper.classId.name || 'Class 10', questionPaper.examId.title || 'Question Paper', questionPaper.markDistribution.totalMarks || 100, questionPaper.examId.duration || 180);
         // Update question paper
         questionPaper.status = 'GENERATED';
         questionPaper.generatedAt = new Date();
@@ -1050,8 +1066,16 @@ export async function regenerateQuestionPaperPDF(req, res, next) {
                 console.warn('Could not delete old PDF file:', error);
             }
         }
+        // Debug logging for PDF generation
+        console.log('PDF Generation Data (Regenerate):', {
+            subjectName: questionPaper.subjectId.name,
+            className: questionPaper.classId.name,
+            examTitle: questionPaper.examId.title,
+            totalMarks: questionPaper.markDistribution.totalMarks,
+            duration: questionPaper.examId.duration
+        });
         // Generate new PDF
-        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaper._id.toString(), generatedQuestions, questionPaper.subjectId.name, questionPaper.classId.name, questionPaper.examId.title, questionPaper.markDistribution.totalMarks, questionPaper.examId.duration);
+        const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(questionPaper._id.toString(), generatedQuestions, questionPaper.subjectId.name || 'Mathematics', questionPaper.classId.name || 'Class 10', questionPaper.examId.title || 'Question Paper', questionPaper.markDistribution.totalMarks || 100, questionPaper.examId.duration || 180);
         // Update question paper with new PDF info
         questionPaper.generatedPdf = {
             fileName: pdfResult.fileName,

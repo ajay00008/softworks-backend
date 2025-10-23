@@ -25,10 +25,10 @@ app.use(helmet());
 app.use(cors());
 // Apply JSON and URL-encoded parsing only to non-file-upload routes
 app.use((req, res, next) => {
-  // Skip JSON/URL parsing for file upload routes
+  // Skip JSON/URL parsing for file upload routes (multipart/form-data)
   if (req.path.includes('/upload') || 
       req.path.includes('/answer-sheets') || 
-      req.path.includes('/reference-book') ||
+      req.path.includes('/reference-book/upload') ||
       req.path.includes('/upload-pdf')) {
     return next();
   }
@@ -36,10 +36,10 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  // Skip URL-encoded parsing for file upload routes
+  // Skip URL-encoded parsing for file upload routes (multipart/form-data)
   if (req.path.includes('/upload') || 
       req.path.includes('/answer-sheets') || 
-      req.path.includes('/reference-book') ||
+      req.path.includes('/reference-book/upload') ||
       req.path.includes('/upload-pdf')) {
     return next();
   }
