@@ -611,6 +611,39 @@ export async function uploadReferenceBookToSubject(req: Request, res: Response, 
   }
 }
 
+// Check Reference Book File Exists
+export async function checkReferenceBookExists(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const auth = (req as any).auth;
+    const adminId = auth.adminId;
+    
+    const subject = await Subject.findOne({ _id: id, adminId });
+    if (!subject) {
+      throw new createHttpError.NotFound("Subject not found");
+    }
+    
+    if (!subject.referenceBook) {
+      return res.json({
+        success: true,
+        exists: false,
+        message: "No reference book uploaded for this subject"
+      });
+    }
+    
+    const filePath = subject.referenceBook.filePath;
+    const fileExists = fs.existsSync(filePath);
+    
+    res.json({
+      success: true,
+      exists: fileExists,
+      message: fileExists ? "Reference book file exists" : "Reference book file not found on server"
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Download Reference Book
 export async function downloadReferenceBook(req: Request, res: Response, next: NextFunction) {
   try {
