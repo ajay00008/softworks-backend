@@ -85,22 +85,17 @@ export async function createQuestion(req, res, next) {
         }
         // Validate subject and class exist and belong to the same admin
         const [subject, classExists] = await Promise.all([
-            Subject.findOne({ _id: questionData.subjectId, adminId, isActive: true }),
+            Subject.findOne({ _id: questionData.subjectId, adminId, isActive: true })
+                .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt'),
             Class.findOne({ _id: questionData.classId, adminId, isActive: true })
         ]);
         if (!subject)
             throw new createHttpError.NotFound("Subject not found or not accessible");
         if (!classExists)
             throw new createHttpError.NotFound("Class not found or not accessible");
-        // Validate that syllabus exists for this subject and class combination
-        const syllabus = await Syllabus.findOne({
-            subjectId: questionData.subjectId,
-            classId: questionData.classId,
-            adminId,
-            isActive: true
-        });
-        if (!syllabus) {
-            throw new createHttpError.BadRequest("No syllabus found for this subject and class combination. Please upload syllabus first.");
+        // Validate that reference book is uploaded for this subject
+        if (!subject.referenceBook || !subject.referenceBook.fileName) {
+            throw new createHttpError.BadRequest("No reference book uploaded for this subject. Please upload reference book first.");
         }
         // Validate options for multiple choice questions
         if (questionData.questionType === "CHOOSE_BEST_ANSWER" && (!questionData.options || questionData.options.length < 2)) {
@@ -283,22 +278,17 @@ export async function generateQuestions(req, res, next) {
         }
         // Validate subject and class exist and belong to the same admin
         const [subject, classExists] = await Promise.all([
-            Subject.findOne({ _id: subjectId, adminId, isActive: true }),
+            Subject.findOne({ _id: subjectId, adminId, isActive: true })
+                .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt'),
             Class.findOne({ _id: classId, adminId, isActive: true })
         ]);
         if (!subject)
             throw new createHttpError.NotFound("Subject not found or not accessible");
         if (!classExists)
             throw new createHttpError.NotFound("Class not found or not accessible");
-        // Validate that syllabus exists for this subject and class combination
-        const syllabus = await Syllabus.findOne({
-            subjectId,
-            classId,
-            adminId,
-            isActive: true
-        });
-        if (!syllabus) {
-            throw new createHttpError.BadRequest("No syllabus found for this subject and class combination. Please upload syllabus first.");
+        // Validate that reference book is uploaded for this subject
+        if (!subject.referenceBook || !subject.referenceBook.fileName) {
+            throw new createHttpError.BadRequest("No reference book uploaded for this subject. Please upload reference book first.");
         }
         // Generate questions using AI service
         const aiGeneratedQuestions = await AIService.generateQuestions({

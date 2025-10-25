@@ -15,12 +15,6 @@ const QuestionPaperTemplateSchema = new Schema({
         required: true,
         index: true
     },
-    classId: {
-        type: Schema.Types.ObjectId,
-        ref: "Class",
-        required: true,
-        index: true
-    },
     adminId: {
         type: Schema.Types.ObjectId,
         ref: "User",
@@ -83,15 +77,10 @@ const QuestionPaperTemplateSchema = new Schema({
         type: String,
         default: "1.0",
         trim: true
-    },
-    language: {
-        type: String,
-        default: "ENGLISH",
-        enum: ["ENGLISH", "TAMIL", "HINDI", "MALAYALAM", "TELUGU", "KANNADA"]
     }
 }, { timestamps: true });
 // Indexes for efficient queries
-QuestionPaperTemplateSchema.index({ subjectId: 1, classId: 1, isActive: 1 });
+QuestionPaperTemplateSchema.index({ subjectId: 1, isActive: 1 });
 QuestionPaperTemplateSchema.index({ adminId: 1, isActive: 1 });
 QuestionPaperTemplateSchema.index({ uploadedBy: 1, isActive: 1 });
 export default mongoose.model('QuestionPaperTemplate', QuestionPaperTemplateSchema);

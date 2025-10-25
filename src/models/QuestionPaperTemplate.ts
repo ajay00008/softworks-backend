@@ -4,7 +4,6 @@ export interface IQuestionPaperTemplate extends Document {
   title: string;
   description?: string;
   subjectId: mongoose.Types.ObjectId;
-  classId: mongoose.Types.ObjectId;
   adminId: mongoose.Types.ObjectId;
   uploadedBy: mongoose.Types.ObjectId;
   
@@ -58,7 +57,6 @@ export interface IQuestionPaperTemplate extends Document {
   
   isActive: boolean;
   version: string;
-  language: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -77,12 +75,6 @@ const QuestionPaperTemplateSchema = new Schema<IQuestionPaperTemplate>(
     subjectId: { 
       type: Schema.Types.ObjectId, 
       ref: "Subject", 
-      required: true,
-      index: true
-    },
-    classId: { 
-      type: Schema.Types.ObjectId, 
-      ref: "Class", 
       required: true,
       index: true
     },
@@ -148,18 +140,13 @@ const QuestionPaperTemplateSchema = new Schema<IQuestionPaperTemplate>(
       type: String, 
       default: "1.0",
       trim: true
-    },
-    language: { 
-      type: String, 
-      default: "ENGLISH",
-      enum: ["ENGLISH", "TAMIL", "HINDI", "MALAYALAM", "TELUGU", "KANNADA"]
     }
   },
   { timestamps: true }
 );
 
 // Indexes for efficient queries
-QuestionPaperTemplateSchema.index({ subjectId: 1, classId: 1, isActive: 1 });
+QuestionPaperTemplateSchema.index({ subjectId: 1, isActive: 1 });
 QuestionPaperTemplateSchema.index({ adminId: 1, isActive: 1 });
 QuestionPaperTemplateSchema.index({ uploadedBy: 1, isActive: 1 });
 

@@ -3,7 +3,6 @@ export interface IQuestionPaperTemplate extends Document {
     title: string;
     description?: string;
     subjectId: mongoose.Types.ObjectId;
-    classId: mongoose.Types.ObjectId;
     adminId: mongoose.Types.ObjectId;
     uploadedBy: mongoose.Types.ObjectId;
     templateFile: {
@@ -50,7 +49,6 @@ export interface IQuestionPaperTemplate extends Document {
     };
     isActive: boolean;
     version: string;
-    language: string;
     createdAt: Date;
     updatedAt: Date;
 }

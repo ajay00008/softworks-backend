@@ -829,15 +829,16 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       }
     }
 
-    // Get templates for the subject
-    const templates = await QuestionPaperTemplate.find({
+    // Get sample papers for the subject
+    const { default: SamplePaper } = await import('../models/SamplePaper');
+    const samplePapers = await SamplePaper.find({
       subjectId: finalSubjectId,
       isActive: true
     })
-    .select('_id title description templateFile analysis language version')
+    .select('_id title description sampleFile analysis templateSettings version')
     .lean();
 
-    console.log('Templates found for AI generation:', templates.length);
+    console.log('Sample papers found for AI generation:', samplePapers.length);
 
     // Handle pattern file if provided
     let patternFilePath = null;
@@ -868,9 +869,8 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       customInstructions: questionPaper.aiSettings?.customInstructions || '',
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
-      language: 'ENGLISH' as const,
       referenceBookContent: referenceBookContent,
-      templates: templates,
+      samplePapers: samplePapers,
       ...(patternFilePath && { patternFilePath }) // Add pattern file path to AI request only if it exists
     };
 

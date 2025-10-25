@@ -179,6 +179,16 @@ import {
   analyzeTemplate,
   uploadTemplate
 } from "../controllers/questionPaperTemplateController";
+import {
+  createSamplePaper,
+  getSamplePapers,
+  getSamplePaperById,
+  updateSamplePaper,
+  deleteSamplePaper,
+  downloadSamplePaper,
+  analyzeSamplePaper,
+  uploadSamplePaper
+} from "../controllers/samplePaperController";
 
 const router = Router();
 
@@ -3214,6 +3224,23 @@ import {
   batchUploadAnswerSheets,
   processAnswerSheet
 } from "../controllers/answerSheetController";
+import {
+  checkAnswerSheetWithAI,
+  batchCheckAnswerSheetsWithAI,
+  getAIResults,
+  getAIStats,
+  overrideAIResult,
+  getAnswerSheetsForAIChecking,
+  recheckAnswerSheetWithAI
+} from "../controllers/aiAnswerCheckerController";
+import {
+  validateAIRequest,
+  validateOverrideRequest,
+  validatePagination,
+  rateLimitAI,
+  validateAnswerSheetUpload,
+  handleAIError
+} from "../middleware/aiValidation";
 
 /**
  * @openapi
@@ -3539,6 +3566,229 @@ router.put("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requir
  *         description: Answer sheet not found
  */
 router.post("/admin/answer-sheets/:answerSheetId/manual-override", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), addManualOverride);
+
+// ==================== AI ANSWER CHECKING ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/ai-check:
+ *   post:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Check answer sheet with AI
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: AI checking completed successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post("/admin/answer-sheets/:answerSheetId/ai-check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, rateLimitAI, checkAnswerSheetWithAI);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/batch-ai-check:
+ *   post:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Batch check multiple answer sheets with AI
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [answerSheetIds]
+ *             properties:
+ *               answerSheetIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Batch AI checking completed successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+router.post("/admin/answer-sheets/batch-ai-check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, rateLimitAI, batchCheckAnswerSheetsWithAI);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/ai-results:
+ *   get:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Get AI checking results for answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: AI results retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer sheet or AI results not found
+ */
+router.get("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, getAIResults);
+
+/**
+ * @openapi
+ * /api/admin/exams/{examId}/ai-stats:
+ *   get:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Get AI statistics for an exam
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: AI statistics retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.get("/admin/exams/:examId/ai-stats", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAIStats);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/ai-override:
+ *   post:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Override AI result for specific question
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [questionId, correctedAnswer, correctedMarks, reason]
+ *             properties:
+ *               questionId:
+ *                 type: string
+ *               correctedAnswer:
+ *                 type: string
+ *               correctedMarks:
+ *                 type: number
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Manual override added successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post("/admin/answer-sheets/:answerSheetId/ai-override", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateOverrideRequest, overrideAIResult);
+
+/**
+ * @openapi
+ * /api/admin/exams/{examId}/answer-sheets-for-ai:
+ *   get:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Get answer sheets ready for AI checking
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [UPLOADED, PROCESSING, AI_CORRECTED, MANUALLY_REVIEWED, COMPLETED]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Answer sheets retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.get("/admin/exams/:examId/answer-sheets-for-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validatePagination, getAnswerSheetsForAIChecking);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/ai-recheck:
+ *   post:
+ *     tags: [Admin - AI Answer Checking]
+ *     summary: Recheck answer sheet with AI
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet rechecked successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post("/admin/answer-sheets/:answerSheetId/ai-recheck", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, rateLimitAI, recheckAnswerSheetWithAI);
 
 // ==================== AI CONFIGURATION ROUTES ====================
 
@@ -5576,6 +5826,219 @@ router.get("/admin/question-paper-templates/:id/download", requireAuth, requireR
  *         description: Unauthorized
  */
 router.post("/admin/question-paper-templates/:id/analyze", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), analyzeTemplate);
+
+// ==================== SAMPLE PAPER MANAGEMENT ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/sample-papers:
+ *   post:
+ *     summary: Create a new sample paper
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *               - subjectId
+ *               - sampleFile
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 description: Sample paper title
+ *               description:
+ *                 type: string
+ *                 description: Sample paper description
+ *               subjectId:
+ *                 type: string
+ *                 description: Subject ID
+ *               sampleFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: Sample paper PDF file
+ *     responses:
+ *       201:
+ *         description: Sample paper created successfully
+ *       400:
+ *         description: Bad request
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/sample-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadSamplePaper, createSamplePaper);
+
+/**
+ * @openapi
+ * /api/admin/sample-papers:
+ *   get:
+ *     summary: Get all sample papers
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *         description: Filter by subject ID
+ *     responses:
+ *       200:
+ *         description: List of sample papers
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/sample-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSamplePapers);
+
+/**
+ * @openapi
+ * /api/admin/sample-papers/{id}:
+ *   get:
+ *     summary: Get sample paper by ID
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Sample paper ID
+ *     responses:
+ *       200:
+ *         description: Sample paper details
+ *       404:
+ *         description: Sample paper not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSamplePaperById);
+
+/**
+ * @openapi
+ * /api/admin/sample-papers/{id}:
+ *   put:
+ *     summary: Update sample paper
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Sample paper ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               templateSettings:
+ *                 type: object
+ *                 properties:
+ *                   useAsTemplate:
+ *                     type: boolean
+ *                   followDesign:
+ *                     type: boolean
+ *                   maintainStructure:
+ *                     type: boolean
+ *                   customInstructions:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Sample paper updated successfully
+ *       404:
+ *         description: Sample paper not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.put("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateSamplePaper);
+
+/**
+ * @openapi
+ * /api/admin/sample-papers/{id}:
+ *   delete:
+ *     summary: Delete sample paper
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Sample paper ID
+ *     responses:
+ *       200:
+ *         description: Sample paper deleted successfully
+ *       404:
+ *         description: Sample paper not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteSamplePaper);
+
+/**
+ * @openapi
+ * /api/admin/sample-papers/{id}/download:
+ *   get:
+ *     summary: Download sample paper file
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Sample paper ID
+ *     responses:
+ *       200:
+ *         description: Sample paper file
+ *       404:
+ *         description: Sample paper not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get("/admin/sample-papers/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadSamplePaper);
+
+/**
+ * @openapi
+ * /api/admin/sample-papers/{id}/analyze:
+ *   post:
+ *     summary: Analyze sample paper to extract pattern
+ *     tags: [Sample Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Sample paper ID
+ *     responses:
+ *       200:
+ *         description: Analysis completed successfully
+ *       404:
+ *         description: Sample paper not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.post("/admin/sample-papers/:id/analyze", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), analyzeSamplePaper);
 
 export default router;
 

@@ -25,7 +25,7 @@ const CreateQuestionPaperSchema = z.object({
         twoMark: z.number().min(0).max(100),
         threeMark: z.number().min(0).max(100),
         fiveMark: z.number().min(0).max(100),
-        totalMarks: z.number().min(1).max(1000)
+        totalMarks: z.number().min(1).max(1000).optional()
     }),
     bloomsDistribution: z.array(z.object({
         level: z.enum(['REMEMBER', 'UNDERSTAND', 'APPLY', 'ANALYZE', 'EVALUATE', 'CREATE']),

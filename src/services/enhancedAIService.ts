@@ -27,14 +27,13 @@ export interface EnhancedQuestionGenerationRequest {
   customInstructions?: string;
   difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
   twistedQuestionsPercentage: number;
-  language: 'ENGLISH' | 'TAMIL' | 'HINDI' | 'MALAYALAM' | 'TELUGU' | 'KANNADA';
   patternFilePath?: string; // Optional pattern file path
   referenceBookContent?: string; // Reference book content for AI generation
-  templates?: Array<{
+  samplePapers?: Array<{
     _id: string;
     title: string;
     description?: string;
-    templateFile: {
+    sampleFile: {
       fileName: string;
       filePath: string;
       fileSize: number;
@@ -55,8 +54,59 @@ export interface EnhancedQuestionGenerationRequest {
         questions: number;
         marks: number;
       }>;
+      designPattern: {
+        layout: string;
+        formatting: string;
+        questionNumbering: string;
+        sectionHeaders: string[];
+      };
     };
-    language: string;
+    templateSettings: {
+      useAsTemplate: boolean;
+      followDesign: boolean;
+      maintainStructure: boolean;
+      customInstructions?: string;
+    };
+    version: string;
+  }>; // Available sample papers for design guidance
+  templates?: Array<{
+    _id: string;
+    title: string;
+    description?: string;
+    templateFile: {
+      fileName: string;
+      filePath: string;
+      fileSize: number;
+    };
+    analysis?: {
+      totalQuestions: number;
+      questionTypes: string[];
+      markDistribution: {
+        oneMark: number;
+        twoMark: number;
+        threeMark: number;
+        fiveMark: number;
+        totalMarks: number;
+      };
+      difficultyLevels: string[];
+      sections: Array<{
+        name: string;
+        questions: number;
+        marks: number;
+      }>;
+      designPattern: {
+        layout: string;
+        formatting: string;
+        questionNumbering: string;
+        sectionHeaders: string[];
+      };
+    };
+    templateSettings?: {
+      useAsTemplate: boolean;
+      followDesign: boolean;
+      maintainStructure: boolean;
+      customInstructions?: string;
+    };
     version: string;
   }>; // Available templates for design guidance
 }
@@ -190,7 +240,10 @@ export class EnhancedAIService {
     request: EnhancedQuestionGenerationRequest,
     subjectBookInfo: string
   ): string {
-    const { subjectName, className, examTitle, markDistribution, bloomsDistribution, questionTypeDistribution, customInstructions, difficultyLevel, twistedQuestionsPercentage, language, referenceBookContent, templates } = request;
+    const { subjectName, className, examTitle, markDistribution, bloomsDistribution, questionTypeDistribution, customInstructions, difficultyLevel, twistedQuestionsPercentage, referenceBookContent, templates, samplePapers } = request;
+    
+    // Set default language since it's not in the interface but used in the prompt
+    const language = 'ENGLISH';
 
     // Build Blooms taxonomy distribution text
     const bloomsText = bloomsDistribution.map(dist => 
@@ -292,15 +345,32 @@ ${subjectBookInfo}
 
 ${referenceBookContent ? `\n**REFERENCE BOOK CONTENT:**\n${referenceBookContent}\n\n**IMPORTANT:** Use the reference book content as the primary source for generating questions. Ensure all questions are based on the content from this reference material.` : ''}
 
+${samplePapers && samplePapers.length > 0 ? `\n**AVAILABLE SAMPLE PAPERS FOR DESIGN GUIDANCE:**\n${samplePapers.map(sample => `
+- Sample Paper: ${sample.title}
+- Description: ${sample.description || 'No description'}
+- Version: ${sample.version}
+- Analysis: ${sample.analysis.totalQuestions} questions, ${sample.analysis.markDistribution.totalMarks} total marks
+- Question Types: ${sample.analysis.questionTypes.join(', ')}
+- Sections: ${sample.analysis.sections.map(s => `${s.name} (${s.questions} questions, ${s.marks} marks)`).join(', ')}
+- Design Pattern: ${sample.analysis.designPattern.layout} layout, ${sample.analysis.designPattern.formatting} formatting
+- Section Headers: ${sample.analysis.designPattern.sectionHeaders.join(', ')}
+- Template Settings: Use as template: ${sample.templateSettings.useAsTemplate}, Follow design: ${sample.templateSettings.followDesign}, Maintain structure: ${sample.templateSettings.maintainStructure}
+${sample.templateSettings.customInstructions ? `- Custom Instructions: ${sample.templateSettings.customInstructions}` : ''}
+`).join('\n')}\n\n**DESIGN GUIDANCE:** Use the sample paper analysis to guide the question paper structure, layout, and formatting. Follow the design patterns and maintain consistency with the proven sample structure.` : ''}
+
 ${templates && templates.length > 0 ? `\n**AVAILABLE TEMPLATES FOR DESIGN GUIDANCE:**\n${templates.map(template => `
 - Template: ${template.title}
 - Description: ${template.description || 'No description'}
-- Language: ${template.language}
 - Version: ${template.version}
-- Analysis: ${template.analysis.totalQuestions} questions, ${template.analysis.markDistribution.totalMarks} total marks
-- Question Types: ${template.analysis.questionTypes.join(', ')}
-- Sections: ${template.analysis.sections.map(s => `${s.name} (${s.questions} questions, ${s.marks} marks)`).join(', ')}
-`).join('\n')}\n\n**DESIGN GUIDANCE:** Use the template analysis to guide the question paper structure and maintain consistency with proven patterns.` : ''}
+- File: ${template.templateFile.fileName}
+- Analysis: ${template.analysis ? `${template.analysis.totalQuestions} questions, ${template.analysis.markDistribution.totalMarks} total marks` : 'Analysis pending'}
+- Question Types: ${template.analysis?.questionTypes?.join(', ') || 'Not analyzed'}
+- Sections: ${template.analysis?.sections?.map(s => `${s.name} (${s.questions} questions, ${s.marks} marks)`).join(', ') || 'Not analyzed'}
+- Design Pattern: ${template.analysis?.designPattern?.layout || 'Standard'} layout, ${template.analysis?.designPattern?.formatting || 'Standard'} formatting
+- Section Headers: ${template.analysis?.designPattern?.sectionHeaders?.join(', ') || 'Standard headers'}
+- Template Settings: Use as template: ${template.templateSettings?.useAsTemplate || true}, Follow design: ${template.templateSettings?.followDesign || true}, Maintain structure: ${template.templateSettings?.maintainStructure || true}
+${template.templateSettings?.customInstructions ? `- Custom Instructions: ${template.templateSettings.customInstructions}` : ''}
+`).join('\n')}\n\n**TEMPLATE GUIDANCE:** Use the uploaded template files to guide the question paper structure, layout, and formatting. Follow the design patterns from the templates and maintain consistency with the proven template structure.` : ''}
 
 ${customInstructions ? `\n**CUSTOM INSTRUCTIONS:**\n${customInstructions}` : ''}
 

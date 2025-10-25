@@ -24,8 +24,88 @@ export interface EnhancedQuestionGenerationRequest {
     customInstructions?: string;
     difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
     twistedQuestionsPercentage: number;
-    language: 'ENGLISH' | 'TAMIL' | 'HINDI' | 'MALAYALAM' | 'TELUGU' | 'KANNADA';
     patternFilePath?: string;
+    referenceBookContent?: string;
+    samplePapers?: Array<{
+        _id: string;
+        title: string;
+        description?: string;
+        sampleFile: {
+            fileName: string;
+            filePath: string;
+            fileSize: number;
+        };
+        analysis: {
+            totalQuestions: number;
+            questionTypes: string[];
+            markDistribution: {
+                oneMark: number;
+                twoMark: number;
+                threeMark: number;
+                fiveMark: number;
+                totalMarks: number;
+            };
+            difficultyLevels: string[];
+            sections: Array<{
+                name: string;
+                questions: number;
+                marks: number;
+            }>;
+            designPattern: {
+                layout: string;
+                formatting: string;
+                questionNumbering: string;
+                sectionHeaders: string[];
+            };
+        };
+        templateSettings: {
+            useAsTemplate: boolean;
+            followDesign: boolean;
+            maintainStructure: boolean;
+            customInstructions?: string;
+        };
+        version: string;
+    }>;
+    templates?: Array<{
+        _id: string;
+        title: string;
+        description?: string;
+        templateFile: {
+            fileName: string;
+            filePath: string;
+            fileSize: number;
+        };
+        analysis?: {
+            totalQuestions: number;
+            questionTypes: string[];
+            markDistribution: {
+                oneMark: number;
+                twoMark: number;
+                threeMark: number;
+                fiveMark: number;
+                totalMarks: number;
+            };
+            difficultyLevels: string[];
+            sections: Array<{
+                name: string;
+                questions: number;
+                marks: number;
+            }>;
+            designPattern: {
+                layout: string;
+                formatting: string;
+                questionNumbering: string;
+                sectionHeaders: string[];
+            };
+        };
+        templateSettings?: {
+            useAsTemplate: boolean;
+            followDesign: boolean;
+            maintainStructure: boolean;
+            customInstructions?: string;
+        };
+        version: string;
+    }>;
 }
 export interface EnhancedGeneratedQuestion {
     questionText: string;

@@ -6,13 +6,13 @@ import rateLimit from "express-rate-limit";
 import morgan from "morgan";
 import path from "path";
 import { fileURLToPath } from "url";
-import { sanitizeRequests } from "./middleware/sanitize";
-import { env } from "./config/env";
-import routes from "./routes";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import logger from "./utils/logger";
+import { sanitizeRequests } from "./middleware/sanitize.js";
+import { env } from "./config/env.js";
+import routes from "./routes/index.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import logger from "./utils/logger.js";
 import swaggerUi from "swagger-ui-express";
-import { swaggerSpec } from "./config/swagger";
+import { swaggerSpec } from "./config/swagger.js";
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);

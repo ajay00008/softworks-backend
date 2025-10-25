@@ -6,16 +6,13 @@ import * as fs from 'fs';
 import multer from 'multer';
 import QuestionPaperTemplate from '../models/QuestionPaperTemplate';
 import { Subject } from '../models/Subject';
-import { Class } from '../models/Class';
 import { PDFGenerationService } from '../services/pdfGenerationService';
 
 // Validation schemas
 const CreateTemplateSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  subjectId: z.string().min(1, 'Subject ID is required'),
-  classId: z.string().min(1, 'Class ID is required'),
-  language: z.string().default('ENGLISH')
+  subjectId: z.string().min(1, 'Subject ID is required')
 });
 
 const UpdateTemplateSchema = z.object({
@@ -80,25 +77,20 @@ export async function createTemplate(req: Request, res: Response, next: NextFunc
       throw new createHttpError.BadRequest("Template file is required");
     }
     
-    // Validate subject and class exist and belong to the same admin
-    const [subject, classExists] = await Promise.all([
-      Subject.findOne({ _id: templateData.subjectId, adminId, isActive: true }),
-      Class.findOne({ _id: templateData.classId, adminId, isActive: true })
-    ]);
+    // Validate subject exists and belongs to the admin
+    const subject = await Subject.findOne({ _id: templateData.subjectId, adminId, isActive: true });
     
     if (!subject) throw new createHttpError.NotFound("Subject not found or not accessible");
-    if (!classExists) throw new createHttpError.NotFound("Class not found or not accessible");
     
-    // Check if template already exists for this subject and class
+    // Check if template already exists for this subject
     const existingTemplate = await QuestionPaperTemplate.findOne({
       subjectId: templateData.subjectId,
-      classId: templateData.classId,
       adminId,
       isActive: true
     });
     
     if (existingTemplate) {
-      throw new createHttpError.Conflict("Template already exists for this subject and class");
+      throw new createHttpError.Conflict("Template already exists for this subject");
     }
     
     // Create download URL
@@ -148,7 +140,6 @@ export async function createTemplate(req: Request, res: Response, next: NextFunc
     
     const populatedTemplate = await QuestionPaperTemplate.findById(template._id)
       .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section')
       .populate('uploadedBy', 'name email');
     
     res.status(201).json({
@@ -170,15 +161,13 @@ export async function getTemplates(req: Request, res: Response, next: NextFuncti
       throw new createHttpError.Unauthorized("Admin ID not found in token");
     }
     
-    const { subjectId, classId } = req.query;
+    const { subjectId } = req.query;
     
     const filter: any = { adminId, isActive: true };
     if (subjectId) filter.subjectId = subjectId;
-    if (classId) filter.classId = classId;
     
     const templates = await QuestionPaperTemplate.find(filter)
       .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section')
       .populate('uploadedBy', 'name email')
       .sort({ createdAt: -1 });
     
@@ -208,7 +197,6 @@ export async function getTemplateById(req: Request, res: Response, next: NextFun
       isActive: true 
     })
       .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section')
       .populate('uploadedBy', 'name email');
     
     if (!template) {
@@ -242,7 +230,6 @@ export async function updateTemplate(req: Request, res: Response, next: NextFunc
       { new: true }
     )
       .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section')
       .populate('uploadedBy', 'name email');
     
     if (!template) {

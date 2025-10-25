@@ -261,6 +261,17 @@ export async function generateQuestionPaper(req: Request, res: Response, next: N
       throw new createHttpError.BadRequest("Question paper has already been generated");
     }
 
+    // Get templates for the subject to use as design guidance
+    const { default: QuestionPaperTemplate } = await import('../models/QuestionPaperTemplate');
+    const templates = await QuestionPaperTemplate.find({
+      subjectId: questionPaper.subjectId._id,
+      isActive: true
+    })
+    .select('_id title description templateFile analysis templateSettings version')
+    .lean();
+
+    console.log('Templates found for AI generation:', templates.length);
+
     // Prepare AI request
     const aiRequest = {
       subjectId: questionPaper.subjectId._id.toString(),
@@ -268,14 +279,17 @@ export async function generateQuestionPaper(req: Request, res: Response, next: N
       subjectName: (questionPaper.subjectId as any).name,
       className: (questionPaper.classId as any).name,
       examTitle: (questionPaper.examId as any).title,
-      markDistribution: questionPaper.markDistribution,
+      markDistribution: {
+        ...questionPaper.markDistribution,
+        totalQuestions: questionPaper.markDistribution.oneMark + questionPaper.markDistribution.twoMark + questionPaper.markDistribution.threeMark + questionPaper.markDistribution.fiveMark
+      },
       bloomsDistribution: questionPaper.bloomsDistribution,
       questionTypeDistribution: questionPaper.questionTypeDistribution,
       useSubjectBook: questionPaper.aiSettings?.useSubjectBook || false,
       customInstructions: questionPaper.aiSettings?.customInstructions,
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
-      language: 'ENGLISH' as const
+      templates: templates, // Add templates for design guidance
     };
 
     // Generate questions using AI

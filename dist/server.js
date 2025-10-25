@@ -6,13 +6,13 @@ import rateLimit from "express-rate-limit";
 import morgan from "morgan";
 import path from "path";
 import { fileURLToPath } from "url";
-import { sanitizeRequests } from "./middleware/sanitize";
-import { env } from "./config/env";
-import routes from "./routes";
-import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
-import logger from "./utils/logger";
+import { sanitizeRequests } from "./middleware/sanitize.js";
+import { env } from "./config/env.js";
+import routes from "./routes/index.js";
+import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import logger from "./utils/logger.js";
 import swaggerUi from "swagger-ui-express";
-import { swaggerSpec } from "./config/swagger";
+import { swaggerSpec } from "./config/swagger.js";
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,20 +22,20 @@ app.use(helmet());
 app.use(cors());
 // Apply JSON and URL-encoded parsing only to non-file-upload routes
 app.use((req, res, next) => {
-    // Skip JSON/URL parsing for file upload routes
+    // Skip JSON/URL parsing for file upload routes (multipart/form-data)
     if (req.path.includes('/upload') ||
         req.path.includes('/answer-sheets') ||
-        req.path.includes('/reference-book') ||
+        req.path.includes('/reference-book/upload') ||
         req.path.includes('/upload-pdf')) {
         return next();
     }
     return express.json({ limit: "50mb" })(req, res, next);
 });
 app.use((req, res, next) => {
-    // Skip URL-encoded parsing for file upload routes
+    // Skip URL-encoded parsing for file upload routes (multipart/form-data)
     if (req.path.includes('/upload') ||
         req.path.includes('/answer-sheets') ||
-        req.path.includes('/reference-book') ||
+        req.path.includes('/reference-book/upload') ||
         req.path.includes('/upload-pdf')) {
         return next();
     }
