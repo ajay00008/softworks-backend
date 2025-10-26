@@ -3,40 +3,40 @@ import multer from "multer";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
-import { 
-  createAdmin as createAdminSuper, 
-  getAdmins, 
-  getAdmin, 
-  updateAdmin, 
-  deleteAdmin, 
-  activateAdmin 
+import {
+  createAdmin as createAdminSuper,
+  getAdmins,
+  getAdmin,
+  updateAdmin,
+  deleteAdmin,
+  activateAdmin,
 } from "../controllers/superAdminController";
-import { 
-  createStudent as createStudentNew, 
-  getStudents, 
-  getStudent, 
-  updateStudent, 
-  deleteStudent, 
+import {
+  createStudent as createStudentNew,
+  getStudents,
+  getStudent,
+  updateStudent,
+  deleteStudent,
   activateStudent,
-  getStudentsByClass 
+  getStudentsByClass,
 } from "../controllers/studentController";
-import { 
-  createTeacher as createTeacherNew, 
-  getTeachers, 
-  getTeacher, 
-  updateTeacher, 
-  deleteTeacher, 
+import {
+  createTeacher as createTeacherNew,
+  getTeachers,
+  getTeacher,
+  updateTeacher,
+  deleteTeacher,
   activateTeacher,
   assignSubjects,
-  assignClasses 
+  assignClasses,
 } from "../controllers/teacherController";
-import { 
+import {
   getClassSubjectMappings,
   getSubjectsForLevel,
   getTeachersForClass,
   getClassesForTeacher,
   getAssignedClassesForTeacher,
-  validateConsistency
+  validateConsistency,
 } from "../controllers/classSubjectController";
 import {
   createClass,
@@ -44,7 +44,7 @@ import {
   getClass,
   updateClass,
   deleteClass,
-  getClassesByLevel
+  getClassesByLevel,
 } from "../controllers/classController";
 import {
   createSubject,
@@ -59,7 +59,7 @@ import {
   uploadReferenceBookBase64,
   downloadReferenceBook,
   checkReferenceBookExists,
-  deleteReferenceBook
+  deleteReferenceBook,
 } from "../controllers/subjectController";
 import {
   createQuestion,
@@ -68,7 +68,7 @@ import {
   updateQuestion,
   deleteQuestion,
   generateQuestions,
-  getQuestionStatistics
+  getQuestionStatistics,
 } from "../controllers/questionController";
 import {
   createExam,
@@ -79,13 +79,13 @@ import {
   startExam,
   endExam,
   getExamResults,
-  getExamStatistics
+  getExamStatistics,
 } from "../controllers/examController";
 import {
   getIndividualPerformance,
   getClassPerformance,
   getPerformanceAnalytics,
-  getPerformanceReport
+  getPerformanceReport,
 } from "../controllers/performanceController";
 import {
   getTeacherAccess,
@@ -97,14 +97,14 @@ import {
   getPerformanceGraphs,
   getTeacherExams,
   downloadResults,
-  getAnswerSheets
+  getAnswerSheets,
 } from "../controllers/teacherDashboardController";
 import {
   createStaffAccess,
   getAllStaffAccess,
   getStaffAccess,
   updateStaffAccess,
-  deleteStaffAccess
+  deleteStaffAccess,
 } from "../controllers/staffAccessController";
 import {
   createSyllabus,
@@ -114,7 +114,7 @@ import {
   deleteSyllabus,
   getSyllabusBySubjectClass,
   uploadSyllabusFile,
-  getSyllabusStatistics
+  getSyllabusStatistics,
 } from "../controllers/syllabusController";
 import {
   reportAbsenteeism,
@@ -125,34 +125,32 @@ import {
   escalateAbsenteeism,
   updateAbsenteeism,
   deleteAbsenteeism,
-  getAbsenteeismStatistics
+  getAbsenteeismStatistics,
 } from "../controllers/absenteeismController";
 import {
   printAllStudentsAnswers,
   printIndividualStudentAnswer,
   printClassResultsSummary,
-  printPerformanceReport
+  printPerformanceReport,
 } from "../controllers/printingController";
 import {
   sendResultsToParents,
   sendBulkMessage,
-  sendIndividualResult
+  sendIndividualResult,
 } from "../controllers/communicationController";
 import {
   getAIConfig,
   updateAIConfig,
   testAIConfig,
   getAIProviders,
-  generateQuestionsWithConfig
+  generateQuestionsWithConfig,
 } from "../controllers/aiController";
-import {
-  generateQuestionPaper
-} from "../controllers/questionPaperController";
+import { generateQuestionPaper } from "../controllers/questionPaperController";
 import {
   createQuestionPaper,
   getQuestionPapers,
   getQuestionPaper,
-  updateQuestionPaper,  
+  updateQuestionPaper,
   deleteQuestionPaper,
   generateAIQuestionPaper,
   generateCompleteAIQuestionPaper,
@@ -166,7 +164,7 @@ import {
   updateQuestionInPaper,
   deleteQuestionFromPaper,
   uploadQuestionPaperPDF,
-  regenerateQuestionPaperPDF
+  regenerateQuestionPaperPDF,
 } from "../controllers/enhancedQuestionPaperController";
 import {
   createTemplate,
@@ -176,7 +174,7 @@ import {
   deleteTemplate,
   downloadTemplate,
   analyzeTemplate,
-  uploadTemplate
+  uploadTemplate,
 } from "../controllers/questionPaperTemplateController";
 import {
   createSamplePaper,
@@ -186,7 +184,7 @@ import {
   deleteSamplePaper,
   downloadSamplePaper,
   analyzeSamplePaper,
-  uploadSamplePaper
+  uploadSamplePaper,
 } from "../controllers/samplePaperController";
 
 const router = Router();
@@ -196,16 +194,16 @@ const answerSheetUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit per file
-    files: 10 // Maximum 10 files per upload
+    files: 10, // Maximum 10 files per upload
   },
   fileFilter: (req, file, cb) => {
     // Only allow PDF files
-    if (file.mimetype === 'application/pdf') {
+    if (file.mimetype === "application/pdf") {
       cb(null, true);
     } else {
       cb(null, false);
     }
-  }
+  },
 });
 
 // Health
@@ -264,8 +262,12 @@ router.post("/auth/login", login);
  *       201:
  *         description: Admin created
  */
-router.post("/super/admins", requireAuth, requireRoles("SUPER_ADMIN"), createAdmin);
-
+router.post(
+  "/super/admins",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  createAdmin
+);
 
 /**
  * @openapi
@@ -334,7 +336,12 @@ router.post("/super/admins", requireAuth, requireRoles("SUPER_ADMIN"), createAdm
  *       200:
  *         description: List of admins
  */
-router.get("/super/admins", requireAuth, requireRoles("SUPER_ADMIN"), getAdmins);
+router.get(
+  "/super/admins",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  getAdmins
+);
 
 /**
  * @openapi
@@ -354,7 +361,12 @@ router.get("/super/admins", requireAuth, requireRoles("SUPER_ADMIN"), getAdmins)
  *       200:
  *         description: Admin details
  */
-router.get("/super/admins/:id", requireAuth, requireRoles("SUPER_ADMIN"), getAdmin);
+router.get(
+  "/super/admins/:id",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  getAdmin
+);
 
 /**
  * @openapi
@@ -388,7 +400,12 @@ router.get("/super/admins/:id", requireAuth, requireRoles("SUPER_ADMIN"), getAdm
  *       200:
  *         description: Admin updated
  */
-router.put("/super/admins/:id", requireAuth, requireRoles("SUPER_ADMIN"), updateAdmin);
+router.put(
+  "/super/admins/:id",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  updateAdmin
+);
 
 /**
  * @openapi
@@ -408,7 +425,12 @@ router.put("/super/admins/:id", requireAuth, requireRoles("SUPER_ADMIN"), update
  *       200:
  *         description: Admin deactivated
  */
-router.delete("/super/admins/:id", requireAuth, requireRoles("SUPER_ADMIN"), deleteAdmin);
+router.delete(
+  "/super/admins/:id",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  deleteAdmin
+);
 
 /**
  * @openapi
@@ -428,7 +450,12 @@ router.delete("/super/admins/:id", requireAuth, requireRoles("SUPER_ADMIN"), del
  *       200:
  *         description: Admin activated
  */
-router.patch("/super/admins/:id/activate", requireAuth, requireRoles("SUPER_ADMIN"), activateAdmin);
+router.patch(
+  "/super/admins/:id/activate",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  activateAdmin
+);
 
 // ==================== ADMIN ROUTES FOR STUDENTS ====================
 
@@ -467,7 +494,12 @@ router.patch("/super/admins/:id/activate", requireAuth, requireRoles("SUPER_ADMI
  *       200:
  *         description: List of students
  */
-router.get("/admin/students", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getStudents);
+router.get(
+  "/admin/students",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getStudents
+);
 
 /**
  * @openapi
@@ -487,7 +519,12 @@ router.get("/admin/students", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"),
  *       200:
  *         description: Student details
  */
-router.get("/admin/students/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getStudent);
+router.get(
+  "/admin/students/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getStudent
+);
 
 /**
  * @openapi
@@ -536,7 +573,12 @@ router.get("/admin/students/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       201:
  *         description: Student created
  */
-router.post("/admin/students", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createStudentNew);
+router.post(
+  "/admin/students",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createStudentNew
+);
 
 /**
  * @openapi
@@ -589,7 +631,12 @@ router.post("/admin/students", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       200:
  *         description: Student updated
  */
-router.put("/admin/students/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateStudent);
+router.put(
+  "/admin/students/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateStudent
+);
 
 /**
  * @openapi
@@ -609,7 +656,12 @@ router.put("/admin/students/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       200:
  *         description: Student deleted
  */
-router.delete("/admin/students/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteStudent);
+router.delete(
+  "/admin/students/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteStudent
+);
 
 /**
  * @openapi
@@ -629,7 +681,12 @@ router.delete("/admin/students/:id", requireAuth, requireRoles("ADMIN", "SUPER_A
  *       200:
  *         description: Student activated
  */
-router.patch("/admin/students/:id/activate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), activateStudent);
+router.patch(
+  "/admin/students/:id/activate",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  activateStudent
+);
 
 /**
  * @openapi
@@ -659,7 +716,12 @@ router.patch("/admin/students/:id/activate", requireAuth, requireRoles("ADMIN", 
  *       200:
  *         description: Students in class
  */
-router.get("/admin/students/class/:classId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getStudentsByClass);
+router.get(
+  "/admin/students/class/:classId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getStudentsByClass
+);
 
 // ==================== ADMIN ROUTES FOR TEACHERS ====================
 
@@ -698,7 +760,12 @@ router.get("/admin/students/class/:classId", requireAuth, requireRoles("ADMIN", 
  *       200:
  *         description: List of teachers
  */
-router.get("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTeachers);
+router.get(
+  "/admin/teachers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getTeachers
+);
 
 /**
  * @openapi
@@ -718,7 +785,12 @@ router.get("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"),
  *       200:
  *         description: Teacher details
  */
-router.get("/admin/teachers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTeacher);
+router.get(
+  "/admin/teachers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getTeacher
+);
 
 /**
  * @openapi
@@ -764,7 +836,12 @@ router.get("/admin/teachers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       201:
  *         description: Teacher created
  */
-router.post("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createTeacherNew);
+router.post(
+  "/admin/teachers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createTeacherNew
+);
 
 /**
  * @openapi
@@ -814,7 +891,12 @@ router.post("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       200:
  *         description: Teacher updated
  */
-router.put("/admin/teachers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateTeacher);
+router.put(
+  "/admin/teachers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateTeacher
+);
 
 /**
  * @openapi
@@ -834,7 +916,12 @@ router.put("/admin/teachers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       200:
  *         description: Teacher deleted
  */
-router.delete("/admin/teachers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteTeacher);
+router.delete(
+  "/admin/teachers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteTeacher
+);
 
 /**
  * @openapi
@@ -854,8 +941,12 @@ router.delete("/admin/teachers/:id", requireAuth, requireRoles("ADMIN", "SUPER_A
  *       200:
  *         description: Teacher activated
  */
-router.patch("/admin/teachers/:id/activate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), activateTeacher);
-
+router.patch(
+  "/admin/teachers/:id/activate",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  activateTeacher
+);
 
 /**
  * @openapi
@@ -887,7 +978,12 @@ router.patch("/admin/teachers/:id/activate", requireAuth, requireRoles("ADMIN", 
  *       200:
  *         description: Subjects assigned
  */
-router.patch("/admin/teachers/:id/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), assignSubjects);
+router.patch(
+  "/admin/teachers/:id/subjects",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  assignSubjects
+);
 
 /**
  * @openapi
@@ -919,7 +1015,12 @@ router.patch("/admin/teachers/:id/subjects", requireAuth, requireRoles("ADMIN", 
  *       200:
  *         description: Classes assigned
  */
-router.patch("/admin/teachers/:id/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), assignClasses);
+router.patch(
+  "/admin/teachers/:id/classes",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  assignClasses
+);
 
 // ==================== CLASS-SUBJECT MAPPING ROUTES ====================
 
@@ -935,7 +1036,12 @@ router.patch("/admin/teachers/:id/classes", requireAuth, requireRoles("ADMIN", "
  *       200:
  *         description: List of class-subject mappings
  */
-router.get("/admin/class-subject-mappings", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClassSubjectMappings);
+router.get(
+  "/admin/class-subject-mappings",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getClassSubjectMappings
+);
 
 /**
  * @openapi
@@ -957,7 +1063,12 @@ router.get("/admin/class-subject-mappings", requireAuth, requireRoles("ADMIN", "
  *       200:
  *         description: List of subjects for the class level
  */
-router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsForLevel);
+router.get(
+  "/admin/subjects/level/:level",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSubjectsForLevel
+);
 
 /**
  * @openapi
@@ -977,7 +1088,12 @@ router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "S
  *       200:
  *         description: List of teachers who can teach the class
  */
-router.get("/admin/classes/:classId/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTeachersForClass);
+router.get(
+  "/admin/classes/:classId/teachers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getTeachersForClass
+);
 
 /**
  * @openapi
@@ -997,7 +1113,12 @@ router.get("/admin/classes/:classId/teachers", requireAuth, requireRoles("ADMIN"
  *       200:
  *         description: List of classes the teacher can teach
  */
-router.get("/admin/teachers/:teacherId/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClassesForTeacher);
+router.get(
+  "/admin/teachers/:teacherId/classes",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getClassesForTeacher
+);
 
 /**
  * @openapi
@@ -1017,7 +1138,12 @@ router.get("/admin/teachers/:teacherId/classes", requireAuth, requireRoles("ADMI
  *       200:
  *         description: List of assigned classes for the teacher
  */
-router.get("/admin/teachers/:teacherId/assigned-classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAssignedClassesForTeacher);
+router.get(
+  "/admin/teachers/:teacherId/assigned-classes",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAssignedClassesForTeacher
+);
 
 /**
  * @openapi
@@ -1031,7 +1157,12 @@ router.get("/admin/teachers/:teacherId/assigned-classes", requireAuth, requireRo
  *       200:
  *         description: Data consistency validation results
  */
-router.get("/admin/validate-consistency", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), validateConsistency);
+router.get(
+  "/admin/validate-consistency",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  validateConsistency
+);
 
 // ==================== CLASS MANAGEMENT ROUTES ====================
 
@@ -1076,7 +1207,12 @@ router.get("/admin/validate-consistency", requireAuth, requireRoles("ADMIN", "SU
  *       409:
  *         description: Class already exists
  */
-router.post("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createClass);
+router.post(
+  "/admin/classes",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createClass
+);
 
 /**
  * @openapi
@@ -1117,7 +1253,12 @@ router.post("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"),
  *       200:
  *         description: List of classes
  */
-router.get("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClasses);
+router.get(
+  "/admin/classes",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getClasses
+);
 
 /**
  * @openapi
@@ -1139,7 +1280,12 @@ router.get("/admin/classes", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), 
  *       404:
  *         description: Class not found
  */
-router.get("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClass);
+router.get(
+  "/admin/classes/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getClass
+);
 
 /**
  * @openapi
@@ -1182,7 +1328,12 @@ router.get("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN
  *       404:
  *         description: Class not found
  */
-router.put("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateClass);
+router.put(
+  "/admin/classes/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateClass
+);
 
 /**
  * @openapi
@@ -1204,7 +1355,12 @@ router.put("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN
  *       404:
  *         description: Class not found
  */
-router.delete("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteClass);
+router.delete(
+  "/admin/classes/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteClass
+);
 
 /**
  * @openapi
@@ -1224,7 +1380,12 @@ router.delete("/admin/classes/:id", requireAuth, requireRoles("ADMIN", "SUPER_AD
  *       200:
  *         description: List of classes for the level
  */
-router.get("/admin/classes/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClassesByLevel);
+router.get(
+  "/admin/classes/level/:level",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getClassesByLevel
+);
 
 // ==================== SUBJECT MANAGEMENT ROUTES ====================
 
@@ -1274,7 +1435,12 @@ router.get("/admin/classes/level/:level", requireAuth, requireRoles("ADMIN", "SU
  *       409:
  *         description: Subject code already exists
  */
-router.post("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createSubject);
+router.post(
+  "/admin/subjects",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createSubject
+);
 
 /**
  * @openapi
@@ -1315,7 +1481,12 @@ router.post("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       200:
  *         description: List of subjects
  */
-router.get("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjects);
+router.get(
+  "/admin/subjects",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSubjects
+);
 
 /**
  * @openapi
@@ -1337,7 +1508,12 @@ router.get("/admin/subjects", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"),
  *       404:
  *         description: Subject not found
  */
-router.get("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubject);
+router.get(
+  "/admin/subjects/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSubject
+);
 
 /**
  * @openapi
@@ -1384,7 +1560,12 @@ router.get("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       404:
  *         description: Subject not found
  */
-router.put("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateSubject);
+router.put(
+  "/admin/subjects/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateSubject
+);
 
 /**
  * @openapi
@@ -1406,7 +1587,12 @@ router.put("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       404:
  *         description: Subject not found
  */
-router.delete("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteSubject);
+router.delete(
+  "/admin/subjects/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteSubject
+);
 
 /**
  * @openapi
@@ -1426,7 +1612,12 @@ router.delete("/admin/subjects/:id", requireAuth, requireRoles("ADMIN", "SUPER_A
  *       200:
  *         description: List of subjects for the category
  */
-router.get("/admin/subjects/category/:category", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByCategory);
+router.get(
+  "/admin/subjects/category/:category",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSubjectsByCategory
+);
 
 /**
  * @openapi
@@ -1446,7 +1637,12 @@ router.get("/admin/subjects/category/:category", requireAuth, requireRoles("ADMI
  *       200:
  *         description: List of subjects for the level
  */
-router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSubjectsByLevel);
+router.get(
+  "/admin/subjects/level/:level",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSubjectsByLevel
+);
 
 /**
  * @openapi
@@ -1480,7 +1676,13 @@ router.get("/admin/subjects/level/:level", requireAuth, requireRoles("ADMIN", "S
  *       404:
  *         description: Subject not found
  */
-router.post("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadReferenceBook, uploadReferenceBookToSubject);
+router.post(
+  "/admin/subjects/:id/reference-book",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadReferenceBook,
+  uploadReferenceBookToSubject
+);
 
 /**
  * @openapi
@@ -1520,11 +1722,75 @@ router.post("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADM
  *       404:
  *         description: Subject not found
  */
-router.post("/admin/subjects/:id/reference-book-base64", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadReferenceBookBase64);
+router.post(
+  "/admin/subjects/:id/reference-book-base64",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadReferenceBookBase64
+);
 
 /**
  * @openapi
- * /api/admin/subjects/{id}/reference-book/check:
+ * /api/admin/subjects/{id}/reference-book:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Download reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.get(
+  "/admin/subjects/:id/reference-book",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  downloadReferenceBook
+);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   delete:
+ *     tags: [Admin - Subjects]
+ *     summary: Delete reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book deleted successfully
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.delete(
+  "/admin/subjects/:id/reference-book",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteReferenceBook
+);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book/check-upload:
  *   get:
  *     tags: [Admin - Subjects]
  *     summary: Check if reference book file exists for a subject
@@ -1550,7 +1816,7 @@ router.post("/admin/subjects/:id/reference-book-base64", requireAuth, requireRol
  *                   type: boolean
  *                 message:
  *                   type: string
- *                 version:
+ m *                 version:
  *                   type: string
  *                   description: API version identifier for deployment verification
  *       404:
@@ -1582,56 +1848,12 @@ router.post("/admin/subjects/:id/reference-book-base64", requireAuth, requireRol
  *                   type: string
  *                   description: API version identifier for deployment verification
  */
-router.get("/admin/subjects/:id/reference-book/check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), checkReferenceBookExists);
-
-/**
- * @openapi
- * /api/admin/subjects/{id}/reference-book:
- *   get:
- *     tags: [Admin - Subjects]
- *     summary: Download reference book PDF for a subject
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Reference book PDF file
- *         content:
- *           application/pdf:
- *             schema:
- *               type: string
- *               format: binary
- *       404:
- *         description: Subject or reference book not found
- */
-router.get("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadReferenceBook);
-
-/**
- * @openapi
- * /api/admin/subjects/{id}/reference-book:
- *   delete:
- *     tags: [Admin - Subjects]
- *     summary: Delete reference book PDF for a subject
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Reference book deleted successfully
- *       404:
- *         description: Subject or reference book not found
- */
-router.delete("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteReferenceBook);
+router.get(
+  "/admin/subjects/:id/reference-book/check-upload",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  checkReferenceBookExists
+);
 
 // ==================== QUESTION MANAGEMENT ROUTES ====================
 
@@ -1704,7 +1926,12 @@ router.delete("/admin/subjects/:id/reference-book", requireAuth, requireRoles("A
  *       404:
  *         description: Subject or class not found
  */
-router.post("/admin/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createQuestion);
+router.post(
+  "/admin/questions",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  createQuestion
+);
 
 /**
  * @openapi
@@ -1767,7 +1994,12 @@ router.post("/admin/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"
  *       200:
  *         description: List of questions
  */
-router.get("/admin/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getQuestions);
+router.get(
+  "/admin/questions",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getQuestions
+);
 
 /**
  * @openapi
@@ -1789,7 +2021,12 @@ router.get("/admin/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN",
  *       404:
  *         description: Question not found
  */
-router.get("/admin/questions/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getQuestion);
+router.get(
+  "/admin/questions/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getQuestion
+);
 
 /**
  * @openapi
@@ -1856,7 +2093,12 @@ router.get("/admin/questions/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADM
  *       404:
  *         description: Question not found
  */
-router.put("/admin/questions/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateQuestion);
+router.put(
+  "/admin/questions/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  updateQuestion
+);
 
 /**
  * @openapi
@@ -1878,7 +2120,12 @@ router.put("/admin/questions/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADM
  *       404:
  *         description: Question not found
  */
-router.delete("/admin/questions/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestion);
+router.delete(
+  "/admin/questions/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteQuestion
+);
 
 /**
  * @openapi
@@ -1935,7 +2182,12 @@ router.delete("/admin/questions/:id", requireAuth, requireRoles("ADMIN", "SUPER_
  *       400:
  *         description: Invalid input data
  */
-router.post("/admin/questions/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestions);
+router.post(
+  "/admin/questions/generate",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  generateQuestions
+);
 
 /**
  * @openapi
@@ -1958,7 +2210,12 @@ router.post("/admin/questions/generate", requireAuth, requireRoles("ADMIN", "SUP
  *       200:
  *         description: Question statistics
  */
-router.get("/admin/questions/statistics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionStatistics);
+router.get(
+  "/admin/questions/statistics",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getQuestionStatistics
+);
 
 // ==================== EXAM MANAGEMENT ROUTES ====================
 
@@ -2036,7 +2293,12 @@ router.get("/admin/questions/statistics", requireAuth, requireRoles("ADMIN", "SU
  *       404:
  *         description: Subject or class not found
  */
-router.post("/admin/exams", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createExam);
+router.post(
+  "/admin/exams",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  createExam
+);
 
 /**
  * @openapi
@@ -2087,7 +2349,12 @@ router.post("/admin/exams", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "T
  *       200:
  *         description: List of exams
  */
-router.get("/admin/exams", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getExams);
+router.get(
+  "/admin/exams",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getExams
+);
 
 /**
  * @openapi
@@ -2109,7 +2376,12 @@ router.get("/admin/exams", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TE
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/exams/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getExam);
+router.get(
+  "/admin/exams/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getExam
+);
 
 /**
  * @openapi
@@ -2165,7 +2437,12 @@ router.get("/admin/exams/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN",
  *       404:
  *         description: Exam not found
  */
-router.put("/admin/exams/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateExam);
+router.put(
+  "/admin/exams/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  updateExam
+);
 
 /**
  * @openapi
@@ -2189,7 +2466,12 @@ router.put("/admin/exams/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN",
  *       404:
  *         description: Exam not found
  */
-router.delete("/admin/exams/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteExam);
+router.delete(
+  "/admin/exams/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteExam
+);
 
 /**
  * @openapi
@@ -2213,7 +2495,12 @@ router.delete("/admin/exams/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       404:
  *         description: Exam not found
  */
-router.patch("/admin/exams/:id/start", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), startExam);
+router.patch(
+  "/admin/exams/:id/start",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  startExam
+);
 
 /**
  * @openapi
@@ -2237,7 +2524,12 @@ router.patch("/admin/exams/:id/start", requireAuth, requireRoles("ADMIN", "SUPER
  *       404:
  *         description: Exam not found
  */
-router.patch("/admin/exams/:id/end", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), endExam);
+router.patch(
+  "/admin/exams/:id/end",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  endExam
+);
 
 /**
  * @openapi
@@ -2269,7 +2561,12 @@ router.patch("/admin/exams/:id/end", requireAuth, requireRoles("ADMIN", "SUPER_A
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/exams/:id/results", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getExamResults);
+router.get(
+  "/admin/exams/:id/results",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getExamResults
+);
 
 /**
  * @openapi
@@ -2291,7 +2588,12 @@ router.get("/admin/exams/:id/results", requireAuth, requireRoles("ADMIN", "SUPER
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/exams/:id/statistics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getExamStatistics);
+router.get(
+  "/admin/exams/:id/statistics",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getExamStatistics
+);
 
 // ==================== PERFORMANCE MONITORING ROUTES ====================
 
@@ -2338,7 +2640,12 @@ router.get("/admin/exams/:id/statistics", requireAuth, requireRoles("ADMIN", "SU
  *       404:
  *         description: Student not found
  */
-router.get("/admin/performance/individual/:studentId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getIndividualPerformance);
+router.get(
+  "/admin/performance/individual/:studentId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getIndividualPerformance
+);
 
 /**
  * @openapi
@@ -2383,7 +2690,12 @@ router.get("/admin/performance/individual/:studentId", requireAuth, requireRoles
  *       404:
  *         description: Class not found
  */
-router.get("/admin/performance/class/:classId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getClassPerformance);
+router.get(
+  "/admin/performance/class/:classId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getClassPerformance
+);
 
 /**
  * @openapi
@@ -2425,7 +2737,12 @@ router.get("/admin/performance/class/:classId", requireAuth, requireRoles("ADMIN
  *       200:
  *         description: Performance analytics dashboard data
  */
-router.get("/admin/performance/analytics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN","TEACHER"), getPerformanceAnalytics);
+router.get(
+  "/admin/performance/analytics",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getPerformanceAnalytics
+);
 
 /**
  * @openapi
@@ -2464,7 +2781,12 @@ router.get("/admin/performance/analytics", requireAuth, requireRoles("ADMIN", "S
  *       400:
  *         description: Invalid report type or missing parameters
  */
-router.get("/admin/performance/reports/:type", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getPerformanceReport);
+router.get(
+  "/admin/performance/reports/:type",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getPerformanceReport
+);
 
 // ==================== SYLLABUS MANAGEMENT ROUTES ====================
 
@@ -2543,7 +2865,12 @@ router.get("/admin/performance/reports/:type", requireAuth, requireRoles("ADMIN"
  *       409:
  *         description: Syllabus already exists for this subject, class, and academic year
  */
-router.post("/admin/syllabi", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), createSyllabus);
+router.post(
+  "/admin/syllabi",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  createSyllabus
+);
 
 /**
  * @openapi
@@ -2592,7 +2919,12 @@ router.post("/admin/syllabi", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", 
  *       200:
  *         description: List of syllabi
  */
-router.get("/admin/syllabi", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getSyllabi);
+router.get(
+  "/admin/syllabi",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getSyllabi
+);
 
 /**
  * @openapi
@@ -2614,7 +2946,12 @@ router.get("/admin/syllabi", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "
  *       404:
  *         description: Syllabus not found
  */
-router.get("/admin/syllabi/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getSyllabus);
+router.get(
+  "/admin/syllabi/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getSyllabus
+);
 
 /**
  * @openapi
@@ -2666,7 +3003,12 @@ router.get("/admin/syllabi/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN
  *       409:
  *         description: Syllabus already exists for this subject, class, and academic year
  */
-router.put("/admin/syllabi/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateSyllabus);
+router.put(
+  "/admin/syllabi/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  updateSyllabus
+);
 
 /**
  * @openapi
@@ -2688,7 +3030,12 @@ router.put("/admin/syllabi/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN
  *       404:
  *         description: Syllabus not found
  */
-router.delete("/admin/syllabi/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteSyllabus);
+router.delete(
+  "/admin/syllabi/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteSyllabus
+);
 
 /**
  * @openapi
@@ -2719,7 +3066,12 @@ router.delete("/admin/syllabi/:id", requireAuth, requireRoles("ADMIN", "SUPER_AD
  *       404:
  *         description: Syllabus not found for this subject and class
  */
-router.get("/admin/syllabi/subject/:subjectId/class/:classId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getSyllabusBySubjectClass);
+router.get(
+  "/admin/syllabi/subject/:subjectId/class/:classId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getSyllabusBySubjectClass
+);
 
 /**
  * @openapi
@@ -2751,7 +3103,12 @@ router.get("/admin/syllabi/subject/:subjectId/class/:classId", requireAuth, requ
  *       404:
  *         description: Syllabus not found
  */
-router.post("/admin/syllabi/:id/upload", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadSyllabusFile);
+router.post(
+  "/admin/syllabi/:id/upload",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  uploadSyllabusFile
+);
 
 /**
  * @openapi
@@ -2770,7 +3127,12 @@ router.post("/admin/syllabi/:id/upload", requireAuth, requireRoles("ADMIN", "SUP
  *       200:
  *         description: Syllabus statistics
  */
-router.get("/admin/syllabi/statistics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSyllabusStatistics);
+router.get(
+  "/admin/syllabi/statistics",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSyllabusStatistics
+);
 
 // ==================== ABSENTEEISM TRACKING ROUTES ====================
 
@@ -2811,7 +3173,12 @@ router.get("/admin/syllabi/statistics", requireAuth, requireRoles("ADMIN", "SUPE
  *       409:
  *         description: Absenteeism already reported for this exam and student
  */
-router.post("/admin/absenteeism", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), reportAbsenteeism);
+router.post(
+  "/admin/absenteeism",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  reportAbsenteeism
+);
 
 /**
  * @openapi
@@ -2859,7 +3226,12 @@ router.post("/admin/absenteeism", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       200:
  *         description: List of absenteeism reports
  */
-router.get("/admin/absenteeism", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAbsenteeismReports);
+router.get(
+  "/admin/absenteeism",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getAbsenteeismReports
+);
 
 /**
  * @openapi
@@ -2881,7 +3253,12 @@ router.get("/admin/absenteeism", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN
  *       404:
  *         description: Absenteeism report not found
  */
-router.get("/admin/absenteeism/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAbsenteeismReport);
+router.get(
+  "/admin/absenteeism/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getAbsenteeismReport
+);
 
 /**
  * @openapi
@@ -2913,7 +3290,12 @@ router.get("/admin/absenteeism/:id", requireAuth, requireRoles("ADMIN", "SUPER_A
  *       404:
  *         description: Absenteeism report not found
  */
-router.patch("/admin/absenteeism/:id/acknowledge", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), acknowledgeAbsenteeism);
+router.patch(
+  "/admin/absenteeism/:id/acknowledge",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  acknowledgeAbsenteeism
+);
 
 /**
  * @openapi
@@ -2945,7 +3327,12 @@ router.patch("/admin/absenteeism/:id/acknowledge", requireAuth, requireRoles("AD
  *       404:
  *         description: Absenteeism report not found
  */
-router.patch("/admin/absenteeism/:id/resolve", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), resolveAbsenteeism);
+router.patch(
+  "/admin/absenteeism/:id/resolve",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  resolveAbsenteeism
+);
 
 /**
  * @openapi
@@ -2974,7 +3361,12 @@ router.patch("/admin/absenteeism/:id/resolve", requireAuth, requireRoles("ADMIN"
  *       200:
  *         description: Absenteeism statistics
  */
-router.get("/admin/absenteeism/statistics", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAbsenteeismStatistics);
+router.get(
+  "/admin/absenteeism/statistics",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAbsenteeismStatistics
+);
 
 // ==================== PRINTING ROUTES ====================
 
@@ -3013,7 +3405,12 @@ router.get("/admin/absenteeism/statistics", requireAuth, requireRoles("ADMIN", "
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/print/exams/:examId/answers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), printAllStudentsAnswers);
+router.get(
+  "/admin/print/exams/:examId/answers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  printAllStudentsAnswers
+);
 
 /**
  * @openapi
@@ -3050,7 +3447,12 @@ router.get("/admin/print/exams/:examId/answers", requireAuth, requireRoles("ADMI
  *       404:
  *         description: Exam or student not found
  */
-router.get("/admin/print/exams/:examId/students/:studentId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), printIndividualStudentAnswer);
+router.get(
+  "/admin/print/exams/:examId/students/:studentId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  printIndividualStudentAnswer
+);
 
 /**
  * @openapi
@@ -3077,7 +3479,12 @@ router.get("/admin/print/exams/:examId/students/:studentId", requireAuth, requir
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/print/exams/:examId/summary", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), printClassResultsSummary);
+router.get(
+  "/admin/print/exams/:examId/summary",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  printClassResultsSummary
+);
 
 // ==================== COMMUNICATION ROUTES ====================
 
@@ -3120,7 +3527,12 @@ router.get("/admin/print/exams/:examId/summary", requireAuth, requireRoles("ADMI
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/communication/results", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), sendResultsToParents);
+router.post(
+  "/admin/communication/results",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  sendResultsToParents
+);
 
 /**
  * @openapi
@@ -3160,7 +3572,12 @@ router.post("/admin/communication/results", requireAuth, requireRoles("ADMIN", "
  *       400:
  *         description: Either studentIds or classId must be provided
  */
-router.post("/admin/communication/bulk", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), sendBulkMessage);
+router.post(
+  "/admin/communication/bulk",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  sendBulkMessage
+);
 
 /**
  * @openapi
@@ -3203,7 +3620,12 @@ router.post("/admin/communication/bulk", requireAuth, requireRoles("ADMIN", "SUP
  *       404:
  *         description: Exam, student, or result not found
  */
-router.post("/admin/communication/results/:examId/students/:studentId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), sendIndividualResult);
+router.post(
+  "/admin/communication/results/:examId/students/:studentId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  sendIndividualResult
+);
 
 // ==================== ANSWER SHEET ROUTES ====================
 
@@ -3217,7 +3639,7 @@ import {
   updateAICorrectionResults,
   addManualOverride,
   batchUploadAnswerSheets,
-  processAnswerSheet
+  processAnswerSheet,
 } from "../controllers/answerSheetController";
 import {
   checkAnswerSheetWithAI,
@@ -3226,7 +3648,7 @@ import {
   getAIStats,
   overrideAIResult,
   getAnswerSheetsForAIChecking,
-  recheckAnswerSheetWithAI
+  recheckAnswerSheetWithAI,
 } from "../controllers/aiAnswerCheckerController";
 import {
   validateAIRequest,
@@ -3234,7 +3656,7 @@ import {
   validatePagination,
   rateLimitAI,
   validateAnswerSheetUpload,
-  handleAIError
+  handleAIError,
 } from "../middleware/aiValidation";
 
 /**
@@ -3277,7 +3699,13 @@ import {
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/answer-sheets/upload", answerSheetUpload.single('file'), requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), uploadAnswerSheet);
+router.post(
+  "/admin/answer-sheets/upload",
+  answerSheetUpload.single("file"),
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  uploadAnswerSheet
+);
 
 /**
  * @openapi
@@ -3315,7 +3743,13 @@ router.post("/admin/answer-sheets/upload", answerSheetUpload.single('file'), req
  *       404:
  *         description: Exam not found
  */
-router.post("/admin/answer-sheets/batch/:examId", answerSheetUpload.array('files', 10), requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), batchUploadAnswerSheets);
+router.post(
+  "/admin/answer-sheets/batch/:examId",
+  answerSheetUpload.array("files", 10),
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  batchUploadAnswerSheets
+);
 
 /**
  * @openapi
@@ -3352,7 +3786,12 @@ router.post("/admin/answer-sheets/batch/:examId", answerSheetUpload.array('files
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/answer-sheets/exam/:examId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAnswerSheetsByExam);
+router.get(
+  "/admin/answer-sheets/exam/:examId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getAnswerSheetsByExam
+);
 
 /**
  * @openapi
@@ -3374,7 +3813,12 @@ router.get("/admin/answer-sheets/exam/:examId", requireAuth, requireRoles("ADMIN
  *       404:
  *         description: Answer sheet not found
  */
-router.post("/admin/answer-sheets/:answerSheetId/process", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), processAnswerSheet);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/process",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  processAnswerSheet
+);
 
 /**
  * @openapi
@@ -3408,7 +3852,12 @@ router.post("/admin/answer-sheets/:answerSheetId/process", requireAuth, requireR
  *       403:
  *         description: Access denied
  */
-router.post("/admin/answer-sheets/:answerSheetId/missing", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), markAsMissing);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/missing",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  markAsMissing
+);
 
 /**
  * @openapi
@@ -3447,7 +3896,12 @@ router.post("/admin/answer-sheets/:answerSheetId/missing", requireAuth, requireR
  *       403:
  *         description: Access denied
  */
-router.post("/admin/answer-sheets/exam/:examId/student/:studentId/absent", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), markAsAbsent);
+router.post(
+  "/admin/answer-sheets/exam/:examId/student/:studentId/absent",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  markAsAbsent
+);
 
 /**
  * @openapi
@@ -3469,7 +3923,12 @@ router.post("/admin/answer-sheets/exam/:examId/student/:studentId/absent", requi
  *       404:
  *         description: Answer sheet not found
  */
-router.post("/admin/answer-sheets/:answerSheetId/acknowledge", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), acknowledgeNotification);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/acknowledge",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  acknowledgeNotification
+);
 
 /**
  * @openapi
@@ -3491,7 +3950,12 @@ router.post("/admin/answer-sheets/:answerSheetId/acknowledge", requireAuth, requ
  *       404:
  *         description: Answer sheet not found
  */
-router.get("/admin/answer-sheets/:answerSheetId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAnswerSheetDetails);
+router.get(
+  "/admin/answer-sheets/:answerSheetId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getAnswerSheetDetails
+);
 
 /**
  * @openapi
@@ -3522,7 +3986,12 @@ router.get("/admin/answer-sheets/:answerSheetId", requireAuth, requireRoles("ADM
  *       404:
  *         description: Answer sheet not found
  */
-router.put("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), updateAICorrectionResults);
+router.put(
+  "/admin/answer-sheets/:answerSheetId/ai-results",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  updateAICorrectionResults
+);
 
 /**
  * @openapi
@@ -3560,7 +4029,12 @@ router.put("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requir
  *       404:
  *         description: Answer sheet not found
  */
-router.post("/admin/answer-sheets/:answerSheetId/manual-override", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), addManualOverride);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/manual-override",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  addManualOverride
+);
 
 // ==================== AI ANSWER CHECKING ROUTES ====================
 
@@ -3588,7 +4062,14 @@ router.post("/admin/answer-sheets/:answerSheetId/manual-override", requireAuth, 
  *       404:
  *         description: Answer sheet not found
  */
-router.post("/admin/answer-sheets/:answerSheetId/ai-check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, rateLimitAI, checkAnswerSheetWithAI);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/ai-check",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  validateAIRequest,
+  rateLimitAI,
+  checkAnswerSheetWithAI
+);
 
 /**
  * @openapi
@@ -3620,7 +4101,14 @@ router.post("/admin/answer-sheets/:answerSheetId/ai-check", requireAuth, require
  *       403:
  *         description: Access denied
  */
-router.post("/admin/answer-sheets/batch-ai-check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, rateLimitAI, batchCheckAnswerSheetsWithAI);
+router.post(
+  "/admin/answer-sheets/batch-ai-check",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  validateAIRequest,
+  rateLimitAI,
+  batchCheckAnswerSheetsWithAI
+);
 
 /**
  * @openapi
@@ -3646,7 +4134,13 @@ router.post("/admin/answer-sheets/batch-ai-check", requireAuth, requireRoles("AD
  *       404:
  *         description: Answer sheet or AI results not found
  */
-router.get("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, getAIResults);
+router.get(
+  "/admin/answer-sheets/:answerSheetId/ai-results",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  validateAIRequest,
+  getAIResults
+);
 
 /**
  * @openapi
@@ -3672,7 +4166,12 @@ router.get("/admin/answer-sheets/:answerSheetId/ai-results", requireAuth, requir
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/exams/:examId/ai-stats", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), getAIStats);
+router.get(
+  "/admin/exams/:examId/ai-stats",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  getAIStats
+);
 
 /**
  * @openapi
@@ -3716,7 +4215,13 @@ router.get("/admin/exams/:examId/ai-stats", requireAuth, requireRoles("ADMIN", "
  *       404:
  *         description: Answer sheet not found
  */
-router.post("/admin/answer-sheets/:answerSheetId/ai-override", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateOverrideRequest, overrideAIResult);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/ai-override",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  validateOverrideRequest,
+  overrideAIResult
+);
 
 /**
  * @openapi
@@ -3757,7 +4262,13 @@ router.post("/admin/answer-sheets/:answerSheetId/ai-override", requireAuth, requ
  *       404:
  *         description: Exam not found
  */
-router.get("/admin/exams/:examId/answer-sheets-for-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validatePagination, getAnswerSheetsForAIChecking);
+router.get(
+  "/admin/exams/:examId/answer-sheets-for-ai",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  validatePagination,
+  getAnswerSheetsForAIChecking
+);
 
 /**
  * @openapi
@@ -3783,7 +4294,14 @@ router.get("/admin/exams/:examId/answer-sheets-for-ai", requireAuth, requireRole
  *       404:
  *         description: Answer sheet not found
  */
-router.post("/admin/answer-sheets/:answerSheetId/ai-recheck", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), validateAIRequest, rateLimitAI, recheckAnswerSheetWithAI);
+router.post(
+  "/admin/answer-sheets/:answerSheetId/ai-recheck",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  validateAIRequest,
+  rateLimitAI,
+  recheckAnswerSheetWithAI
+);
 
 // ==================== AI CONFIGURATION ROUTES ====================
 
@@ -3799,7 +4317,12 @@ router.post("/admin/answer-sheets/:answerSheetId/ai-recheck", requireAuth, requi
  *       200:
  *         description: Current AI configuration
  */
-router.get("/admin/ai/config", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAIConfig);
+router.get(
+  "/admin/ai/config",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAIConfig
+);
 
 /**
  * @openapi
@@ -3835,7 +4358,12 @@ router.get("/admin/ai/config", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       200:
  *         description: AI configuration updated successfully
  */
-router.put("/admin/ai/config", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateAIConfig);
+router.put(
+  "/admin/ai/config",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateAIConfig
+);
 
 /**
  * @openapi
@@ -3874,7 +4402,12 @@ router.put("/admin/ai/config", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN")
  *       400:
  *         description: AI configuration test failed
  */
-router.post("/admin/ai/test", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), testAIConfig);
+router.post(
+  "/admin/ai/test",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  testAIConfig
+);
 
 /**
  * @openapi
@@ -3888,7 +4421,12 @@ router.post("/admin/ai/test", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"),
  *       200:
  *         description: Available AI providers and models
  */
-router.get("/admin/ai/providers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAIProviders);
+router.get(
+  "/admin/ai/providers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAIProviders
+);
 
 /**
  * @openapi
@@ -3945,7 +4483,12 @@ router.get("/admin/ai/providers", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       400:
  *         description: Invalid AI configuration or question request
  */
-router.post("/admin/ai/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestionsWithConfig);
+router.post(
+  "/admin/ai/generate",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  generateQuestionsWithConfig
+);
 
 // ==================== QUESTION PAPER TEMPLATE ROUTES ====================
 
@@ -4249,7 +4792,12 @@ router.post("/admin/ai/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       404:
  *         description: Template not found
  */
-router.post("/admin/question-paper-templates/generate", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"), generateQuestionPaper);
+router.post(
+  "/admin/question-paper-templates/generate",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  generateQuestionPaper
+);
 
 // ==================== QUESTION PAPER MANAGEMENT ROUTES ====================
 
@@ -4335,7 +4883,12 @@ router.post("/admin/question-paper-templates/generate", requireAuth, requireRole
  *       404:
  *         description: Exam, subject, or class not found
  */
-router.post("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createQuestionPaper);
+router.post(
+  "/admin/question-papers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createQuestionPaper
+);
 
 /**
  * @openapi
@@ -4386,7 +4939,12 @@ router.post("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_
  *       200:
  *         description: List of question papers
  */
-router.get("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPapers);
+router.get(
+  "/admin/question-papers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getQuestionPapers
+);
 
 /**
  * @openapi
@@ -4408,7 +4966,12 @@ router.get("/admin/question-papers", requireAuth, requireRoles("ADMIN", "SUPER_A
  *       404:
  *         description: Question paper not found
  */
-router.get("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPaper);
+router.get(
+  "/admin/question-papers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getQuestionPaper
+);
 
 /**
  * @openapi
@@ -4445,7 +5008,12 @@ router.get("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUP
  *       404:
  *         description: Question paper not found
  */
-router.put("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateQuestionPaper);
+router.put(
+  "/admin/question-papers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateQuestionPaper
+);
 
 /**
  * @openapi
@@ -4467,7 +5035,12 @@ router.put("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUP
  *       404:
  *         description: Question paper not found
  */
-router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionPaper);
+router.delete(
+  "/admin/question-papers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteQuestionPaper
+);
 
 /**
  * @openapi
@@ -4489,7 +5062,12 @@ router.delete("/admin/question-papers/:id", requireAuth, requireRoles("ADMIN", "
  *       404:
  *         description: Question paper not found
  */
-router.get("/admin/question-papers/:id/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getQuestionPaperQuestions);
+router.get(
+  "/admin/question-papers/:id/questions",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getQuestionPaperQuestions
+);
 
 /**
  * @openapi
@@ -4548,7 +5126,12 @@ router.get("/admin/question-papers/:id/questions", requireAuth, requireRoles("AD
  *       404:
  *         description: Question paper not found
  */
-router.post("/admin/question-papers/:id/questions", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), addQuestionToPaper);
+router.post(
+  "/admin/question-papers/:id/questions",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  addQuestionToPaper
+);
 
 /**
  * @openapi
@@ -4608,7 +5191,12 @@ router.post("/admin/question-papers/:id/questions", requireAuth, requireRoles("A
  *       404:
  *         description: Question paper or question not found
  */
-router.put("/admin/question-papers/:id/questions/:questionId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateQuestionInPaper);
+router.put(
+  "/admin/question-papers/:id/questions/:questionId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateQuestionInPaper
+);
 
 /**
  * @openapi
@@ -4635,7 +5223,12 @@ router.put("/admin/question-papers/:id/questions/:questionId", requireAuth, requ
  *       404:
  *         description: Question paper or question not found
  */
-router.delete("/admin/question-papers/:id/questions/:questionId", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteQuestionFromPaper);
+router.delete(
+  "/admin/question-papers/:id/questions/:questionId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteQuestionFromPaper
+);
 
 /**
  * @swagger
@@ -4686,7 +5279,13 @@ router.delete("/admin/question-papers/:id/questions/:questionId", requireAuth, r
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
-router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadQuestionPaperPdf, uploadQuestionPaperPDF);
+router.post(
+  "/admin/question-papers/:id/upload-pdf",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadQuestionPaperPdf,
+  uploadQuestionPaperPDF
+);
 
 /**
  * @openapi
@@ -4726,7 +5325,12 @@ router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("
  *       404:
  *         description: Question paper not found
  */
-router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateAIQuestionPaper);
+router.post(
+  "/admin/question-papers/:id/generate-ai",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  generateAIQuestionPaper
+);
 
 /**
  * @openapi
@@ -4775,7 +5379,12 @@ router.post("/admin/question-papers/:id/generate-ai", requireAuth, requireRoles(
  *       400:
  *         description: Invalid input data
  */
-router.post("/admin/question-papers/generate-complete-ai", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), generateCompleteAIQuestionPaper);
+router.post(
+  "/admin/question-papers/generate-complete-ai",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  generateCompleteAIQuestionPaper
+);
 
 /**
  * @openapi
@@ -4798,7 +5407,12 @@ router.post("/admin/question-papers/generate-complete-ai", requireAuth, requireR
  *       404:
  *         description: Question paper not found
  */
-router.post("/admin/question-papers/:id/regenerate-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), regenerateQuestionPaperPDF);
+router.post(
+  "/admin/question-papers/:id/regenerate-pdf",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  regenerateQuestionPaperPDF
+);
 
 /**
  * @openapi
@@ -4825,7 +5439,13 @@ router.post("/admin/question-papers/:id/regenerate-pdf", requireAuth, requireRol
  *       400:
  *         description: Invalid file or no file uploaded
  */
-router.post("/admin/question-papers/upload-pattern", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadPatternFile, uploadPatternFileEndpoint);
+router.post(
+  "/admin/question-papers/upload-pattern",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadPatternFile,
+  uploadPatternFileEndpoint
+);
 
 /**
  * @openapi
@@ -4859,7 +5479,13 @@ router.post("/admin/question-papers/upload-pattern", requireAuth, requireRoles("
  *       404:
  *         description: Question paper not found
  */
-router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadQuestionPaperPdf, uploadPDFQuestionPaper);
+router.post(
+  "/admin/question-papers/:id/upload-pdf",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadQuestionPaperPdf,
+  uploadPDFQuestionPaper
+);
 
 /**
  * @openapi
@@ -4886,7 +5512,12 @@ router.post("/admin/question-papers/:id/upload-pdf", requireAuth, requireRoles("
  *       404:
  *         description: Question paper not found
  */
-router.get("/admin/question-papers/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadQuestionPaperPDF);
+router.get(
+  "/admin/question-papers/:id/download",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  downloadQuestionPaperPDF
+);
 
 // ==================== TEACHER DASHBOARD ROUTES ====================
 
@@ -4906,7 +5537,12 @@ router.get("/admin/question-papers/:id/download", requireAuth, requireRoles("ADM
  *       403:
  *         description: No access permissions found
  */
-router.get("/teacher/access", requireAuth, requireRoles("TEACHER"), getTeacherAccess);
+router.get(
+  "/teacher/access",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getTeacherAccess
+);
 
 /**
  * @openapi
@@ -4987,7 +5623,12 @@ router.get("/teacher/access", requireAuth, requireRoles("TEACHER"), getTeacherAc
  *       403:
  *         description: Access denied
  */
-router.post("/teacher/questions", requireAuth, requireRoles("TEACHER"), createTeacherQuestionPaper);
+router.post(
+  "/teacher/questions",
+  requireAuth,
+  requireRoles("TEACHER"),
+  createTeacherQuestionPaper
+);
 
 /**
  * @openapi
@@ -5021,7 +5662,13 @@ router.post("/teacher/questions", requireAuth, requireRoles("TEACHER"), createTe
  *       403:
  *         description: Access denied
  */
-router.post("/teacher/upload-answers", answerSheetUpload.array('files', 10), requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+router.post(
+  "/teacher/upload-answers",
+  answerSheetUpload.array("files", 10),
+  requireAuth,
+  requireRoles("TEACHER"),
+  uploadAnswerSheets
+);
 
 /**
  * @openapi
@@ -5059,7 +5706,13 @@ router.post("/teacher/upload-answers", answerSheetUpload.array('files', 10), req
  *       403:
  *         description: Access denied
  */
-router.post("/teacher/answer-sheets/upload/:examId", answerSheetUpload.array('files', 10), requireAuth, requireRoles("TEACHER"), uploadAnswerSheets);
+router.post(
+  "/teacher/answer-sheets/upload/:examId",
+  answerSheetUpload.array("files", 10),
+  requireAuth,
+  requireRoles("TEACHER"),
+  uploadAnswerSheets
+);
 
 /**
  * @openapi
@@ -5084,7 +5737,12 @@ router.post("/teacher/answer-sheets/upload/:examId", answerSheetUpload.array('fi
  *       404:
  *         description: Exam not found
  */
-router.get("/teacher/answer-sheets/:examId", requireAuth, requireRoles("TEACHER"), getAnswerSheets);
+router.get(
+  "/teacher/answer-sheets/:examId",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getAnswerSheets
+);
 
 /**
  * @openapi
@@ -5109,7 +5767,12 @@ router.get("/teacher/answer-sheets/:examId", requireAuth, requireRoles("TEACHER"
  *       403:
  *         description: Access denied
  */
-router.post("/teacher/answer-sheets/:sheetId/process", requireAuth, requireRoles("TEACHER"), processAnswerSheet);
+router.post(
+  "/teacher/answer-sheets/:sheetId/process",
+  requireAuth,
+  requireRoles("TEACHER"),
+  processAnswerSheet
+);
 
 /**
  * @openapi
@@ -5136,26 +5799,33 @@ router.post("/teacher/answer-sheets/:sheetId/process", requireAuth, requireRoles
  *       401:
  *         description: Unauthorized
  */
-router.get("/teacher/notifications", requireAuth, requireRoles("TEACHER"), async (req: any, res: any) => {
-  try {
-    const userId = req.auth?.sub;
-    const { limit = 20, offset = 0 } = req.query;
+router.get(
+  "/teacher/notifications",
+  requireAuth,
+  requireRoles("TEACHER"),
+  async (req: any, res: any) => {
+    try {
+      const userId = req.auth?.sub;
+      const { limit = 20, offset = 0 } = req.query;
 
-    const { NotificationService } = await import('../services/notificationService');
-    const notifications = await NotificationService.getNotifications(
-      userId,
-      Number(limit),
-      Number(offset)
-    );
+      const { NotificationService } = await import(
+        "../services/notificationService"
+      );
+      const notifications = await NotificationService.getNotifications(
+        userId,
+        Number(limit),
+        Number(offset)
+      );
 
-    res.json({
-      success: true,
-      data: notifications
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Internal server error' });
+      res.json({
+        success: true,
+        data: notifications,
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   }
-});
+);
 
 /**
  * @openapi
@@ -5177,22 +5847,32 @@ router.get("/teacher/notifications", requireAuth, requireRoles("TEACHER"), async
  *       404:
  *         description: Notification not found
  */
-router.post("/teacher/notifications/:notificationId/read", requireAuth, requireRoles("TEACHER"), async (req: any, res: any) => {
-  try {
-    const userId = req.auth?.sub;
-    const { notificationId } = req.params;
+router.post(
+  "/teacher/notifications/:notificationId/read",
+  requireAuth,
+  requireRoles("TEACHER"),
+  async (req: any, res: any) => {
+    try {
+      const userId = req.auth?.sub;
+      const { notificationId } = req.params;
 
-    const { NotificationService } = await import('../services/notificationService');
-    const notification = await NotificationService.markAsRead(notificationId, userId);
+      const { NotificationService } = await import(
+        "../services/notificationService"
+      );
+      const notification = await NotificationService.markAsRead(
+        notificationId,
+        userId
+      );
 
-    res.json({
-      success: true,
-      data: notification
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Internal server error' });
+      res.json({
+        success: true,
+        data: notification,
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   }
-});
+);
 
 /**
  * @openapi
@@ -5206,21 +5886,28 @@ router.post("/teacher/notifications/:notificationId/read", requireAuth, requireR
  *       200:
  *         description: All notifications marked as read
  */
-router.post("/teacher/notifications/read-all", requireAuth, requireRoles("TEACHER"), async (req: any, res: any) => {
-  try {
-    const userId = req.auth?.sub;
+router.post(
+  "/teacher/notifications/read-all",
+  requireAuth,
+  requireRoles("TEACHER"),
+  async (req: any, res: any) => {
+    try {
+      const userId = req.auth?.sub;
 
-    const { NotificationService } = await import('../services/notificationService');
-    const count = await NotificationService.markAllAsRead(userId);
+      const { NotificationService } = await import(
+        "../services/notificationService"
+      );
+      const count = await NotificationService.markAllAsRead(userId);
 
-    res.json({
-      success: true,
-      data: { markedCount: count }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Internal server error' });
+      res.json({
+        success: true,
+        data: { markedCount: count },
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: "Internal server error" });
+    }
   }
-});
+);
 
 /**
  * @openapi
@@ -5253,7 +5940,12 @@ router.post("/teacher/notifications/read-all", requireAuth, requireRoles("TEACHE
  *       403:
  *         description: Access denied
  */
-router.post("/teacher/mark-status", requireAuth, requireRoles("TEACHER"), markStudentStatus);
+router.post(
+  "/teacher/mark-status",
+  requireAuth,
+  requireRoles("TEACHER"),
+  markStudentStatus
+);
 
 /**
  * @openapi
@@ -5292,7 +5984,12 @@ router.post("/teacher/mark-status", requireAuth, requireRoles("TEACHER"), markSt
  *       400:
  *         description: Validation error
  */
-router.post("/teacher/evaluate", requireAuth, requireRoles("TEACHER"), evaluateAnswerSheets);
+router.post(
+  "/teacher/evaluate",
+  requireAuth,
+  requireRoles("TEACHER"),
+  evaluateAnswerSheets
+);
 
 /**
  * @openapi
@@ -5321,7 +6018,12 @@ router.post("/teacher/evaluate", requireAuth, requireRoles("TEACHER"), evaluateA
  *       403:
  *         description: Access denied
  */
-router.get("/teacher/results", requireAuth, requireRoles("TEACHER"), getResults);
+router.get(
+  "/teacher/results",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getResults
+);
 
 /**
  * @openapi
@@ -5350,7 +6052,12 @@ router.get("/teacher/results", requireAuth, requireRoles("TEACHER"), getResults)
  *       403:
  *         description: No permission to access analytics
  */
-router.get("/teacher/performance-graph", requireAuth, requireRoles("TEACHER"), getPerformanceGraphs);
+router.get(
+  "/teacher/performance-graph",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getPerformanceGraphs
+);
 
 /**
  * @openapi
@@ -5379,7 +6086,12 @@ router.get("/teacher/performance-graph", requireAuth, requireRoles("TEACHER"), g
  *       403:
  *         description: Access denied
  */
-router.get("/teacher/exams", requireAuth, requireRoles("TEACHER"), getTeacherExams);
+router.get(
+  "/teacher/exams",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getTeacherExams
+);
 
 /**
  * @openapi
@@ -5413,7 +6125,12 @@ router.get("/teacher/exams", requireAuth, requireRoles("TEACHER"), getTeacherExa
  *       403:
  *         description: No permission to download results
  */
-router.get("/teacher/results/download", requireAuth, requireRoles("TEACHER"), downloadResults);
+router.get(
+  "/teacher/results/download",
+  requireAuth,
+  requireRoles("TEACHER"),
+  downloadResults
+);
 
 /**
  * @openapi
@@ -5495,7 +6212,12 @@ router.get("/teacher/results/download", requireAuth, requireRoles("TEACHER"), do
  *       401:
  *         description: Unauthorized
  */
-router.post("/admin/staff-access", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createStaffAccess);
+router.post(
+  "/admin/staff-access",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createStaffAccess
+);
 
 /**
  * @openapi
@@ -5530,7 +6252,12 @@ router.post("/admin/staff-access", requireAuth, requireRoles("ADMIN", "SUPER_ADM
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/staff-access", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getAllStaffAccess);
+router.get(
+  "/admin/staff-access",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAllStaffAccess
+);
 
 /**
  * @openapi
@@ -5554,7 +6281,12 @@ router.get("/admin/staff-access", requireAuth, requireRoles("ADMIN", "SUPER_ADMI
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getStaffAccess);
+router.get(
+  "/admin/staff-access/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getStaffAccess
+);
 
 /**
  * @openapi
@@ -5596,7 +6328,12 @@ router.get("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_
  *       401:
  *         description: Unauthorized
  */
-router.put("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateStaffAccess);
+router.put(
+  "/admin/staff-access/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateStaffAccess
+);
 
 /**
  * @openapi
@@ -5620,7 +6357,12 @@ router.put("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_
  *       401:
  *         description: Unauthorized
  */
-router.delete("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteStaffAccess);
+router.delete(
+  "/admin/staff-access/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteStaffAccess
+);
 
 // Question Paper Template Management Routes
 /**
@@ -5662,7 +6404,13 @@ router.delete("/admin/staff-access/:id", requireAuth, requireRoles("ADMIN", "SUP
  *       401:
  *         description: Unauthorized
  */
-router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadTemplate, createTemplate);
+router.post(
+  "/admin/question-paper-templates",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadTemplate,
+  createTemplate
+);
 
 /**
  * @openapi
@@ -5687,7 +6435,12 @@ router.post("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN"
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTemplates);
+router.get(
+  "/admin/question-paper-templates",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getTemplates
+);
 
 /**
  * @openapi
@@ -5711,7 +6464,12 @@ router.get("/admin/question-paper-templates", requireAuth, requireRoles("ADMIN",
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getTemplateById);
+router.get(
+  "/admin/question-paper-templates/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getTemplateById
+);
 
 /**
  * @openapi
@@ -5748,7 +6506,12 @@ router.get("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADM
  *       401:
  *         description: Unauthorized
  */
-router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateTemplate);
+router.put(
+  "/admin/question-paper-templates/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateTemplate
+);
 
 /**
  * @openapi
@@ -5772,7 +6535,12 @@ router.put("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADM
  *       401:
  *         description: Unauthorized
  */
-router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteTemplate);
+router.delete(
+  "/admin/question-paper-templates/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteTemplate
+);
 
 /**
  * @openapi
@@ -5796,7 +6564,12 @@ router.delete("/admin/question-paper-templates/:id", requireAuth, requireRoles("
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/question-paper-templates/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadTemplate);
+router.get(
+  "/admin/question-paper-templates/:id/download",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  downloadTemplate
+);
 
 /**
  * @openapi
@@ -5820,7 +6593,12 @@ router.get("/admin/question-paper-templates/:id/download", requireAuth, requireR
  *       401:
  *         description: Unauthorized
  */
-router.post("/admin/question-paper-templates/:id/analyze", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), analyzeTemplate);
+router.post(
+  "/admin/question-paper-templates/:id/analyze",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  analyzeTemplate
+);
 
 // ==================== SAMPLE PAPER MANAGEMENT ROUTES ====================
 
@@ -5864,7 +6642,13 @@ router.post("/admin/question-paper-templates/:id/analyze", requireAuth, requireR
  *       401:
  *         description: Unauthorized
  */
-router.post("/admin/sample-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), uploadSamplePaper, createSamplePaper);
+router.post(
+  "/admin/sample-papers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  uploadSamplePaper,
+  createSamplePaper
+);
 
 /**
  * @openapi
@@ -5886,7 +6670,12 @@ router.post("/admin/sample-papers", requireAuth, requireRoles("ADMIN", "SUPER_AD
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/sample-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSamplePapers);
+router.get(
+  "/admin/sample-papers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSamplePapers
+);
 
 /**
  * @openapi
@@ -5911,7 +6700,12 @@ router.get("/admin/sample-papers", requireAuth, requireRoles("ADMIN", "SUPER_ADM
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), getSamplePaperById);
+router.get(
+  "/admin/sample-papers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getSamplePaperById
+);
 
 /**
  * @openapi
@@ -5958,7 +6752,12 @@ router.get("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER
  *       401:
  *         description: Unauthorized
  */
-router.put("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), updateSamplePaper);
+router.put(
+  "/admin/sample-papers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateSamplePaper
+);
 
 /**
  * @openapi
@@ -5983,7 +6782,12 @@ router.put("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER
  *       401:
  *         description: Unauthorized
  */
-router.delete("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), deleteSamplePaper);
+router.delete(
+  "/admin/sample-papers/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteSamplePaper
+);
 
 /**
  * @openapi
@@ -6008,7 +6812,12 @@ router.delete("/admin/sample-papers/:id", requireAuth, requireRoles("ADMIN", "SU
  *       401:
  *         description: Unauthorized
  */
-router.get("/admin/sample-papers/:id/download", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadSamplePaper);
+router.get(
+  "/admin/sample-papers/:id/download",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  downloadSamplePaper
+);
 
 /**
  * @openapi
@@ -6033,8 +6842,11 @@ router.get("/admin/sample-papers/:id/download", requireAuth, requireRoles("ADMIN
  *       401:
  *         description: Unauthorized
  */
-router.post("/admin/sample-papers/:id/analyze", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), analyzeSamplePaper);
+router.post(
+  "/admin/sample-papers/:id/analyze",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  analyzeSamplePaper
+);
 
 export default router;
-
-
