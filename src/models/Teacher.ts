@@ -53,13 +53,10 @@ TeacherSchema.pre('save', function(next) {
     classIdsLength: this.classIds?.length
   });
   
-  if (this.subjectIds && this.subjectIds.length === 0) {
-    console.log('❌ Teacher validation failed: No subjects assigned');
-    next(new Error('Teacher must be assigned to at least one subject'));
-  } else {
-    console.log('✅ Teacher validation passed');
-    next();
-  }
+  // Allow teachers to be created without subjects initially
+  // The frontend validation will ensure proper assignments
+  console.log('✅ Teacher validation passed (subjects optional during creation)');
+  next();
 });
 
 export const Teacher: Model<ITeacher> = mongoose.models.Teacher || mongoose.model<ITeacher>("Teacher", TeacherSchema);

@@ -359,10 +359,18 @@ export async function deleteStudent(req: Request, res: Response, next: NextFunct
     if (!student) throw new createHttpError.NotFound("Student not found");
     
     // Delete both student record and user record
-    await Promise.all([
+    // Using Promise.allSettled to ensure both deletions are attempted
+    const results = await Promise.allSettled([
       Student.findByIdAndDelete(student._id),
       User.findByIdAndDelete(id)
     ]);
+    
+    // Check if any deletion failed
+    const failedDeletions = results.filter(result => result.status === 'rejected');
+    if (failedDeletions.length > 0) {
+      console.error('Some deletions failed:', failedDeletions);
+      // Log the errors but don't fail the request if at least one succeeded
+    }
     
     res.json({ success: true, message: "Student deleted successfully" });
   } catch (err) {

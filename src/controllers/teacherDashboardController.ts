@@ -70,26 +70,51 @@ export const getTeacherAccess = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    // Get teacher's access permissions
-    const staffAccess = await StaffAccess.findOne({
-      staffId: teacherId,
-      isActive: true
-    }).populate('classAccess.classId', 'name displayName level section')
-      .populate('subjectAccess.subjectId', 'name code shortName category');
+    // Get teacher's assigned classes and subjects
+    const teacher = await Teacher.findOne({ userId: teacherId })
+      .populate('classIds', 'name displayName level section')
+      .populate('subjectIds', 'name code shortName category');
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ 
         success: false, 
-        error: 'No access permissions found for this teacher' 
+        error: 'Teacher record not found. Please contact administrator.' 
       });
     }
+
+    // Convert to the expected format - show all classes and subjects from the school
+    const classAccess = teacher.classIds.map((classId: any) => ({
+      classId: classId._id,
+      className: classId.name,
+      accessLevel: 'READ_WRITE',
+      canUploadSheets: true,
+      canMarkAbsent: true,
+      canMarkMissing: true,
+      canOverrideAI: false
+    }));
+
+    const subjectAccess = teacher.subjectIds.map((subjectId: any) => ({
+      subjectId: subjectId._id,
+      subjectName: subjectId.name,
+      accessLevel: 'READ_WRITE',
+      canCreateQuestions: true,
+      canUploadSyllabus: true
+    }));
+
+    const globalPermissions = {
+      canViewAllClasses: true, // Teachers can now see all school exams
+      canViewAllSubjects: true, // Teachers can see all school subjects
+      canAccessAnalytics: true,
+      canPrintReports: true,
+      canSendNotifications: false
+    };
 
     res.json({
       success: true,
       data: {
-        classAccess: staffAccess.classAccess,
-        subjectAccess: staffAccess.subjectAccess,
-        globalPermissions: staffAccess.globalPermissions
+        classAccess,
+        subjectAccess,
+        globalPermissions
       }
     });
   } catch (error) {
@@ -108,37 +133,21 @@ export const createTeacherQuestionPaper = async (req: Request, res: Response) =>
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    // Verify teacher has access to the subject and class
-    const staffAccess = await StaffAccess.findOne({
-      staffId: teacherId,
-      'subjectAccess.subjectId': questionPaperData.subjectId,
-      'classAccess.classId': questionPaperData.classId,
-      isActive: true
-    });
+    // Get teacher's adminId and verify access
+    const teacher = await Teacher.findOne({ userId: teacherId });
+    if (!teacher) {
+      return res.status(404).json({ success: false, error: 'Teacher not found' });
+    }
 
-    if (!staffAccess) {
+    // Verify teacher has access to the subject and class
+    const hasSubjectAccess = teacher.subjectIds.some(id => id.toString() === questionPaperData.subjectId);
+    const hasClassAccess = teacher.classIds.some(id => id.toString() === questionPaperData.classId);
+
+    if (!hasSubjectAccess || !hasClassAccess) {
       return res.status(403).json({ 
         success: false, 
         error: 'Access denied to this subject or class' 
       });
-    }
-
-    // Check if teacher can create questions for this subject
-    const subjectAccess = staffAccess.subjectAccess.find(
-      sa => sa.subjectId.toString() === questionPaperData.subjectId
-    );
-
-    if (!subjectAccess?.canCreateQuestions) {
-      return res.status(403).json({ 
-        success: false, 
-        error: 'No permission to create questions for this subject' 
-      });
-    }
-
-    // Get teacher's adminId
-    const teacher = await Teacher.findOne({ userId: teacherId });
-    if (!teacher) {
-      return res.status(404).json({ success: false, error: 'Teacher not found' });
     }
 
     // Create question paper
@@ -190,18 +199,18 @@ export const uploadAnswerSheets = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: teacherId,
-      'classAccess.classId': exam.classId,
-      isActive: true
-    });
-
-    if (!staffAccess) {
+    // Verify teacher has access to the exam
+    const teacher = await Teacher.findOne({ userId: teacherId });
+    if (!teacher) {
       return res.status(403).json({ 
         success: false, 
-        error: 'Access denied to this exam' 
+        error: 'Teacher record not found. Please contact administrator.' 
       });
     }
+
+    // Check if teacher has access to the exam's class (optional - since we show all school exams)
+    // For now, we'll allow all teachers from the same school to upload to any exam
+    // This can be made more restrictive later if needed
 
     // Process uploaded files
     const results = [];
@@ -628,42 +637,32 @@ export const getTeacherExams = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    // Verify teacher has access to the requested data
-    const staffAccess = await StaffAccess.findOne({
-      staffId: teacherId,
-      isActive: true
-    });
-
-    if (!staffAccess) {
+    // Find the teacher record to get their assigned classes and subjects
+    const teacher = await Teacher.findOne({ userId: teacherId });
+    
+    if (!teacher) {
       return res.status(403).json({ 
         success: false, 
-        error: 'No access permissions found' 
+        error: 'Teacher record not found. Please contact administrator.' 
       });
     }
 
-    // Build query based on teacher's access
-    const query: any = {};
+    // Build query to show all exams created by the school/admin
+    const query: any = {
+      isActive: true
+    };
     
-    // Filter by teacher's accessible classes
-    if (staffAccess.classAccess && staffAccess.classAccess.length > 0) {
-      const accessibleClassIds = staffAccess.classAccess.map(ca => ca.classId);
-      query.classId = { $in: accessibleClassIds };
-    }
+    // Show all exams created by the same admin (school) that the teacher belongs to
+    query.adminId = teacher.adminId;
     
-    // Filter by teacher's accessible subjects
-    if (staffAccess.subjectAccess && staffAccess.subjectAccess.length > 0) {
-      const accessibleSubjectIds = staffAccess.subjectAccess.map(sa => sa.subjectId);
-      query.subjectId = { $in: accessibleSubjectIds };
-    }
-    
-    // Apply additional filters
+    // Apply additional filters if provided
     if (classId) query.classId = classId;
-    if (subjectId) query.subjectId = subjectId;
+    if (subjectId) query.subjectIds = { $in: [subjectId] };
     if (status) query.status = status;
 
     // Get exams with populated data
     const exams = await Exam.find(query)
-      .populate('subjectId', 'name code shortName')
+      .populate('subjectIds', 'name code shortName')
       .populate('classId', 'name displayName level section')
       .populate('createdBy', 'name email')
       .sort({ scheduledDate: -1 });

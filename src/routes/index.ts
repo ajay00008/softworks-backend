@@ -3,7 +3,6 @@ import multer from "multer";
 import { login } from "../controllers/authController";
 import { requireAuth, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
-import { createTeacher } from "../controllers/userManagementController";
 import { 
   createAdmin as createAdminSuper, 
   getAdmins, 
@@ -267,39 +266,6 @@ router.post("/auth/login", login);
  */
 router.post("/super/admins", requireAuth, requireRoles("SUPER_ADMIN"), createAdmin);
 
-/**
- * @openapi
- * /api/admin/teachers:
- *   post:
- *     tags: [Admin]
- *     summary: Create a Teacher (Admin or Super Admin)
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email, password, name]
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               password:
- *                 type: string
- *                 minLength: 8
- *               name:
- *                 type: string
- *               subjectIds:
- *                 type: array
- *                 items:
- *                   type: string
- *     responses:
- *       201:
- *         description: Teacher created
- */
-router.post("/admin/teachers", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), createTeacher);
 
 /**
  * @openapi

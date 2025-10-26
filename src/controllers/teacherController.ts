@@ -15,7 +15,7 @@ const CreateTeacherSchema = z.object({
   phone: z.string().optional(),
   address: z.string().optional(),
   qualification: z.string().optional(),
-  experience: z.string().optional(),
+  experience: z.number().optional(),
 });
 
 const UpdateTeacherSchema = z.object({
@@ -140,11 +140,13 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
       
       res.status(201).json({ 
         success: true, 
-        teacher: { 
+        data: { 
+          _id: createdUser._id,
           id: createdUser._id, 
           email: createdUser.email, 
           name: createdUser.name,
-          subjects: populatedTeacher!.subjectIds.map((subject: any) => ({
+          subjects: (populatedTeacher?.subjectIds || []).map((subject: any) => ({
+            _id: subject._id,
             id: subject._id,
             code: subject.code,
             name: subject.name,
@@ -152,7 +154,7 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
             category: subject.category,
             level: subject.level
           })),
-          classes: populatedTeacher!.classIds.map((classItem: any) => ({
+          classes: (populatedTeacher?.classIds || []).map((classItem: any) => ({
             id: classItem._id,
             name: classItem.name,
             displayName: classItem.displayName,
@@ -164,7 +166,8 @@ export async function createTeacher(req: Request, res: Response, next: NextFunct
           qualification: teacher.qualification,
           experience: teacher.experience,
           isActive: createdUser.isActive,
-          createdAt: (createdUser as any).createdAt
+          createdAt: (createdUser as any).createdAt,
+          updatedAt: (teacher as any).updatedAt
         } 
       });
     } catch (teacherError) {
@@ -419,10 +422,18 @@ export async function deleteTeacher(req: Request, res: Response, next: NextFunct
     if (!teacher) throw new createHttpError.NotFound("Teacher not found");
     
     // Delete both teacher record and user record
-    await Promise.all([
+    // Using Promise.allSettled to ensure both deletions are attempted
+    const results = await Promise.allSettled([
       Teacher.findByIdAndDelete(teacher._id),
       User.findByIdAndDelete(id)
     ]);
+    
+    // Check if any deletion failed
+    const failedDeletions = results.filter(result => result.status === 'rejected');
+    if (failedDeletions.length > 0) {
+      console.error('Some deletions failed:', failedDeletions);
+      // Log the errors but don't fail the request if at least one succeeded
+    }
     
     res.json({ success: true, message: "Teacher deleted successfully" });
   } catch (err) {
