@@ -218,13 +218,16 @@ export class EnhancedAIService {
       // Parse the JSON response
       const generatedQuestions = this.parseGeneratedQuestions(response);
       
-      // Post-process to enforce mark-based question types
+      // Post-process to enforce mark-based question types and distribution
       const processedQuestions = this.enforceMarkBasedQuestionTypes(generatedQuestions);
       
-      // Ensure we only return the exact number of questions requested
-      const finalQuestions = processedQuestions.slice(0, request.markDistribution.totalQuestions);
+      // Apply mark-based distribution to ensure correct question types
+      const distributedQuestions = this.applyMarkBasedDistribution(processedQuestions, request);
       
-      console.log(`Generated ${generatedQuestions.length} questions, returning ${finalQuestions.length} questions`);
+      // Ensure we only return the exact number of questions requested
+      const finalQuestions = distributedQuestions.slice(0, request.markDistribution.totalQuestions);
+      
+      console.log(`Generated ${generatedQuestions.length} questions, processed to ${distributedQuestions.length}, returning ${finalQuestions.length} questions`);
       return finalQuestions;
 
     } catch (error) {
@@ -380,10 +383,10 @@ ${customInstructions ? `\n**CUSTOM INSTRUCTIONS:**\n${customInstructions}` : ''}
 3. Distribute questions according to Bloom's taxonomy percentages
 4. **DO NOT generate extra questions beyond the specified count**
 5. **CRITICAL: Generate question types based on marks when no specific type is specified**
-6. **For 1-mark questions: Generate ${questionTypeDistribution.oneMark?.map(qt => qt.type).join(', ') || 'SHORT_ANSWER or ONE_WORD_ANSWER based on content complexity'} questions**
-7. **For 2-mark questions: Generate ${questionTypeDistribution.twoMark?.map(qt => qt.type).join(', ') || 'SHORT_ANSWER or CHOOSE_BEST_ANSWER based on content complexity'} questions**
-8. **For 3-mark questions: Generate ${questionTypeDistribution.threeMark?.map(qt => qt.type).join(', ') || 'SHORT_ANSWER only (no multiple choice for 3+ marks)'} questions**
-9. **For 5-mark questions: Generate ${questionTypeDistribution.fiveMark?.map(qt => qt.type).join(', ') || 'LONG_ANSWER or detailed SHORT_ANSWER based on content complexity'} questions**
+6. **For 1-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'TRUE_FALSE' || qt.type === 'ONE_WORD_ANSWER' || qt.type === 'SHORT_ANSWER').map(qt => qt.type).join(', ') || 'SHORT_ANSWER or ONE_WORD_ANSWER based on content complexity'} questions**
+7. **For 2-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER' || qt.type === 'CHOOSE_BEST_ANSWER').map(qt => qt.type).join(', ') || 'SHORT_ANSWER or CHOOSE_BEST_ANSWER based on content complexity'} questions**
+8. **For 3-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER').map(qt => qt.type).join(', ') || 'SHORT_ANSWER only (no multiple choice for 3+ marks)'} questions**
+9. **For 5-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'LONG_ANSWER' || qt.type === 'SHORT_ANSWER').map(qt => qt.type).join(', ') || 'LONG_ANSWER or detailed SHORT_ANSWER based on content complexity'} questions**
 10. Ensure questions are age-appropriate for ${className}
 11. Make questions relevant to ${subjectName}
 12. Include ${twistedQuestionsPercentage}% twisted/challenging questions
@@ -558,33 +561,51 @@ Generate the question paper now:`;
    */
   private static async generateMockQuestionPaper(request: EnhancedQuestionGenerationRequest): Promise<string> {
     const questions: EnhancedGeneratedQuestion[] = [];
-    const { markDistribution, bloomsDistribution, questionTypeDistribution } = request;
+    const { markDistribution, questionTypeDistribution } = request;
 
-    // Generate questions based on mark distribution
+    // Generate questions based on mark distribution and question type distribution
     let questionCount = 0;
     
     // Generate 1-mark questions
-    for (let i = 0; i < markDistribution.oneMark; i++) {
-      questions.push(this.createMockQuestion(1, 'CHOOSE_BEST_ANSWER', 'REMEMBER', request));
-      questionCount++;
+    if (markDistribution.oneMark > 0) {
+      const oneMarkTypes = questionTypeDistribution.filter(qt => 
+        qt.type === 'TRUE_FALSE' || qt.type === 'ONE_WORD_ANSWER' || qt.type === 'SHORT_ANSWER'
+      );
+      
+      for (let i = 0; i < markDistribution.oneMark; i++) {
+        const questionType = oneMarkTypes.length > 0 ? oneMarkTypes[0].type : 'TRUE_FALSE';
+        questions.push(this.createMockQuestion(1, questionType, 'REMEMBER', request));
+        questionCount++;
+      }
     }
 
     // Generate 2-mark questions
-    for (let i = 0; i < markDistribution.twoMark; i++) {
-      questions.push(this.createMockQuestion(2, 'FILL_BLANKS', 'UNDERSTAND', request));
-      questionCount++;
+    if (markDistribution.twoMark > 0) {
+      const twoMarkTypes = questionTypeDistribution.filter(qt => 
+        qt.type === 'SHORT_ANSWER' || qt.type === 'CHOOSE_BEST_ANSWER'
+      );
+      
+      for (let i = 0; i < markDistribution.twoMark; i++) {
+        const questionType = twoMarkTypes.length > 0 ? twoMarkTypes[0].type : 'SHORT_ANSWER';
+        questions.push(this.createMockQuestion(2, questionType, 'UNDERSTAND', request));
+        questionCount++;
+      }
     }
 
     // Generate 3-mark questions
-    for (let i = 0; i < markDistribution.threeMark; i++) {
-      questions.push(this.createMockQuestion(3, 'SHORT_ANSWER', 'APPLY', request));
-      questionCount++;
+    if (markDistribution.threeMark > 0) {
+      for (let i = 0; i < markDistribution.threeMark; i++) {
+        questions.push(this.createMockQuestion(3, 'SHORT_ANSWER', 'APPLY', request));
+        questionCount++;
+      }
     }
 
     // Generate 5-mark questions
-    for (let i = 0; i < markDistribution.fiveMark; i++) {
-      questions.push(this.createMockQuestion(5, 'LONG_ANSWER', 'ANALYZE', request));
-      questionCount++;
+    if (markDistribution.fiveMark > 0) {
+      for (let i = 0; i < markDistribution.fiveMark; i++) {
+        questions.push(this.createMockQuestion(5, 'LONG_ANSWER', 'ANALYZE', request));
+        questionCount++;
+      }
     }
 
     return JSON.stringify(questions);
@@ -603,7 +624,27 @@ Generate the question paper now:`;
       'CHOOSE_BEST_ANSWER': `What is the primary function of mitochondria in a cell?`,
       'FILL_BLANKS': `The process of photosynthesis occurs in the _____ of plant cells.`,
       'SHORT_ANSWER': `Explain the difference between mitosis and meiosis.`,
-      'LONG_ANSWER': `Analyze the impact of climate change on biodiversity and suggest three mitigation strategies.`
+      'LONG_ANSWER': `Analyze the impact of climate change on biodiversity and suggest three mitigation strategies.`,
+      'TRUE_FALSE': `The capital of France is Paris.`,
+      'ONE_WORD_ANSWER': `What is the chemical symbol for gold?`
+    };
+
+    const correctAnswers = {
+      'CHOOSE_BEST_ANSWER': 'Energy production',
+      'FILL_BLANKS': 'chloroplasts',
+      'SHORT_ANSWER': 'Mitosis produces identical cells while meiosis produces genetically diverse cells.',
+      'LONG_ANSWER': 'Climate change significantly impacts biodiversity through habitat loss, temperature changes, and ecosystem disruption. Mitigation strategies include reducing greenhouse gas emissions, protecting natural habitats, and implementing sustainable practices.',
+      'TRUE_FALSE': 'True',
+      'ONE_WORD_ANSWER': 'Au'
+    };
+
+    const options = {
+      'CHOOSE_BEST_ANSWER': ['Energy production', 'Protein synthesis', 'DNA replication', 'Waste removal'],
+      'FILL_BLANKS': undefined,
+      'SHORT_ANSWER': undefined,
+      'LONG_ANSWER': undefined,
+      'TRUE_FALSE': undefined,
+      'ONE_WORD_ANSWER': undefined
     };
 
     return {
@@ -613,9 +654,8 @@ Generate the question paper now:`;
       bloomsLevel: bloomsLevel as any,
       difficulty: request.difficultyLevel,
       isTwisted: Math.random() < (request.twistedQuestionsPercentage / 100),
-      options: questionType === 'CHOOSE_BEST_ANSWER' ? 
-        ['Energy production', 'Protein synthesis', 'DNA replication', 'Waste removal'] : undefined,
-      correctAnswer: questionType === 'CHOOSE_BEST_ANSWER' ? 'Energy production' : 'Sample correct answer',
+      options: options[questionType as keyof typeof options],
+      correctAnswer: correctAnswers[questionType as keyof typeof correctAnswers] || 'Sample correct answer',
       explanation: 'This is a sample explanation for the answer.',
       tags: ['sample', 'test']
     };
@@ -670,6 +710,68 @@ Generate the question paper now:`;
         options: options
       };
     });
+  }
+
+  /**
+   * Apply mark-based distribution to ensure correct question types
+   */
+  private static applyMarkBasedDistribution(questions: EnhancedGeneratedQuestion[], request: EnhancedQuestionGenerationRequest): EnhancedGeneratedQuestion[] {
+    const { markDistribution, questionTypeDistribution } = request;
+    const distributedQuestions: EnhancedGeneratedQuestion[] = [];
+    
+    // Process each mark category
+    const markCategories = [
+      { mark: 1, count: markDistribution.oneMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'TRUE_FALSE' || qt.type === 'ONE_WORD_ANSWER' || qt.type === 'SHORT_ANSWER') },
+      { mark: 2, count: markDistribution.twoMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER' || qt.type === 'CHOOSE_BEST_ANSWER') },
+      { mark: 3, count: markDistribution.threeMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER') },
+      { mark: 5, count: markDistribution.fiveMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'LONG_ANSWER' || qt.type === 'SHORT_ANSWER') }
+    ];
+    
+    for (const category of markCategories) {
+      if (category.count > 0) {
+        // Get questions of this mark value
+        const questionsForThisMark = questions.filter(q => q.marks === category.mark);
+        
+        // If we have specific question type distributions for this mark, apply them
+        if (category.distributions.length > 0) {
+          // Calculate how many questions of each type we need
+          const typeCounts: { [key: string]: number } = {};
+          let remainingQuestions = category.count;
+          
+          for (let i = 0; i < category.distributions.length - 1; i++) {
+            const dist = category.distributions[i];
+            const count = Math.floor((dist.percentage / 100) * category.count);
+            typeCounts[dist.type] = count;
+            remainingQuestions -= count;
+          }
+          
+          // Assign remaining questions to the last type
+          if (category.distributions.length > 0) {
+            const lastDist = category.distributions[category.distributions.length - 1];
+            typeCounts[lastDist.type] = remainingQuestions;
+          }
+          
+          // Distribute questions based on type counts
+          let questionIndex = 0;
+          for (const [type, count] of Object.entries(typeCounts)) {
+            for (let i = 0; i < count && questionIndex < questionsForThisMark.length; i++) {
+              const question = questionsForThisMark[questionIndex];
+              distributedQuestions.push({
+                ...question,
+                questionType: type as any,
+                marks: category.mark
+              });
+              questionIndex++;
+            }
+          }
+        } else {
+          // No specific distribution, just add questions as-is
+          distributedQuestions.push(...questionsForThisMark.slice(0, category.count));
+        }
+      }
+    }
+    
+    return distributedQuestions;
   }
 
   /**

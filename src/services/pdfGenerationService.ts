@@ -100,7 +100,7 @@ export class PDFGenerationService {
     
     // Subject and class info in a properly aligned box
     const infoBoxY = doc.y;
-    const infoBoxHeight = 50;
+    const infoBoxHeight = 60; // Increased height to accommodate all content
     
     // Info box background with better styling
     doc.rect(margin, infoBoxY, pageWidth - 2 * margin, infoBoxHeight)
@@ -114,25 +114,25 @@ export class PDFGenerationService {
     doc.fontSize(14)
       .font("Helvetica-Bold")
       .fillColor('black')
-      .text(`Subject: ${subjectName}`, margin + 20, infoBoxY + 12);
+      .text(`Subject: ${subjectName}`, margin + 20, infoBoxY + 15);
 
     doc.fontSize(12)
       .font("Helvetica")
       .fillColor('black')
-      .text(`Class: ${classNameValue}`, margin + 20, infoBoxY + 30);
+      .text(`Class: ${classNameValue}`, margin + 20, infoBoxY + 35);
 
-    // Exam details on the right - properly aligned
-    const detailsX = pageWidth - margin - 180;
+    // Exam details on the right - properly aligned within the container
+    const detailsX = pageWidth - margin - 200; // Adjusted for better spacing
     doc.fontSize(12)
       .font("Helvetica-Bold")
       .fillColor('black')
-      .text("Exam Details", detailsX, infoBoxY + 12);
+      .text("Exam Details", detailsX, infoBoxY + 15);
     
     doc.fontSize(11)
       .font("Helvetica")
       .fillColor('black')
-      .text(`Total Marks: ${total || 100}`, detailsX, infoBoxY + 28)
-      .text(`Duration: ${duration || 180} minutes`, detailsX, infoBoxY + 42);
+      .text(`Total Marks: ${total || 100}`, detailsX, infoBoxY + 32)
+      .text(`Duration: ${duration || 180} minutes`, detailsX, infoBoxY + 47); // Properly positioned within container
 
     doc.y = infoBoxY + infoBoxHeight + 25;
 

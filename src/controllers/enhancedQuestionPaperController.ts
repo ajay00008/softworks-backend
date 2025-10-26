@@ -119,17 +119,17 @@ function flattenQuestionTypeDistribution(questionTypeDistribution: any): Array<{
   }> = [];
   
   const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+  
+  // Process each mark category separately to maintain the intended distribution
   for (const mark of markCategories) {
     const distributions = questionTypeDistribution[mark];
     if (distributions && distributions.length > 0) {
-      // Calculate the weight for this mark category
-      const markWeight = mark === 'oneMark' ? 1 : mark === 'twoMark' ? 2 : mark === 'threeMark' ? 3 : 5;
-      
-      // Add each distribution with weighted percentage
+      // For each mark category, add the distributions as-is
+      // The AI service will handle the mark-based generation
       distributions.forEach((dist: any) => {
         flattened.push({
           type: dist.type as 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER',
-          percentage: dist.percentage * markWeight / 100 // Normalize to overall percentage
+          percentage: dist.percentage // Keep the original percentage
         });
       });
     }
