@@ -212,7 +212,6 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
     // Validate exam exists and belongs to admin, and get subject/class IDs from exam
     const exam = await Exam.findOne({ 
       _id: questionPaperData.examId, 
-      adminId, 
       isActive: true 
     }).populate([
       { path: 'subjectIds', select: 'name code classIds' },
@@ -575,9 +574,9 @@ export async function downloadQuestionPaperPDF(req: Request, res: Response, next
       throw new createHttpError.Unauthorized("Admin ID not found in token");
     }
 
+    // Allow all admins to access any question paper (removed adminId filter)
     const questionPaper = await QuestionPaper.findOne({ 
       _id: id, 
-      adminId, 
       isActive: true 
     });
 
@@ -747,7 +746,6 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     // Validate exam exists and belongs to admin, and get subject/class IDs from exam
     const exam = await Exam.findOne({ 
       _id: questionPaperData.examId, 
-      adminId, 
       isActive: true 
     }).populate([
       { path: 'subjectIds', select: 'name code classIds' },
@@ -1224,10 +1222,9 @@ export async function regenerateQuestionPaperPDF(req: Request, res: Response, ne
       throw new createHttpError.Unauthorized("Admin ID not found in token");
     }
 
-    // Get question paper with questions
+    // Get question paper with questions (allow all admins to access any question paper)
     const questionPaper = await QuestionPaper.findOne({ 
       _id: id, 
-      adminId, 
       isActive: true 
     }).populate([
       { path: 'examId', select: 'title duration' },
