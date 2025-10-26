@@ -627,7 +627,8 @@ export async function checkReferenceBookExists(req: Request, res: Response, next
       return res.json({
         success: true,
         exists: false,
-        message: "No reference book uploaded for this subject"
+        message: "No reference book uploaded for this subject",
+        version: "v2.1.0-route-fix-deployed"
       });
     }
     
@@ -637,7 +638,8 @@ export async function checkReferenceBookExists(req: Request, res: Response, next
     res.json({
       success: true,
       exists: fileExists,
-      message: fileExists ? "Reference book file exists" : "Reference book file not found on server"
+      message: fileExists ? "Reference book file exists" : "Reference book file not found on server",
+      version: "v2.1.0-route-fix-deployed"
     });
   } catch (err) {
     next(err);
