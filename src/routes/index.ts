@@ -1524,33 +1524,6 @@ router.post("/admin/subjects/:id/reference-book-base64", requireAuth, requireRol
 
 /**
  * @openapi
- * /api/admin/subjects/{id}/reference-book:
- *   get:
- *     tags: [Admin - Subjects]
- *     summary: Download reference book PDF for a subject
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Reference book PDF file
- *         content:
- *           application/pdf:
- *             schema:
- *               type: string
- *               format: binary
- *       404:
- *         description: Subject or reference book not found
- */
-router.get("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadReferenceBook);
-
-/**
- * @openapi
  * /api/admin/subjects/{id}/reference-book/check:
  *   get:
  *     tags: [Admin - Subjects]
@@ -1581,6 +1554,33 @@ router.get("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMI
  *         description: Subject not found
  */
 router.get("/admin/subjects/:id/reference-book/check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), checkReferenceBookExists);
+
+/**
+ * @openapi
+ * /api/admin/subjects/{id}/reference-book:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Download reference book PDF for a subject
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reference book PDF file
+ *         content:
+ *           application/pdf:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: Subject or reference book not found
+ */
+router.get("/admin/subjects/:id/reference-book", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), downloadReferenceBook);
 
 /**
  * @openapi
