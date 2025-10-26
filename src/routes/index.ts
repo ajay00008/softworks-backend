@@ -1550,8 +1550,37 @@ router.post("/admin/subjects/:id/reference-book-base64", requireAuth, requireRol
  *                   type: boolean
  *                 message:
  *                   type: string
+ *                 version:
+ *                   type: string
+ *                   description: API version identifier for deployment verification
  *       404:
  *         description: Subject not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 version:
+ *                   type: string
+ *                   description: API version identifier for deployment verification
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 version:
+ *                   type: string
+ *                   description: API version identifier for deployment verification
  */
 router.get("/admin/subjects/:id/reference-book/check", requireAuth, requireRoles("ADMIN", "SUPER_ADMIN"), checkReferenceBookExists);
 

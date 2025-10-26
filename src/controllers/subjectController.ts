@@ -620,7 +620,11 @@ export async function checkReferenceBookExists(req: Request, res: Response, next
     
     const subject = await Subject.findOne({ _id: id, adminId });
     if (!subject) {
-      throw new createHttpError.NotFound("Subject not found");
+      return res.status(404).json({
+        success: false,
+        error: "Subject not found",
+        version: "v2.1.0-route-fix-deployed"
+      });
     }
     
     if (!subject.referenceBook) {
@@ -642,7 +646,12 @@ export async function checkReferenceBookExists(req: Request, res: Response, next
       version: "v2.1.0-route-fix-deployed"
     });
   } catch (err) {
-    next(err);
+    console.error('Error in checkReferenceBookExists:', err);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+      version: "v2.1.0-route-fix-deployed"
+    });
   }
 }
 
