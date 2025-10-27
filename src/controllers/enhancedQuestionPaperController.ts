@@ -112,24 +112,27 @@ export async function uploadPatternFileEndpoint(req: Request, res: Response, nex
 function flattenQuestionTypeDistribution(questionTypeDistribution: any): Array<{
   type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
   percentage: number;
+  marks: number; // Add marks to preserve context
 }> {
   const flattened: Array<{
     type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
     percentage: number;
+    marks: number;
   }> = [];
   
   const markCategories = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+  const markValues = { oneMark: 1, twoMark: 2, threeMark: 3, fiveMark: 5 };
   
   // Process each mark category separately to maintain the intended distribution
   for (const mark of markCategories) {
     const distributions = questionTypeDistribution[mark];
     if (distributions && distributions.length > 0) {
-      // For each mark category, add the distributions as-is
-      // The AI service will handle the mark-based generation
+      // For each mark category, add the distributions with mark context
       distributions.forEach((dist: any) => {
         flattened.push({
           type: dist.type as 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER',
-          percentage: dist.percentage // Keep the original percentage
+          percentage: dist.percentage,
+          marks: markValues[mark] // Preserve the mark value
         });
       });
     }

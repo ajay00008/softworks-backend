@@ -44,11 +44,11 @@ async function run() {
       { code: "PHYSICS", name: "Physics", shortName: "Phy", category: "SCIENCE", level: [9, 10, 11, 12], color: "#4ECDC4" },
       { code: "CHEMISTRY", name: "Chemistry", shortName: "Chem", category: "SCIENCE", level: [9, 10, 11, 12], color: "#45B7D1" },
       { code: "BIOLOGY", name: "Biology", shortName: "Bio", category: "SCIENCE", level: [9, 10, 11, 12], color: "#96CEB4" },
-      { code: "ENGLISH", name: "English", shortName: "Eng", category: "LANGUAGES", level: [9, 10, 11, 12], color: "#FFEAA7" },
-      { code: "HINDI", name: "Hindi", shortName: "Hindi", category: "LANGUAGES", level: [9, 10, 11, 12], color: "#DDA0DD" },
-      { code: "HISTORY", name: "History", shortName: "Hist", category: "SOCIAL_SCIENCES", level: [9, 10, 11, 12], color: "#98D8C8" },
-      { code: "GEOGRAPHY", name: "Geography", shortName: "Geo", category: "SOCIAL_SCIENCES", level: [9, 10, 11, 12], color: "#F7DC6F" },
-      { code: "ECONOMICS", name: "Economics", shortName: "Eco", category: "COMMERCE", level: [11, 12], color: "#BB8FCE" },
+      { code: "ENGLISH", name: "English", shortName: "Eng", category: "ENGLISH", level: [9, 10, 11, 12], color: "#FFEAA7" },
+      { code: "HINDI", name: "Hindi", shortName: "Hindi", category: "HINDI", level: [9, 10, 11, 12], color: "#DDA0DD" },
+      { code: "HISTORY", name: "History", shortName: "Hist", category: "HISTORY", level: [9, 10, 11, 12], color: "#98D8C8" },
+      { code: "GEOGRAPHY", name: "Geography", shortName: "Geo", category: "GEOGRAPHY", level: [9, 10, 11, 12], color: "#F7DC6F" },
+      { code: "ECONOMICS", name: "Economics", shortName: "Eco", category: "ECONOMICS", level: [11, 12], color: "#BB8FCE" },
       { code: "COMPUTER_SCIENCE", name: "Computer Science", shortName: "CS", category: "COMPUTER_SCIENCE", level: [9, 10, 11, 12], color: "#85C1E9" },
     ];
     

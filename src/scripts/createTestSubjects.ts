@@ -76,7 +76,7 @@ async function createTestSubjects() {
         code: 'ENG',
         name: 'English',
         shortName: 'Eng',
-        category: 'LANGUAGES',
+        category: 'ENGLISH',
         classIds: [], // Will be populated later
         description: 'English language subject',
         color: '#EF4444', // Red

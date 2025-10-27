@@ -22,6 +22,7 @@ export interface EnhancedQuestionGenerationRequest {
   questionTypeDistribution: Array<{
     type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
     percentage: number;
+    marks: number; // Add marks to preserve context
   }>;
   useSubjectBook: boolean;
   customInstructions?: string;
@@ -253,9 +254,9 @@ export class EnhancedAIService {
       `${dist.level}: ${dist.percentage}%`
     ).join(', ');
 
-    // Build question type distribution text
+    // Build question type distribution text with marks context
     const questionTypesText = questionTypeDistribution.map(dist => 
-      `${this.getQuestionTypeName(dist.type)}: ${dist.percentage}%`
+      `${this.getQuestionTypeName(dist.type)} (${dist.marks}-mark): ${dist.percentage}%`
     ).join(', ');
 
     // Build mark distribution text
@@ -320,6 +321,8 @@ ${questionTypesText}
 - Provide 4-6 options: ["Solar", "Coal", "Wind", "Natural Gas", "Hydroelectric", "Nuclear"]
 - Correct Answer: "Solar, Wind, Hydroelectric" (multiple options)
 - Include options array AND multipleCorrectAnswers array
+- **CRITICAL: ALWAYS include the 'options' array with 4-6 options**
+- **CRITICAL: ALWAYS include the 'multipleCorrectAnswers' array with 2-3 correct options**
 
 **ONE_WORD_ANSWER Questions:**
 - Format: "What is the chemical symbol for gold?"
@@ -382,11 +385,11 @@ ${customInstructions ? `\n**CUSTOM INSTRUCTIONS:**\n${customInstructions}` : ''}
 2. Follow the mark distribution precisely
 3. Distribute questions according to Bloom's taxonomy percentages
 4. **DO NOT generate extra questions beyond the specified count**
-5. **CRITICAL: Generate question types based on marks when no specific type is specified**
-6. **For 1-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'TRUE_FALSE' || qt.type === 'ONE_WORD_ANSWER' || qt.type === 'SHORT_ANSWER').map(qt => qt.type).join(', ') || 'SHORT_ANSWER or ONE_WORD_ANSWER based on content complexity'} questions**
-7. **For 2-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER' || qt.type === 'CHOOSE_BEST_ANSWER').map(qt => qt.type).join(', ') || 'SHORT_ANSWER or CHOOSE_BEST_ANSWER based on content complexity'} questions**
-8. **For 3-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER').map(qt => qt.type).join(', ') || 'SHORT_ANSWER only (no multiple choice for 3+ marks)'} questions**
-9. **For 5-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.type === 'LONG_ANSWER' || qt.type === 'SHORT_ANSWER').map(qt => qt.type).join(', ') || 'LONG_ANSWER or detailed SHORT_ANSWER based on content complexity'} questions**
+5. **CRITICAL: Generate question types based on the specific distribution provided**
+6. **For 1-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.marks === 1).map(qt => `${qt.type} (${qt.percentage}%)`).join(', ') || 'SHORT_ANSWER or ONE_WORD_ANSWER based on content complexity'} questions**
+7. **For 2-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.marks === 2).map(qt => `${qt.type} (${qt.percentage}%)`).join(', ') || 'SHORT_ANSWER or CHOOSE_BEST_ANSWER based on content complexity'} questions**
+8. **For 3-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.marks === 3).map(qt => `${qt.type} (${qt.percentage}%)`).join(', ') || 'SHORT_ANSWER only (no multiple choice for 3+ marks)'} questions**
+9. **For 5-mark questions: Generate ${questionTypeDistribution.filter(qt => qt.marks === 5).map(qt => `${qt.type} (${qt.percentage}%)`).join(', ') || 'LONG_ANSWER or detailed SHORT_ANSWER based on content complexity'} questions**
 10. Ensure questions are age-appropriate for ${className}
 11. Make questions relevant to ${subjectName}
 12. Include ${twistedQuestionsPercentage}% twisted/challenging questions
@@ -420,12 +423,17 @@ Return a JSON array of questions with the following structure:
 
 **FINAL CRITICAL INSTRUCTIONS:**
 1. **MUST follow the exact question type distribution specified above**
-2. **MARK-BASED QUESTION TYPE RULES (CRITICAL):**
-   - **1-mark questions**: ONLY use ONE_WORD_ANSWER, TRUE_FALSE, or simple SHORT_ANSWER
-   - **2-mark questions**: ONLY use SHORT_ANSWER or CHOOSE_BEST_ANSWER
-   - **3-mark questions**: ONLY use SHORT_ANSWER (no multiple choice for 3+ marks)
-   - **5-mark questions**: ONLY use LONG_ANSWER or detailed SHORT_ANSWER
-3. **ABSOLUTELY FORBIDDEN for 5-mark questions:**
+2. **QUESTION TYPE DISTRIBUTION RULES (CRITICAL):**
+   - **Follow the exact question type distribution specified above**
+   - **If CHOOSE_MULTIPLE_ANSWERS is specified for any mark category, generate it with proper options**
+   - **If CHOOSE_BEST_ANSWER is specified for any mark category, generate it with proper options**
+   - **For questions without specified types, use mark-appropriate defaults**
+3. **DEFAULT RULES (only when no specific question type is specified):**
+   - **1-mark questions**: Default to ONE_WORD_ANSWER, TRUE_FALSE, or simple SHORT_ANSWER
+   - **2-mark questions**: Default to SHORT_ANSWER or CHOOSE_BEST_ANSWER
+   - **3-mark questions**: Default to SHORT_ANSWER (no multiple choice for 3+ marks)
+   - **5-mark questions**: Default to LONG_ANSWER or detailed SHORT_ANSWER
+4. **ABSOLUTELY FORBIDDEN for 5-mark questions (only when no specific type is specified):**
    - NO CHOOSE_BEST_ANSWER
    - NO CHOOSE_MULTIPLE_ANSWERS
    - NO FILL_BLANKS
@@ -443,6 +451,10 @@ Return a JSON array of questions with the following structure:
 10. **Do NOT mix question types - follow the distribution precisely**
 11. **For 5-mark questions: Ensure they are comprehensive and detailed, requiring substantial answers**
 12. **REMEMBER: Question type should match the marks - higher marks = more detailed answer types**
+13. **CRITICAL FOR CHOOSE_MULTIPLE_ANSWERS: You MUST include both 'options' array (4-6 options) AND 'multipleCorrectAnswers' array (2-3 correct answers)**
+14. **If you generate CHOOSE_MULTIPLE_ANSWERS without options, the question will be unusable**
+15. **PRIORITY: Always follow the specific question type distribution over default rules**
+16. **If CHOOSE_MULTIPLE_ANSWERS is specified, ignore any conflicting mark-based restrictions**
 
 Generate the question paper now:`;
   }
@@ -663,29 +675,15 @@ Generate the question paper now:`;
 
   /**
    * Enforce mark-based question types after AI generation
+   * NOTE: This function now respects specific question type distributions
    */
   private static enforceMarkBasedQuestionTypes(questions: EnhancedGeneratedQuestion[]): EnhancedGeneratedQuestion[] {
     return questions.map(question => {
       const marks = question.marks;
       let correctedQuestionType = question.questionType;
       
-      // Enforce mark-based question types
-      if (marks === 1) {
-        // 1-mark questions: Only simple types
-        if (!['ONE_WORD_ANSWER', 'TRUE_FALSE', 'SHORT_ANSWER'].includes(question.questionType)) {
-          correctedQuestionType = 'SHORT_ANSWER';
-        }
-      } else if (marks === 2) {
-        // 2-mark questions: Short answers or simple multiple choice
-        if (!['SHORT_ANSWER', 'CHOOSE_BEST_ANSWER'].includes(question.questionType)) {
-          correctedQuestionType = 'SHORT_ANSWER';
-        }
-      } else if (marks === 3) {
-        // 3-mark questions: Short answers only (no multiple choice for 3+ marks)
-        if (!['SHORT_ANSWER'].includes(question.questionType)) {
-          correctedQuestionType = 'SHORT_ANSWER';
-        }
-      } else if (marks === 5) {
+      // Only apply mark-based restrictions for 5-mark questions (which should never be multiple choice)
+      if (marks === 5) {
         // 5-mark questions: ONLY long answers or detailed short answers
         if (!['LONG_ANSWER', 'SHORT_ANSWER'].includes(question.questionType)) {
           correctedQuestionType = 'LONG_ANSWER';
@@ -696,18 +694,19 @@ Generate the question paper now:`;
           // Convert to LONG_ANSWER for 5-mark questions to ensure they are comprehensive
           correctedQuestionType = 'LONG_ANSWER';
         }
+        
+        // Remove options for 5-mark questions (they should be long answers)
+        if (correctedQuestionType !== 'CHOOSE_BEST_ANSWER' && correctedQuestionType !== 'CHOOSE_MULTIPLE_ANSWERS') {
+          question.options = undefined;
+        }
       }
       
-      // Remove options for non-multiple choice questions
-      let options = question.options;
-      if (!['CHOOSE_BEST_ANSWER', 'CHOOSE_MULTIPLE_ANSWERS'].includes(correctedQuestionType)) {
-        options = undefined;
-      }
+      // For all other marks (1, 2, 3), preserve the original question type and options
+      // The AI prompt now handles the correct question type generation
       
       return {
         ...question,
-        questionType: correctedQuestionType,
-        options: options
+        questionType: correctedQuestionType
       };
     });
   }
@@ -719,12 +718,12 @@ Generate the question paper now:`;
     const { markDistribution, questionTypeDistribution } = request;
     const distributedQuestions: EnhancedGeneratedQuestion[] = [];
     
-    // Process each mark category
+    // Process each mark category using the marks context from questionTypeDistribution
     const markCategories = [
-      { mark: 1, count: markDistribution.oneMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'TRUE_FALSE' || qt.type === 'ONE_WORD_ANSWER' || qt.type === 'SHORT_ANSWER') },
-      { mark: 2, count: markDistribution.twoMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER' || qt.type === 'CHOOSE_BEST_ANSWER') },
-      { mark: 3, count: markDistribution.threeMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'SHORT_ANSWER') },
-      { mark: 5, count: markDistribution.fiveMark, distributions: questionTypeDistribution.filter(qt => qt.type === 'LONG_ANSWER' || qt.type === 'SHORT_ANSWER') }
+      { mark: 1, count: markDistribution.oneMark, distributions: questionTypeDistribution.filter(qt => qt.marks === 1) },
+      { mark: 2, count: markDistribution.twoMark, distributions: questionTypeDistribution.filter(qt => qt.marks === 2) },
+      { mark: 3, count: markDistribution.threeMark, distributions: questionTypeDistribution.filter(qt => qt.marks === 3) },
+      { mark: 5, count: markDistribution.fiveMark, distributions: questionTypeDistribution.filter(qt => qt.marks === 5) }
     ];
     
     for (const category of markCategories) {
@@ -789,6 +788,16 @@ Generate the question paper now:`;
       }
 
       return questions.map((q: any) => {
+        // Debug logging for CHOOSE_MULTIPLE_ANSWERS questions
+        if (q.questionType === 'CHOOSE_MULTIPLE_ANSWERS') {
+          console.log('DEBUG - CHOOSE_MULTIPLE_ANSWERS question:', {
+            questionText: q.questionText,
+            options: q.options,
+            multipleCorrectAnswers: q.multipleCorrectAnswers,
+            correctAnswer: q.correctAnswer
+          });
+        }
+
         // Handle correctAnswer field - convert array to string if needed
         let correctAnswer = '';
         if (Array.isArray(q.correctAnswer)) {

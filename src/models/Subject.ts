@@ -43,7 +43,7 @@ const SubjectSchema = new Schema<ISubject>(
     category: { 
       type: String, 
       required: true,
-      enum: ["SCIENCE", "MATHEMATICS", "LANGUAGES", "SOCIAL_SCIENCES", "COMMERCE", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "OTHER"],
+      enum: ["SCIENCE", "MATHEMATICS", "ENGLISH", "HINDI", "LANGUAGES", "SOCIAL_SCIENCES", "HISTORY", "GEOGRAPHY", "CIVICS", "ECONOMICS", "COMMERCE", "ACCOUNTANCY", "BUSINESS_STUDIES", "ARTS", "PHYSICAL_EDUCATION", "COMPUTER_SCIENCE", "INFORMATION_TECHNOLOGY", "OTHER"],
       uppercase: true
     },
     classIds: [{ 

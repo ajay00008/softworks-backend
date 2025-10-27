@@ -233,6 +233,15 @@ export class PDFGenerationService {
     let currentY = Math.max(questionY + questionTextHeight + 10, questionY + 25);
 
     // Options with proper alignment - only for multiple choice questions
+    if (question.questionType === 'CHOOSE_MULTIPLE_ANSWERS') {
+      console.log('DEBUG - PDF Generation - CHOOSE_MULTIPLE_ANSWERS question:', {
+        questionText: question.questionText,
+        options: question.options,
+        optionsLength: question.options?.length,
+        hasOptions: !!question.options
+      });
+    }
+    
     if (question.options && question.options.length > 0 && 
         (question.questionType === 'CHOOSE_BEST_ANSWER' || question.questionType === 'CHOOSE_MULTIPLE_ANSWERS')) {
       question.options.forEach((opt, i) => {
