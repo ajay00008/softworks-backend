@@ -49,6 +49,7 @@ import {
 import {
   createSubject,
   getSubjects,
+  getSubjectsByAdmin,
   getSubject,
   updateSubject,
   deleteSubject,
@@ -1490,6 +1491,57 @@ router.get(
 
 /**
  * @openapi
+ * /api/admin/subjects/admin/{adminId}:
+ *   get:
+ *     tags: [Admin - Subjects]
+ *     summary: Get all subjects for a specific admin (Super Admin only)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: adminId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: level
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: List of subjects for the admin
+ */
+router.get(
+  "/admin/subjects/admin/:adminId",
+  requireAuth,
+  requireRoles("SUPER_ADMIN"),
+  getSubjectsByAdmin
+);
+
+/**
+ * @openapi
  * /api/admin/subjects/{id}:
  *   get:
  *     tags: [Admin - Subjects]
@@ -1816,7 +1868,7 @@ router.delete(
  *                   type: boolean
  *                 message:
  *                   type: string
- m *                 version:
+ *                 version:
  *                   type: string
  *                   description: API version identifier for deployment verification
  *       404:

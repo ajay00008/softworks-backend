@@ -19,6 +19,7 @@ export interface EnhancedQuestionGenerationRequest {
     questionTypeDistribution: Array<{
         type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
         percentage: number;
+        marks: number;
     }>;
     useSubjectBook: boolean;
     customInstructions?: string;
@@ -175,8 +176,13 @@ export declare class EnhancedAIService {
     private static createMockQuestion;
     /**
      * Enforce mark-based question types after AI generation
+     * NOTE: This function now respects specific question type distributions
      */
     private static enforceMarkBasedQuestionTypes;
+    /**
+     * Apply mark-based distribution to ensure correct question types
+     */
+    private static applyMarkBasedDistribution;
     /**
      * Parse generated questions from AI response
      */

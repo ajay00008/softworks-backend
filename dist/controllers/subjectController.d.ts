@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 export declare const uploadReferenceBook: (req: Request, res: Response, next: NextFunction) => void;
 export declare function createSubject(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getSubjects(req: Request, res: Response, next: NextFunction): Promise<void>;
+export declare function getSubjectsByAdmin(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function getSubject(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function updateSubject(req: Request, res: Response, next: NextFunction): Promise<void>;
 export declare function deleteSubject(req: Request, res: Response, next: NextFunction): Promise<void>;

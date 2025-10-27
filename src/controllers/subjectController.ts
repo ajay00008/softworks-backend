@@ -261,6 +261,86 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
   }
 }
 
+// Get Subjects by Admin ID (for Super Admin)
+export async function getSubjectsByAdmin(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { adminId } = req.params;
+    const { page, limit, search, category, level, isActive } = GetSubjectsQuerySchema.parse(req.query);
+    
+    const query: any = { adminId: new mongoose.Types.ObjectId(adminId) };
+    
+    if (category) {
+      query.category = category.toUpperCase();
+    }
+    
+    if (level) {
+      query.level = level;
+    }
+    
+    if (isActive !== undefined) {
+      query.isActive = isActive;
+    }
+    
+    if (search) {
+      query.$or = [
+        { code: { $regex: search, $options: "i" } },
+        { name: { $regex: search, $options: "i" } },
+        { shortName: { $regex: search, $options: "i" } }
+      ];
+    }
+    
+    const skip = (page - 1) * limit;
+    
+    const [subjects, total] = await Promise.all([
+      Subject.find(query)
+        .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt')
+        .sort({ category: 1, name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Subject.countDocuments(query)
+    ]);
+
+    // Get templates for each subject
+    const subjectIds = subjects.map(subject => subject._id);
+    const templates = await QuestionPaperTemplate.find({
+      subjectId: { $in: subjectIds },
+      isActive: true
+    })
+    .select('_id title description subjectId classId templateFile analysis language version createdAt')
+    .lean();
+
+    // Group templates by subjectId
+    const templatesBySubject = templates.reduce((acc, template) => {
+      const subjectId = template.subjectId.toString();
+      if (!acc[subjectId]) {
+        acc[subjectId] = [];
+      }
+      acc[subjectId].push(template);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    // Add templates to each subject
+    const subjectsWithTemplates = subjects.map(subject => ({
+      ...subject,
+      templates: templatesBySubject[subject._id.toString()] || []
+    }));
+    
+    res.json({
+      success: true,
+      data: subjectsWithTemplates,
+      pagination: {
+        total,
+        page,
+        limit,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // Get Single Subject
 export async function getSubject(req: Request, res: Response, next: NextFunction) {
   try {

@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import * as createHttpError from 'http-errors';
+import createHttpError from 'http-errors';
 import * as z from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -66,31 +66,48 @@ export async function createTemplate(req: Request, res: Response, next: NextFunc
     const adminId = auth?.adminId;
     
     if (!userId) {
-      throw new createHttpError.Unauthorized("User not authenticated");
+      throw createHttpError(401, "User not authenticated");
     }
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     if (!req.file) {
-      throw new createHttpError.BadRequest("Template file is required");
+      throw createHttpError(400, "Template file is required");
     }
     
     // Validate subject exists and belongs to the admin
-    const subject = await Subject.findOne({ _id: templateData.subjectId, adminId, isActive: true });
+    // For SUPER_ADMIN, allow uploading templates for any subject
+    // For ADMIN, only allow uploading for their own subjects
+    let subject;
+    if (auth?.role === 'SUPER_ADMIN') {
+      subject = await Subject.findOne({ _id: templateData.subjectId, isActive: true });
+    } else {
+      subject = await Subject.findOne({ _id: templateData.subjectId, adminId, isActive: true });
+    }
     
-    if (!subject) throw new createHttpError.NotFound("Subject not found or not accessible");
+    if (!subject) throw createHttpError(404, "Subject not found or not accessible");
     
     // Check if template already exists for this subject
-    const existingTemplate = await QuestionPaperTemplate.findOne({
-      subjectId: templateData.subjectId,
-      adminId,
-      isActive: true
-    });
+    // For SUPER_ADMIN, check if template exists for the subject regardless of adminId
+    // For ADMIN, check if template exists for their adminId
+    let existingTemplate;
+    if (auth?.role === 'SUPER_ADMIN') {
+      existingTemplate = await QuestionPaperTemplate.findOne({
+        subjectId: templateData.subjectId,
+        isActive: true
+      });
+    } else {
+      existingTemplate = await QuestionPaperTemplate.findOne({
+        subjectId: templateData.subjectId,
+        adminId,
+        isActive: true
+      });
+    }
     
     if (existingTemplate) {
-      throw new createHttpError.Conflict("Template already exists for this subject");
+      throw createHttpError(409, "Template already exists for this subject");
     }
     
     // Create download URL
@@ -124,9 +141,13 @@ export async function createTemplate(req: Request, res: Response, next: NextFunc
       sections: []
     };
     
+    // For SUPER_ADMIN, use the subject's adminId
+    // For ADMIN, use their own adminId
+    const templateAdminId = auth?.role === 'SUPER_ADMIN' ? subject.adminId : adminId;
+    
     const template = await QuestionPaperTemplate.create({
       ...templateData,
-      adminId,
+      adminId: templateAdminId,
       uploadedBy: userId,
       templateFile: {
         fileName: req.file.filename,
@@ -158,12 +179,17 @@ export async function getTemplates(req: Request, res: Response, next: NextFuncti
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const { subjectId } = req.query;
     
-    const filter: any = { adminId, isActive: true };
+    // For SUPER_ADMIN, get templates for all subjects
+    // For ADMIN, get templates only for their subjects
+    const filter: any = { isActive: true };
+    if (auth?.role !== 'SUPER_ADMIN') {
+      filter.adminId = adminId;
+    }
     if (subjectId) filter.subjectId = subjectId;
     
     const templates = await QuestionPaperTemplate.find(filter)
@@ -188,7 +214,7 @@ export async function getTemplateById(req: Request, res: Response, next: NextFun
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const template = await QuestionPaperTemplate.findOne({ 
@@ -200,7 +226,7 @@ export async function getTemplateById(req: Request, res: Response, next: NextFun
       .populate('uploadedBy', 'name email');
     
     if (!template) {
-      throw new createHttpError.NotFound("Template not found");
+      throw createHttpError(404, "Template not found");
     }
     
     res.json({
@@ -221,7 +247,7 @@ export async function updateTemplate(req: Request, res: Response, next: NextFunc
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const template = await QuestionPaperTemplate.findOneAndUpdate(
@@ -233,7 +259,7 @@ export async function updateTemplate(req: Request, res: Response, next: NextFunc
       .populate('uploadedBy', 'name email');
     
     if (!template) {
-      throw new createHttpError.NotFound("Template not found");
+      throw createHttpError(404, "Template not found");
     }
     
     res.json({
@@ -251,19 +277,27 @@ export async function deleteTemplate(req: Request, res: Response, next: NextFunc
     const { id } = req.params;
     const auth = (req as any).auth;
     const adminId = auth?.adminId;
+    const role = auth?.role;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
-    const template = await QuestionPaperTemplate.findOne({ 
+    // For SUPER_ADMIN, allow deletion of any template
+    // For regular ADMIN, only allow deletion of their own templates
+    const query: any = { 
       _id: id, 
-      adminId, 
       isActive: true 
-    });
+    };
+    
+    if (role !== 'SUPER_ADMIN') {
+      query.adminId = adminId;
+    }
+    
+    const template = await QuestionPaperTemplate.findOne(query);
     
     if (!template) {
-      throw new createHttpError.NotFound("Template not found");
+      throw createHttpError(404, "Template not found");
     }
     
     // Delete the file
@@ -296,24 +330,32 @@ export async function downloadTemplate(req: Request, res: Response, next: NextFu
     const { id } = req.params;
     const auth = (req as any).auth;
     const adminId = auth?.adminId;
+    const role = auth?.role;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
-    const template = await QuestionPaperTemplate.findOne({ 
+    // For SUPER_ADMIN, allow download of any template
+    // For regular ADMIN, only allow download of their own templates
+    const query: any = { 
       _id: id, 
-      adminId, 
       isActive: true 
-    });
+    };
+    
+    if (role !== 'SUPER_ADMIN') {
+      query.adminId = adminId;
+    }
+    
+    const template = await QuestionPaperTemplate.findOne(query);
     
     if (!template) {
-      throw new createHttpError.NotFound("Template not found");
+      throw createHttpError(404, "Template not found");
     }
     
     const filePath = template.templateFile?.filePath;
     if (!filePath || !fs.existsSync(filePath)) {
-      throw new createHttpError.NotFound("Template file not found");
+      throw createHttpError(404, "Template file not found");
     }
     
     res.download(filePath, template.templateFile.fileName);
@@ -330,7 +372,7 @@ export async function analyzeTemplate(req: Request, res: Response, next: NextFun
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const template = await QuestionPaperTemplate.findOne({ 
@@ -340,7 +382,7 @@ export async function analyzeTemplate(req: Request, res: Response, next: NextFun
     });
     
     if (!template) {
-      throw new createHttpError.NotFound("Template not found");
+      throw createHttpError(404, "Template not found");
     }
     
     // TODO: Implement PDF analysis to extract:

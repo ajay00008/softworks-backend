@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import * as createHttpError from 'http-errors';
+import createHttpError from 'http-errors';
 import * as z from 'zod';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -65,21 +65,21 @@ export async function createSamplePaper(req: Request, res: Response, next: NextF
     const adminId = auth?.adminId;
     
     if (!userId) {
-      throw new createHttpError.Unauthorized("User not authenticated");
+      throw createHttpError(401, "User not authenticated");
     }
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     if (!req.file) {
-      throw new createHttpError.BadRequest("Sample paper file is required");
+      throw createHttpError(400, "Sample paper file is required");
     }
     
     // Validate subject exists and belongs to the admin
     const subject = await Subject.findOne({ _id: sampleData.subjectId, adminId, isActive: true });
     
-    if (!subject) throw new createHttpError.NotFound("Subject not found or not accessible");
+    if (!subject) throw createHttpError(404, "Subject not found or not accessible");
     
     // Create download URL
     const downloadUrl = `/public/sample-papers/${req.file.filename}`;
@@ -152,7 +152,7 @@ export async function getSamplePapers(req: Request, res: Response, next: NextFun
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const { subjectId } = req.query;
@@ -182,7 +182,7 @@ export async function getSamplePaperById(req: Request, res: Response, next: Next
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const samplePaper = await SamplePaper.findOne({ 
@@ -194,7 +194,7 @@ export async function getSamplePaperById(req: Request, res: Response, next: Next
       .populate('uploadedBy', 'name email');
     
     if (!samplePaper) {
-      throw new createHttpError.NotFound("Sample paper not found");
+      throw createHttpError(404, "Sample paper not found");
     }
     
     res.json({
@@ -215,7 +215,7 @@ export async function updateSamplePaper(req: Request, res: Response, next: NextF
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const samplePaper = await SamplePaper.findOneAndUpdate(
@@ -227,7 +227,7 @@ export async function updateSamplePaper(req: Request, res: Response, next: NextF
       .populate('uploadedBy', 'name email');
     
     if (!samplePaper) {
-      throw new createHttpError.NotFound("Sample paper not found");
+      throw createHttpError(404, "Sample paper not found");
     }
     
     res.json({
@@ -247,7 +247,7 @@ export async function deleteSamplePaper(req: Request, res: Response, next: NextF
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const samplePaper = await SamplePaper.findOne({ 
@@ -257,7 +257,7 @@ export async function deleteSamplePaper(req: Request, res: Response, next: NextF
     });
     
     if (!samplePaper) {
-      throw new createHttpError.NotFound("Sample paper not found");
+      throw createHttpError(404, "Sample paper not found");
     }
     
     // Delete the file
@@ -292,7 +292,7 @@ export async function downloadSamplePaper(req: Request, res: Response, next: Nex
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const samplePaper = await SamplePaper.findOne({ 
@@ -302,12 +302,12 @@ export async function downloadSamplePaper(req: Request, res: Response, next: Nex
     });
     
     if (!samplePaper) {
-      throw new createHttpError.NotFound("Sample paper not found");
+      throw createHttpError(404, "Sample paper not found");
     }
     
     const filePath = samplePaper.sampleFile?.filePath;
     if (!filePath || !fs.existsSync(filePath)) {
-      throw new createHttpError.NotFound("Sample paper file not found");
+      throw createHttpError(404, "Sample paper file not found");
     }
     
     res.download(filePath, samplePaper.sampleFile.fileName);
@@ -324,7 +324,7 @@ export async function analyzeSamplePaper(req: Request, res: Response, next: Next
     const adminId = auth?.adminId;
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw createHttpError(401, "Admin ID not found in token");
     }
     
     const samplePaper = await SamplePaper.findOne({ 
@@ -334,7 +334,7 @@ export async function analyzeSamplePaper(req: Request, res: Response, next: Next
     });
     
     if (!samplePaper) {
-      throw new createHttpError.NotFound("Sample paper not found");
+      throw createHttpError(404, "Sample paper not found");
     }
     
     // TODO: Implement PDF analysis to extract:
