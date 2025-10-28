@@ -1,4 +1,5 @@
-import { AnswerSheet, IAnswerSheetFlag, FlagType, FlagSeverity } from '../models/AnswerSheet';
+import { AnswerSheet } from '../models/AnswerSheet';
+import type { IAnswerSheetFlag, FlagType, FlagSeverity } from '../models/AnswerSheet';
 import { logger } from '../utils/logger';
 
 export interface FlagCreationData {

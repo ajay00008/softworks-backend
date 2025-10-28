@@ -104,7 +104,7 @@ import {
   getExamContext,
   getTeacherExamsWithContext,
   validateTeacherAccess,
-  getExamStatistics,
+  getTeacherExamStatistics,
 } from "../controllers/examContextController";
 import {
   addFlag,
@@ -6334,7 +6334,7 @@ router.get(
   "/teacher/exam-context/:examId/statistics",
   requireAuth,
   requireRoles("TEACHER"),
-  getExamStatistics
+  getTeacherExamStatistics
 );
 
 // ==================== FLAG MANAGEMENT ROUTES ====================

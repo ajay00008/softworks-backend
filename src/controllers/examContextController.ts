@@ -127,9 +127,9 @@ export const validateTeacherAccess = async (req: Request, res: Response) => {
 };
 
 /**
- * Get exam statistics for dashboard
+ * Get exam statistics for teacher dashboard
  */
-export const getExamStatistics = async (req: Request, res: Response) => {
+export const getTeacherExamStatistics = async (req: Request, res: Response) => {
   try {
     const { examId } = req.params;
     const teacherId = (req as any).auth?.sub;

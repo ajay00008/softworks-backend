@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
-import { FlagManagementService, FlagCreationData, FlagResolutionData } from '../services/flagManagementService';
+import { FlagManagementService } from '../services/flagManagementService';
+import type { FlagCreationData, FlagResolutionData } from '../services/flagManagementService';
 import { logger } from '../utils/logger';
 
 /**
