@@ -101,6 +101,22 @@ import {
   getAnswerSheets,
 } from "../controllers/teacherDashboardController";
 import {
+  getExamContext,
+  getTeacherExamsWithContext,
+  validateTeacherAccess,
+  getExamStatistics,
+} from "../controllers/examContextController";
+import {
+  addFlag,
+  resolveFlag,
+  resolveAllFlags,
+  getAnswerSheetFlags,
+  getFlaggedAnswerSheets,
+  getFlagStatistics,
+  autoDetectFlags,
+  bulkResolveFlags,
+} from "../controllers/flagManagementController";
+import {
   createStaffAccess,
   getAllStaffAccess,
   getStaffAccess,
@@ -6209,6 +6225,414 @@ router.get(
   requireAuth,
   requireRoles("TEACHER"),
   getTeacherExams
+);
+
+/**
+ * @openapi
+ * /api/teacher/exam-context/{examId}:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get comprehensive exam context data
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Exam context data retrieved successfully
+ *       403:
+ *         description: Access denied to exam
+ *       404:
+ *         description: Exam not found
+ */
+router.get(
+  "/teacher/exam-context/:examId",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getExamContext
+);
+
+/**
+ * @openapi
+ * /api/teacher/exams-with-context:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get all accessible exams with context data
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Exams with context retrieved successfully
+ *       404:
+ *         description: Teacher not found
+ */
+router.get(
+  "/teacher/exams-with-context",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getTeacherExamsWithContext
+);
+
+/**
+ * @openapi
+ * /api/teacher/exam-context/{examId}/validate-access:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Validate teacher access to exam operations
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: operation
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [upload, evaluate, view]
+ *     responses:
+ *       200:
+ *         description: Access validation result
+ *       400:
+ *         description: Invalid operation
+ */
+router.get(
+  "/teacher/exam-context/:examId/validate-access",
+  requireAuth,
+  requireRoles("TEACHER"),
+  validateTeacherAccess
+);
+
+/**
+ * @openapi
+ * /api/teacher/exam-context/{examId}/statistics:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get exam statistics for dashboard
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Exam statistics retrieved successfully
+ *       403:
+ *         description: Access denied
+ */
+router.get(
+  "/teacher/exam-context/:examId/statistics",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getExamStatistics
+);
+
+// ==================== FLAG MANAGEMENT ROUTES ====================
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{answerSheetId}/flags:
+ *   post:
+ *     tags: [Flag Management]
+ *     summary: Add a flag to an answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [type, severity, description]
+ *             properties:
+ *               type:
+ *                 type: string
+ *                 enum: [UNMATCHED_ROLL, POOR_QUALITY, MISSING_PAGES, ALIGNMENT_ISSUE, DUPLICATE_UPLOAD, INVALID_FORMAT, SIZE_TOO_LARGE, CORRUPTED_FILE, MANUAL_REVIEW_REQUIRED]
+ *               severity:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *               description:
+ *                 type: string
+ *               autoResolved:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Flag added successfully
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post(
+  "/teacher/answer-sheets/:answerSheetId/flags",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  addFlag
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{answerSheetId}/flags/{flagIndex}/resolve:
+ *   patch:
+ *     tags: [Flag Management]
+ *     summary: Resolve a specific flag
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: flagIndex
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               resolutionNotes:
+ *                 type: string
+ *               autoResolved:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Flag resolved successfully
+ *       400:
+ *         description: Invalid flag index or already resolved
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.patch(
+  "/teacher/answer-sheets/:answerSheetId/flags/:flagIndex/resolve",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  resolveFlag
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{answerSheetId}/flags/resolve-all:
+ *   patch:
+ *     tags: [Flag Management]
+ *     summary: Resolve all flags for an answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               resolutionNotes:
+ *                 type: string
+ *               autoResolved:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: All flags resolved successfully
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.patch(
+  "/teacher/answer-sheets/:answerSheetId/flags/resolve-all",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  resolveAllFlags
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{answerSheetId}/flags:
+ *   get:
+ *     tags: [Flag Management]
+ *     summary: Get flags for an answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Flags retrieved successfully
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.get(
+  "/teacher/answer-sheets/:answerSheetId/flags",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  getAnswerSheetFlags
+);
+
+/**
+ * @openapi
+ * /api/teacher/exams/{examId}/flagged-sheets:
+ *   get:
+ *     tags: [Flag Management]
+ *     summary: Get flagged answer sheets for an exam
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: severity
+ *         schema:
+ *           type: string
+ *           enum: [LOW, MEDIUM, HIGH, CRITICAL]
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: resolved
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Flagged answer sheets retrieved successfully
+ */
+router.get(
+  "/teacher/exams/:examId/flagged-sheets",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  getFlaggedAnswerSheets
+);
+
+/**
+ * @openapi
+ * /api/teacher/exams/{examId}/flag-statistics:
+ *   get:
+ *     tags: [Flag Management]
+ *     summary: Get flag statistics for an exam
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Flag statistics retrieved successfully
+ */
+router.get(
+  "/teacher/exams/:examId/flag-statistics",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  getFlagStatistics
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/{answerSheetId}/auto-detect-flags:
+ *   post:
+ *     tags: [Flag Management]
+ *     summary: Auto-detect flags for an answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               rollNumberDetected:
+ *                 type: string
+ *               rollNumberConfidence:
+ *                 type: number
+ *               scanQuality:
+ *                 type: string
+ *               isAligned:
+ *                 type: boolean
+ *               fileSize:
+ *                 type: number
+ *               fileFormat:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Flags auto-detected successfully
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post(
+  "/teacher/answer-sheets/:answerSheetId/auto-detect-flags",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  autoDetectFlags
+);
+
+/**
+ * @openapi
+ * /api/teacher/flags/bulk-resolve:
+ *   patch:
+ *     tags: [Flag Management]
+ *     summary: Bulk resolve flags for multiple answer sheets
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [answerSheetIds]
+ *             properties:
+ *               answerSheetIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               resolutionNotes:
+ *                 type: string
+ *               autoResolved:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Flags resolved successfully
+ */
+router.patch(
+  "/teacher/flags/bulk-resolve",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  bulkResolveFlags
 );
 
 /**

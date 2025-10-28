@@ -1,7 +1,23 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export type AnswerSheetStatus = "UPLOADED" | "PROCESSING" | "AI_CORRECTED" | "MANUALLY_REVIEWED" | "COMPLETED" | "MISSING" | "ABSENT";
+export type AnswerSheetStatus = "UPLOADED" | "PROCESSING" | "AI_CORRECTED" | "MANUALLY_REVIEWED" | "COMPLETED" | "MISSING" | "ABSENT" | "FLAGGED";
 export type ScanQuality = "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "UNREADABLE";
+export type FlagType = "UNMATCHED_ROLL" | "POOR_QUALITY" | "MISSING_PAGES" | "ALIGNMENT_ISSUE" | "DUPLICATE_UPLOAD" | "INVALID_FORMAT" | "SIZE_TOO_LARGE" | "CORRUPTED_FILE" | "MANUAL_REVIEW_REQUIRED";
+export type FlagSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ProcessingStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "FLAGGED";
+
+export interface IAnswerSheetFlag {
+  type: FlagType;
+  severity: FlagSeverity;
+  description: string;
+  detectedAt: Date;
+  detectedBy?: mongoose.Types.ObjectId; // AI system or user who flagged
+  resolved: boolean;
+  resolvedBy?: mongoose.Types.ObjectId;
+  resolvedAt?: Date;
+  resolutionNotes?: string;
+  autoResolved: boolean;
+}
 
 export interface IAnswerSheet extends Document {
   examId: mongoose.Types.ObjectId;
@@ -59,6 +75,14 @@ export interface IAnswerSheet extends Document {
   completedAt?: Date;
   language: string; // For multilingual support
   isActive: boolean;
+  
+  // Enhanced flagging system
+  flags: IAnswerSheetFlag[];
+  processingStatus: ProcessingStatus;
+  flagCount: number; // Computed field for quick access
+  hasCriticalFlags: boolean; // Computed field for quick access
+  lastFlaggedAt?: Date;
+  flagResolutionRate?: number; // Percentage of flags resolved
 }
 
 const AnswerSheetSchema = new Schema<IAnswerSheet>(
@@ -97,7 +121,7 @@ const AnswerSheetSchema = new Schema<IAnswerSheet>(
     },
     status: { 
       type: String, 
-      enum: ["UPLOADED", "PROCESSING", "AI_CORRECTED", "MANUALLY_REVIEWED", "COMPLETED", "MISSING", "ABSENT"],
+      enum: ["UPLOADED", "PROCESSING", "AI_CORRECTED", "MANUALLY_REVIEWED", "COMPLETED", "MISSING", "ABSENT", "FLAGGED"],
       default: "UPLOADED"
     },
     scanQuality: { 
@@ -199,6 +223,76 @@ const AnswerSheetSchema = new Schema<IAnswerSheet>(
     isActive: { 
       type: Boolean, 
       default: true 
+    },
+    
+    // Enhanced flagging system
+    flags: [{
+      type: { 
+        type: String, 
+        enum: ["UNMATCHED_ROLL", "POOR_QUALITY", "MISSING_PAGES", "ALIGNMENT_ISSUE", "DUPLICATE_UPLOAD", "INVALID_FORMAT", "SIZE_TOO_LARGE", "CORRUPTED_FILE", "MANUAL_REVIEW_REQUIRED"],
+        required: true
+      },
+      severity: { 
+        type: String, 
+        enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+        required: true
+      },
+      description: { 
+        type: String, 
+        required: true,
+        trim: true
+      },
+      detectedAt: { 
+        type: Date, 
+        required: true,
+        default: Date.now
+      },
+      detectedBy: { 
+        type: Schema.Types.ObjectId, 
+        ref: "User"
+      },
+      resolved: { 
+        type: Boolean, 
+        default: false
+      },
+      resolvedBy: { 
+        type: Schema.Types.ObjectId, 
+        ref: "User"
+      },
+      resolvedAt: { 
+        type: Date
+      },
+      resolutionNotes: { 
+        type: String,
+        trim: true
+      },
+      autoResolved: { 
+        type: Boolean, 
+        default: false
+      }
+    }],
+    processingStatus: { 
+      type: String, 
+      enum: ["PENDING", "PROCESSING", "COMPLETED", "FAILED", "FLAGGED"],
+      default: "PENDING"
+    },
+    flagCount: { 
+      type: Number, 
+      default: 0,
+      min: 0
+    },
+    hasCriticalFlags: { 
+      type: Boolean, 
+      default: false
+    },
+    lastFlaggedAt: { 
+      type: Date
+    },
+    flagResolutionRate: { 
+      type: Number, 
+      min: 0, 
+      max: 100,
+      default: 0
     }
   },
   { timestamps: true }
@@ -211,5 +305,45 @@ AnswerSheetSchema.index({ isMissing: 1, isAbsent: 1 });
 AnswerSheetSchema.index({ uploadedBy: 1, status: 1 });
 AnswerSheetSchema.index({ acknowledgedBy: 1, acknowledgedAt: 1 });
 AnswerSheetSchema.index({ cloudStorageKey: 1 });
+
+// Flag system indexes
+AnswerSheetSchema.index({ processingStatus: 1, uploadedAt: 1 });
+AnswerSheetSchema.index({ flagCount: 1, hasCriticalFlags: 1 });
+AnswerSheetSchema.index({ lastFlaggedAt: 1 });
+AnswerSheetSchema.index({ "flags.type": 1, "flags.severity": 1 });
+AnswerSheetSchema.index({ "flags.resolved": 1, "flags.resolvedAt": 1 });
+
+// Middleware to update computed fields
+AnswerSheetSchema.pre('save', function(next) {
+  // Update flag count
+  this.flagCount = this.flags.length;
+  
+  // Update hasCriticalFlags
+  this.hasCriticalFlags = this.flags.some(flag => flag.severity === 'CRITICAL' && !flag.resolved);
+  
+  // Update lastFlaggedAt
+  if (this.flags.length > 0) {
+    const unresolvedFlags = this.flags.filter(flag => !flag.resolved);
+    if (unresolvedFlags.length > 0) {
+      this.lastFlaggedAt = new Date(Math.max(...unresolvedFlags.map(flag => flag.detectedAt.getTime())));
+    }
+  }
+  
+  // Update flag resolution rate
+  if (this.flags.length > 0) {
+    const resolvedFlags = this.flags.filter(flag => flag.resolved).length;
+    this.flagResolutionRate = Math.round((resolvedFlags / this.flags.length) * 100);
+  }
+  
+  // Update processing status based on flags
+  if (this.flags.some(flag => flag.severity === 'CRITICAL' && !flag.resolved)) {
+    this.processingStatus = 'FLAGGED';
+    this.status = 'FLAGGED';
+  } else if (this.processingStatus === 'FLAGGED' && !this.flags.some(flag => flag.severity === 'CRITICAL' && !flag.resolved)) {
+    this.processingStatus = 'COMPLETED';
+  }
+  
+  next();
+});
 
 export const AnswerSheet: Model<IAnswerSheet> = mongoose.models.AnswerSheet || mongoose.model<IAnswerSheet>("AnswerSheet", AnswerSheetSchema);

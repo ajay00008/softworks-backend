@@ -1,25 +1,24 @@
+// Test setup file
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
 
-let mongoServer: MongoMemoryServer;
+// Set test environment variables
+process.env.NODE_ENV = 'test';
+process.env.MONGODB_TEST_URI = process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/softworks-test';
+process.env.JWT_SECRET = 'test-jwt-secret';
+process.env.PORT = '3001';
 
-beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-  
-  await mongoose.connect(mongoUri);
+// Global test timeout
+jest.setTimeout(30000);
+
+// Clean up after each test
+afterEach(async () => {
+  // Clean up any test data if needed
 });
 
+// Global teardown
 afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-beforeEach(async () => {
-  // Clean up all collections
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    const collection = collections[key];
-    await collection.deleteMany({});
+  // Close any open connections
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.close();
   }
 });
