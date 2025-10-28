@@ -225,6 +225,15 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
       throw new createHttpError.NotFound("Exam not found or not accessible");
     }
 
+    // Check if question paper already exists for this exam
+    const existingQuestionPaper = await QuestionPaper.findOne({ 
+      examId: questionPaperData.examId,
+      isActive: true 
+    });
+    if (existingQuestionPaper) {
+      throw new createHttpError.Conflict("A question paper already exists for this exam. Only one question paper per exam is allowed.");
+    }
+
     // Extract subject and class IDs from exam
     if (!exam.subjectIds || exam.subjectIds.length === 0) {
       throw new createHttpError.BadRequest("Exam has no subjects assigned");
@@ -283,6 +292,11 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
       createdBy: auth.sub,
       type: 'AI_GENERATED',
       status: 'DRAFT'
+    });
+
+    // Update exam with question paper reference
+    await Exam.findByIdAndUpdate(questionPaperData.examId, {
+      questionPaperId: questionPaper._id
     });
 
     // Populate references

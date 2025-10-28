@@ -7,7 +7,7 @@ import { logger } from '../utils/logger';
 export const validateAIRequest = (req: Request, res: Response, next: NextFunction) => {
   try {
     const { answerSheetId } = req.params;
-    const { answerSheetIds } = req.body;
+    const { answerSheetIds } = req.body || {};
 
     // Validate single answer sheet ID
     if (answerSheetId && !isValidObjectId(answerSheetId)) {

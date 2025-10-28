@@ -9,4 +9,7 @@ export declare const updateAICorrectionResults: (req: Request, res: Response) =>
 export declare const addManualOverride: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const batchUploadAnswerSheets: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 export declare const processAnswerSheet: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const matchAnswerSheetToStudent: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const getExamStudents: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const deleteAnswerSheet: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=answerSheetController.d.ts.map

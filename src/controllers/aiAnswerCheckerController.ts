@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { AnswerSheet } from '../models/AnswerSheet';
 import { Exam } from '../models/Exam';
 import { User } from '../models/User';
-import { StaffAccess } from '../models/StaffAccess';
+import { Teacher } from '../models/Teacher';
 import { logger } from '../utils/logger';
 import { AIAnswerCheckerService } from '../services/aiAnswerChecker';
 
@@ -38,13 +38,13 @@ export const checkAnswerSheetWithAI = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: userId,
-      'classAccess.classId': exam.classId,
-      isActive: true
+    // Check if user is a teacher with access to this exam's class
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
     });
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ success: false, error: 'Access denied to this answer sheet' });
     }
 
@@ -74,7 +74,7 @@ export const checkAnswerSheetWithAI = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to process answer sheet with AI',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -113,13 +113,13 @@ export const batchCheckAnswerSheetsWithAI = async (req: Request, res: Response) 
       const exam = await Exam.findById(answerSheet.examId).populate('classId');
       if (!exam) continue;
 
-      const staffAccess = await StaffAccess.findOne({
-        staffId: userId,
-        'classAccess.classId': exam.classId,
-        isActive: true
+      // Check if user is a teacher with access to this exam's class
+      const teacher = await Teacher.findOne({
+        userId: userId,
+        classIds: exam.classId._id
       });
 
-      if (!staffAccess) {
+      if (!teacher) {
         return res.status(403).json({ 
           success: false, 
           error: `Access denied to answer sheet: ${answerSheet._id}` 
@@ -144,7 +144,7 @@ export const batchCheckAnswerSheetsWithAI = async (req: Request, res: Response) 
     res.status(500).json({ 
       success: false, 
       error: 'Failed to process answer sheets with AI',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 };
@@ -176,13 +176,13 @@ export const getAIResults = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: userId,
-      'classAccess.classId': exam.classId,
-      isActive: true
+    // Check if user is a teacher with access to this exam's class
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
     });
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ success: false, error: 'Access denied to this answer sheet' });
     }
 
@@ -212,7 +212,7 @@ export const getAIResults = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to get AI results',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 };
@@ -235,13 +235,13 @@ export const getAIStats = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: userId,
-      'classAccess.classId': exam.classId,
-      isActive: true
+    // Check if user is a teacher with access to this exam's class
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
     });
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ success: false, error: 'Access denied to this exam' });
     }
 
@@ -259,7 +259,7 @@ export const getAIStats = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to get AI statistics',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 };
@@ -295,13 +295,13 @@ export const overrideAIResult = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: userId,
-      'classAccess.classId': exam.classId,
-      isActive: true
+    // Check if user is a teacher with access to this exam's class
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
     });
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ success: false, error: 'Access denied to this answer sheet' });
     }
 
@@ -333,7 +333,7 @@ export const overrideAIResult = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to add manual override',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 };
@@ -357,13 +357,13 @@ export const getAnswerSheetsForAIChecking = async (req: Request, res: Response) 
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: userId,
-      'classAccess.classId': exam.classId,
-      isActive: true
+    // Check if user is a teacher with access to this exam's class
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
     });
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ success: false, error: 'Access denied to this exam' });
     }
 
@@ -404,7 +404,7 @@ export const getAnswerSheetsForAIChecking = async (req: Request, res: Response) 
     res.status(500).json({ 
       success: false, 
       error: 'Failed to get answer sheets',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 };
@@ -432,13 +432,13 @@ export const recheckAnswerSheetWithAI = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: userId,
-      'classAccess.classId': exam.classId,
-      isActive: true
+    // Check if user is a teacher with access to this exam's class
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
     });
 
-    if (!staffAccess) {
+    if (!teacher) {
       return res.status(403).json({ success: false, error: 'Access denied to this answer sheet' });
     }
 
@@ -464,7 +464,7 @@ export const recheckAnswerSheetWithAI = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to recheck answer sheet with AI',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error' 
     });
   }
 };

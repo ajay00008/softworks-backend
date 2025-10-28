@@ -129,12 +129,6 @@ import {
   getAbsenteeismStatistics,
 } from "../controllers/absenteeismController";
 import {
-  printAllStudentsAnswers,
-  printIndividualStudentAnswer,
-  printClassResultsSummary,
-  printPerformanceReport,
-} from "../controllers/printingController";
-import {
   sendResultsToParents,
   sendBulkMessage,
   sendIndividualResult,
@@ -147,6 +141,31 @@ import {
   generateQuestionsWithConfig,
 } from "../controllers/aiController";
 import { generateQuestionPaper } from "../controllers/questionPaperController";
+import {
+  reportMissingPaper,
+  getStaffMissingPapers,
+  getAdminMissingPapers,
+  acknowledgeMissingPaper,
+  resolveMissingPaper,
+  getExamCompletionStatus,
+  getRedFlagSummary,
+} from "../controllers/missingPaperController";
+import {
+  createEvaluationSettings,
+  getEvaluationSettings,
+  updateEvaluationSettings,
+  getAllEvaluationSettings,
+  getEvaluationSettingsByExam,
+  deleteEvaluationSettings,
+  getDefaultEvaluationSettings,
+} from "../controllers/evaluationSettingsController";
+import {
+  printIndividualAnswerSheet,
+  printBatchAnswerSheets,
+  downloadPrintedFile,
+  getPrintHistory,
+  getPrintOptions,
+} from "../controllers/printingController";
 import {
   createQuestionPaper,
   getQuestionPapers,
@@ -3420,124 +3439,6 @@ router.get(
   getAbsenteeismStatistics
 );
 
-// ==================== PRINTING ROUTES ====================
-
-/**
- * @openapi
- * /api/admin/print/exams/{examId}/answers:
- *   get:
- *     tags: [Admin - Printing]
- *     summary: Print all students' answers for an exam
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: examId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: includeAnswers
- *         schema:
- *           type: boolean
- *           default: true
- *       - in: query
- *         name: includeGrades
- *         schema:
- *           type: boolean
- *           default: true
- *       - in: query
- *         name: includeStatistics
- *         schema:
- *           type: boolean
- *           default: false
- *     responses:
- *       200:
- *         description: Print data generated successfully
- *       404:
- *         description: Exam not found
- */
-router.get(
-  "/admin/print/exams/:examId/answers",
-  requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
-  printAllStudentsAnswers
-);
-
-/**
- * @openapi
- * /api/admin/print/exams/{examId}/students/{studentId}:
- *   get:
- *     tags: [Admin - Printing]
- *     summary: Print individual student's answer
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: examId
- *         required: true
- *         schema:
- *           type: string
- *       - in: path
- *         name: studentId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: includeAnswers
- *         schema:
- *           type: boolean
- *           default: true
- *       - in: query
- *         name: includeGrades
- *         schema:
- *           type: boolean
- *           default: true
- *     responses:
- *       200:
- *         description: Print data generated successfully
- *       404:
- *         description: Exam or student not found
- */
-router.get(
-  "/admin/print/exams/:examId/students/:studentId",
-  requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
-  printIndividualStudentAnswer
-);
-
-/**
- * @openapi
- * /api/admin/print/exams/{examId}/summary:
- *   get:
- *     tags: [Admin - Printing]
- *     summary: Print class results summary
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: examId
- *         required: true
- *         schema:
- *           type: string
- *       - in: query
- *         name: includeStatistics
- *         schema:
- *           type: boolean
- *           default: false
- *     responses:
- *       200:
- *         description: Class results summary generated successfully
- *       404:
- *         description: Exam not found
- */
-router.get(
-  "/admin/print/exams/:examId/summary",
-  requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
-  printClassResultsSummary
-);
-
 // ==================== COMMUNICATION ROUTES ====================
 
 /**
@@ -3692,7 +3593,16 @@ import {
   addManualOverride,
   batchUploadAnswerSheets,
   processAnswerSheet,
+  deleteAnswerSheet,
+  matchAnswerSheetToStudent,
+  getExamStudents,
+  updateAnswerSheetMarks,
 } from "../controllers/answerSheetController";
+import {
+  sendMissingAnswerSheetNotification,
+  getUserNotifications,
+  markNotificationAsRead,
+} from "../controllers/notificationController";
 import {
   checkAnswerSheetWithAI,
   batchCheckAnswerSheetsWithAI,
@@ -4007,6 +3917,162 @@ router.get(
   requireAuth,
   requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   getAnswerSheetDetails
+);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}:
+ *   delete:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Delete answer sheet
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet deleted successfully
+ *       404:
+ *         description: Answer sheet not found
+ *       403:
+ *         description: Access denied
+ */
+router.delete(
+  "/admin/answer-sheets/:answerSheetId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  deleteAnswerSheet
+);
+
+/**
+ * @openapi
+ * /api/admin/answer-sheets/{answerSheetId}/manual-marks:
+ *   put:
+ *     tags: [Admin - Answer Sheets]
+ *     summary: Update answer sheet marks manually
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               marks:
+ *                 type: number
+ *                 minimum: 0
+ *                 example: 85
+ *     responses:
+ *       200:
+ *         description: Marks updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     answerSheetId:
+ *                       type: string
+ *                     marks:
+ *                       type: number
+ *                     percentage:
+ *                       type: number
+ *                     status:
+ *                       type: string
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer sheet not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put(
+  "/admin/answer-sheets/:answerSheetId/manual-marks",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
+  updateAnswerSheetMarks
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/match:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Match answer sheet to student by roll number
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               answerSheetId:
+ *                 type: string
+ *               rollNumber:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet matched successfully
+ *       404:
+ *         description: Student not found
+ *       400:
+ *         description: Answer sheet already exists for student
+ */
+router.post(
+  "/teacher/answer-sheets/match",
+  requireAuth,
+  requireRoles("TEACHER"),
+  matchAnswerSheetToStudent
+);
+
+/**
+ * @openapi
+ * /api/teacher/exams/{examId}/students:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get students for an exam (for answer sheet matching)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Students retrieved successfully
+ *       403:
+ *         description: Access denied to exam's class
+ */
+router.get(
+  "/teacher/exams/:examId/students",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getExamStudents
 );
 
 /**
@@ -6184,6 +6250,144 @@ router.get(
   downloadResults
 );
 
+// ==================== NOTIFICATION ROUTES ====================
+
+/**
+ * @openapi
+ * /api/teacher/notifications/missing-answer-sheets:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Send notification for missing answer sheets
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [examId, studentIds]
+ *             properties:
+ *               examId:
+ *                 type: string
+ *                 example: "68ff9c854a3707ccd9b74682"
+ *               studentIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["student1", "student2"]
+ *     responses:
+ *       200:
+ *         description: Notifications sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     notifiedCount:
+ *                       type: number
+ *                     notifications:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  "/teacher/notifications/missing-answer-sheets",
+  requireAuth,
+  requireRoles("TEACHER"),
+  sendMissingAnswerSheetNotification
+);
+
+/**
+ * @openapi
+ * /api/teacher/notifications:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get user notifications
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isRead
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Notifications retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  "/teacher/notifications",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getUserNotifications
+);
+
+/**
+ * @openapi
+ * /api/teacher/notifications/{notificationId}/read:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Mark notification as read
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Notification not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  "/teacher/notifications/:notificationId/read",
+  requireAuth,
+  requireRoles("TEACHER"),
+  markNotificationAsRead
+);
+
 /**
  * @openapi
  * /api/admin/staff-access:
@@ -6899,6 +7103,710 @@ router.post(
   requireAuth,
   requireRoles("ADMIN", "SUPER_ADMIN"),
   analyzeSamplePaper
+);
+
+// ==================== MISSING PAPER TRACKING ROUTES ====================
+
+/**
+ * @openapi
+ * /api/staff/missing-papers:
+ *   post:
+ *     summary: Report missing paper
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               examId:
+ *                 type: string
+ *               studentId:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [ABSENT, MISSING_SHEET, LATE_SUBMISSION, QUALITY_ISSUE, ROLL_NUMBER_ISSUE]
+ *               reason:
+ *                 type: string
+ *               details:
+ *                 type: string
+ *               priority:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, URGENT]
+ *     responses:
+ *       201:
+ *         description: Missing paper reported successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+router.post(
+  "/staff/missing-papers",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  reportMissingPaper
+);
+
+/**
+ * @openapi
+ * /api/staff/missing-papers:
+ *   get:
+ *     summary: Get missing papers for staff
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Missing papers retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/staff/missing-papers",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN"),
+  getStaffMissingPapers
+);
+
+/**
+ * @openapi
+ * /api/admin/missing-papers:
+ *   get:
+ *     summary: Get missing papers for admin
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isRedFlag
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Missing papers retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/missing-papers",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAdminMissingPapers
+);
+
+/**
+ * @openapi
+ * /api/admin/missing-papers/{id}/acknowledge:
+ *   post:
+ *     summary: Acknowledge missing paper
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               adminRemarks:
+ *                 type: string
+ *               priority:
+ *                 type: string
+ *                 enum: [LOW, MEDIUM, HIGH, URGENT]
+ *     responses:
+ *       200:
+ *         description: Missing paper acknowledged successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Missing paper not found
+ */
+router.post(
+  "/admin/missing-papers/:id/acknowledge",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  acknowledgeMissingPaper
+);
+
+/**
+ * @openapi
+ * /api/admin/missing-papers/{id}/resolve:
+ *   post:
+ *     summary: Resolve missing paper
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               resolutionNotes:
+ *                 type: string
+ *               completionNotes:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Missing paper resolved successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Missing paper not found
+ */
+router.post(
+  "/admin/missing-papers/:id/resolve",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  resolveMissingPaper
+);
+
+/**
+ * @openapi
+ * /api/exams/{examId}/completion-status:
+ *   get:
+ *     summary: Get exam completion status
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Completion status retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Exam not found
+ */
+router.get(
+  "/exams/:examId/completion-status",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
+  getExamCompletionStatus
+);
+
+/**
+ * @openapi
+ * /api/admin/red-flags:
+ *   get:
+ *     summary: Get red flag summary
+ *     tags: [Missing Papers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Red flag summary retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/red-flags",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getRedFlagSummary
+);
+
+// ==================== EVALUATION SETTINGS ROUTES ====================
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings:
+ *   post:
+ *     summary: Create evaluation settings
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               examId:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *               minusMarksSettings:
+ *                 type: object
+ *               stepMarkingSettings:
+ *                 type: object
+ *               languageSettings:
+ *                 type: object
+ *               aiCorrectionSettings:
+ *                 type: object
+ *               qualityAssessmentSettings:
+ *                 type: object
+ *               feedbackSettings:
+ *                 type: object
+ *               cloudStorageSettings:
+ *                 type: object
+ *               printingSettings:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Evaluation settings created successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Exam, subject, or class not found
+ */
+router.post(
+  "/admin/evaluation-settings",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  createEvaluationSettings
+);
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings/{examId}/{subjectId}/{classId}:
+ *   get:
+ *     summary: Get evaluation settings
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: subjectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Evaluation settings retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Evaluation settings not found
+ */
+router.get(
+  "/admin/evaluation-settings/:examId/:subjectId/:classId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getEvaluationSettings
+);
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings/{id}:
+ *   put:
+ *     summary: Update evaluation settings
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Evaluation settings updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Evaluation settings not found
+ */
+router.put(
+  "/admin/evaluation-settings/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  updateEvaluationSettings
+);
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings:
+ *   get:
+ *     summary: Get all evaluation settings
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Evaluation settings retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/evaluation-settings",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getAllEvaluationSettings
+);
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings/exam/{examId}:
+ *   get:
+ *     summary: Get evaluation settings by exam
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Evaluation settings retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/evaluation-settings/exam/:examId",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getEvaluationSettingsByExam
+);
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings/{id}:
+ *   delete:
+ *     summary: Delete evaluation settings
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Evaluation settings deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Evaluation settings not found
+ */
+router.delete(
+  "/admin/evaluation-settings/:id",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  deleteEvaluationSettings
+);
+
+/**
+ * @openapi
+ * /api/admin/evaluation-settings/default:
+ *   get:
+ *     summary: Get default evaluation settings template
+ *     tags: [Evaluation Settings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Default evaluation settings retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/evaluation-settings/default",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getDefaultEvaluationSettings
+);
+
+// ==================== PRINTING ROUTES ====================
+
+/**
+ * @openapi
+ * /api/prints/answer-sheet/{answerSheetId}:
+ *   post:
+ *     summary: Print individual answer sheet
+ *     tags: [Printing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: answerSheetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               includeFeedback:
+ *                 type: boolean
+ *               includePerformanceAnalysis:
+ *                 type: boolean
+ *               includeAnswerSheetImage:
+ *                 type: boolean
+ *               includeStepMarks:
+ *                 type: boolean
+ *               includeDeductions:
+ *                 type: boolean
+ *               format:
+ *                 type: string
+ *                 enum: [PDF, DOCX]
+ *     responses:
+ *       200:
+ *         description: Answer sheet printed successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer sheet not found
+ */
+router.post(
+  "/prints/answer-sheet/:answerSheetId",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
+  printIndividualAnswerSheet
+);
+
+/**
+ * @openapi
+ * /api/prints/exam/{examId}/batch:
+ *   post:
+ *     summary: Print batch answer sheets
+ *     tags: [Printing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               studentIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               includeFeedback:
+ *                 type: boolean
+ *               includePerformanceAnalysis:
+ *                 type: boolean
+ *               includeAnswerSheetImage:
+ *                 type: boolean
+ *               includeStepMarks:
+ *                 type: boolean
+ *               includeDeductions:
+ *                 type: boolean
+ *               format:
+ *                 type: string
+ *                 enum: [PDF, DOCX]
+ *     responses:
+ *       200:
+ *         description: Batch answer sheets printed successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.post(
+  "/prints/exam/:examId/batch",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
+  printBatchAnswerSheets
+);
+
+/**
+ * @openapi
+ * /api/prints/download/{fileName}:
+ *   get:
+ *     summary: Download printed file
+ *     tags: [Printing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: fileName
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: File downloaded successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: File not found
+ */
+router.get(
+  "/prints/download/:fileName",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
+  downloadPrintedFile
+);
+
+/**
+ * @openapi
+ * /api/prints/history:
+ *   get:
+ *     summary: Get print history
+ *     tags: [Printing]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Print history retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/prints/history",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
+  getPrintHistory
+);
+
+/**
+ * @openapi
+ * /api/prints/options:
+ *   get:
+ *     summary: Get print options
+ *     tags: [Printing]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Print options retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/prints/options",
+  requireAuth,
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
+  getPrintOptions
 );
 
 export default router;

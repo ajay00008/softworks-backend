@@ -1,370 +1,287 @@
-import type { Request, Response, NextFunction } from "express";
-import { z } from "zod";
-import createHttpError from "http-errors";
-import { Result } from "../models/Result";
-import { Exam } from "../models/Exam";
-import { Student } from "../models/Student";
-import { Class } from "../models/Class";
+import type { Request, Response } from 'express';
+import { AnswerSheetPrintingService } from '../services/answerSheetPrintingService';
+import { AnswerSheet } from '../models/AnswerSheet';
+import { Exam } from '../models/Exam';
+import { StaffAccess } from '../models/StaffAccess';
+import { logger } from '../utils/logger';
 
-const PrintQuerySchema = z.object({
-  examId: z.string().min(1),
-  studentId: z.string().optional(),
-  classId: z.string().optional(),
-  includeAnswers: z.union([z.string(), z.boolean()]).transform(Boolean).default(true),
-  includeGrades: z.union([z.string(), z.boolean()]).transform(Boolean).default(true),
-  includeStatistics: z.union([z.string(), z.boolean()]).transform(Boolean).default(false)
-});
-
-// Print All Students' Answers for an Exam
-export async function printAllStudentsAnswers(req: Request, res: Response, next: NextFunction) {
+// Print individual answer sheet
+export const printIndividualAnswerSheet = async (req: Request, res: Response) => {
   try {
-    const { examId } = req.params;
-    const { includeAnswers, includeGrades, includeStatistics } = PrintQuerySchema.parse(req.query);
+    const { answerSheetId } = req.params;
+    const {
+      includeFeedback = true,
+      includePerformanceAnalysis = true,
+      includeAnswerSheetImage = true,
+      includeStepMarks = true,
+      includeDeductions = true,
+      format = 'PDF'
+    } = req.body;
     
-    const exam = await Exam.findById(examId)
-      .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section')
-      .populate('questions');
-    
-    if (!exam) throw new createHttpError.NotFound("Exam not found");
-    
-    // Get all results for this exam
-    const results = await Result.find({ examId })
-      .populate('studentId', 'name email')
-      .populate('answers.questionId')
-      .sort({ 'studentId.name': 1 });
-    
-    // Get student details
-    const students = await Student.find({ 
-      classId: exam.classId 
-    }).populate('userId', 'name email');
-    
-    // Create print data
-    const printData = {
-      exam: {
-        title: exam.title,
-        examType: exam.examType,
-        subject: exam.subjectId,
-        class: exam.classId,
-        totalMarks: exam.totalMarks,
-        duration: exam.duration,
-        scheduledDate: exam.scheduledDate,
-        instructions: exam.instructions
-      },
-      students: results.map(result => {
-        const student = students.find(s => s.userId.toString() === result.studentId.toString());
-        return {
-          student: {
-            name: (result.studentId as any).name,
-            email: (result.studentId as any).email,
-            rollNumber: student?.rollNumber,
-            class: student?.classId
-          },
-          result: {
-            totalMarksObtained: result.totalMarksObtained,
-            percentage: result.percentage,
-            grade: result.grade,
-            submissionStatus: result.submissionStatus,
-            submittedAt: result.submittedAt,
-            isAbsent: result.isAbsent,
-            isMissingSheet: result.isMissingSheet,
-            answers: includeAnswers ? result.answers.map(answer => ({
-              question: (answer.questionId as any).questionText,
-              answer: answer.answer,
-              isCorrect: answer.isCorrect,
-              marksObtained: answer.marksObtained
-            })) : undefined
-          }
-        };
-      }),
-      statistics: includeStatistics ? {
-        totalStudents: results.length,
-        averageMarks: results.reduce((sum, r) => sum + r.totalMarksObtained, 0) / results.length,
-        averagePercentage: results.reduce((sum, r) => sum + r.percentage, 0) / results.length,
-        passedStudents: results.filter(r => r.percentage >= 40).length,
-        absentStudents: results.filter(r => r.isAbsent).length,
-        missingSheets: results.filter(r => r.isMissingSheet).length
-      } : undefined
-    };
-    
-    res.json({
-      success: true,
-      message: "Print data generated successfully",
-      printData,
-      metadata: {
-        generatedAt: new Date(),
-        totalPages: Math.ceil(results.length / 20), // Assuming 20 students per page
-        examId,
-        printType: "ALL_STUDENTS"
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-}
+    const userId = (req as any).auth?.sub;
 
-// Print Individual Student's Answer
-export async function printIndividualStudentAnswer(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { examId, studentId } = req.params;
-    const { includeAnswers, includeGrades } = PrintQuerySchema.parse(req.query);
-    
-    const exam = await Exam.findById(examId)
-      .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section')
-      .populate('questions');
-    
-    if (!exam) throw new createHttpError.NotFound("Exam not found");
-    
-    const result = await Result.findOne({ examId, studentId })
-      .populate('studentId', 'name email')
-      .populate('answers.questionId')
-      .populate('markedBy', 'name email');
-    
-    if (!result) throw new createHttpError.NotFound("Result not found");
-    
-    const student = await Student.findOne({ userId: studentId })
-      .populate('classId', 'name displayName level section');
-    
-    // Create print data
-    const printData = {
-      exam: {
-        title: exam.title,
-        examType: exam.examType,
-        subject: exam.subjectId,
-        class: exam.classId,
-        totalMarks: exam.totalMarks,
-        duration: exam.duration,
-        scheduledDate: exam.scheduledDate,
-        instructions: exam.instructions
-      },
-      student: {
-        name: (result.studentId as any).name,
-        email: (result.studentId as any).email,
-        rollNumber: student?.rollNumber,
-        class: student?.classId
-      },
-      result: {
-        totalMarksObtained: result.totalMarksObtained,
-        percentage: result.percentage,
-        grade: result.grade,
-        submissionStatus: result.submissionStatus,
-        submittedAt: result.submittedAt,
-        startedAt: result.startedAt,
-        timeSpent: result.timeSpent,
-        isAbsent: result.isAbsent,
-        isMissingSheet: result.isMissingSheet,
-        absentReason: result.absentReason,
-        missingSheetReason: result.missingSheetReason,
-        markedBy: result.markedBy,
-        markedAt: result.markedAt,
-        remarks: result.remarks,
-        answers: includeAnswers ? result.answers.map(answer => ({
-          question: (answer.questionId as any).questionText,
-          questionType: (answer.questionId as any).questionType,
-          answer: answer.answer,
-          isCorrect: answer.isCorrect,
-          marksObtained: answer.marksObtained,
-          timeSpent: answer.timeSpent
-        })) : undefined
-      }
-    };
-    
-    res.json({
-      success: true,
-      message: "Print data generated successfully",
-      printData,
-      metadata: {
-        generatedAt: new Date(),
-        examId,
-        studentId,
-        printType: "INDIVIDUAL_STUDENT"
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// Print Class Results Summary
-export async function printClassResultsSummary(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { examId } = req.params;
-    const { includeStatistics } = PrintQuerySchema.parse(req.query);
-    
-    const exam = await Exam.findById(examId)
-      .populate('subjectId', 'code name shortName')
-      .populate('classId', 'name displayName level section');
-    
-    if (!exam) throw new createHttpError.NotFound("Exam not found");
-    
-    // Get all results for this exam
-    const results = await Result.find({ examId })
-      .populate('studentId', 'name email')
-      .sort({ totalMarksObtained: -1 });
-    
-    // Get student details
-    const students = await Student.find({ 
-      classId: exam.classId 
-    }).populate('userId', 'name email');
-    
-    // Create summary data
-    const summaryData = {
-      exam: {
-        title: exam.title,
-        examType: exam.examType,
-        subject: exam.subjectId,
-        class: exam.classId,
-        totalMarks: exam.totalMarks,
-        scheduledDate: exam.scheduledDate
-      },
-      results: results.map(result => {
-        const student = students.find(s => s.userId.toString() === result.studentId.toString());
-        return {
-          rank: results.indexOf(result) + 1,
-          student: {
-            name: (result.studentId as any).name,
-            rollNumber: student?.rollNumber
-          },
-          marks: {
-            obtained: result.totalMarksObtained,
-            percentage: result.percentage,
-            grade: result.grade
-          },
-          status: {
-            submissionStatus: result.submissionStatus,
-            isAbsent: result.isAbsent,
-            isMissingSheet: result.isMissingSheet
-          }
-        };
-      }),
-      statistics: includeStatistics ? {
-        totalStudents: results.length,
-        averageMarks: results.reduce((sum, r) => sum + r.totalMarksObtained, 0) / results.length,
-        averagePercentage: results.reduce((sum, r) => sum + r.percentage, 0) / results.length,
-        highestMarks: Math.max(...results.map(r => r.totalMarksObtained)),
-        lowestMarks: Math.min(...results.map(r => r.totalMarksObtained)),
-        passedStudents: results.filter(r => r.percentage >= 40).length,
-        passPercentage: (results.filter(r => r.percentage >= 40).length / results.length) * 100,
-        absentStudents: results.filter(r => r.isAbsent).length,
-        missingSheets: results.filter(r => r.isMissingSheet).length
-      } : undefined
-    };
-    
-    res.json({
-      success: true,
-      message: "Class results summary generated successfully",
-      printData: summaryData,
-      metadata: {
-        generatedAt: new Date(),
-        examId,
-        printType: "CLASS_SUMMARY"
-      }
-    });
-  } catch (err) {
-    next(err);
-  }
-}
-
-// Print Performance Report
-export async function printPerformanceReport(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { type } = req.params; // 'individual' or 'class'
-    const { studentId, classId, subjectId, startDate, endDate } = req.query;
-    
-    if (type === 'individual' && studentId) {
-      // Individual performance report
-      const student = await Student.findOne({ userId: studentId })
-        .populate('userId', 'name email')
-        .populate('classId', 'name displayName level section');
-      
-      if (!student) throw new createHttpError.NotFound("Student not found");
-      
-      // Get performance data (simplified version)
-      const results = await Result.find({ studentId })
-        .populate('examId')
-        .populate('answers.questionId')
-        .sort({ 'examId.scheduledDate': -1 });
-      
-      const printData = {
-        student: {
-          name: (student.userId as any).name,
-          email: (student.userId as any).email,
-          rollNumber: student.rollNumber,
-          class: student.classId
-        },
-        performance: results.map(result => ({
-          exam: {
-            title: (result.examId as any).title,
-            examType: (result.examId as any).examType,
-            scheduledDate: (result.examId as any).scheduledDate
-          },
-          result: {
-            totalMarksObtained: result.totalMarksObtained,
-            percentage: result.percentage,
-            grade: result.grade,
-            submissionStatus: result.submissionStatus
-          }
-        })),
-        summary: {
-          totalExams: results.length,
-          averagePercentage: results.reduce((sum, r) => sum + r.percentage, 0) / results.length,
-          passedExams: results.filter(r => r.percentage >= 40).length
-        }
-      };
-      
-      res.json({
-        success: true,
-        message: "Individual performance report generated successfully",
-        printData,
-        metadata: {
-          generatedAt: new Date(),
-          studentId,
-          printType: "INDIVIDUAL_PERFORMANCE"
-        }
-      });
-      
-    } else if (type === 'class' && classId) {
-      // Class performance report
-      const classExists = await Class.findById(classId);
-      if (!classExists) throw new createHttpError.NotFound("Class not found");
-      
-      // Get class performance data (simplified version)
-      const students = await Student.find({ classId })
-        .populate('userId', 'name email');
-      
-      const printData = {
-        class: {
-          name: classExists.name,
-          displayName: classExists.displayName,
-          level: classExists.level,
-          section: classExists.section
-        },
-        students: students.map(student => ({
-          name: (student.userId as any).name,
-          rollNumber: student.rollNumber,
-          // Add performance data here
-        })),
-        summary: {
-          totalStudents: students.length
-        }
-      };
-      
-      res.json({
-        success: true,
-        message: "Class performance report generated successfully",
-        printData,
-        metadata: {
-          generatedAt: new Date(),
-          classId,
-          printType: "CLASS_PERFORMANCE"
-        }
-      });
-      
-    } else {
-      throw new createHttpError.BadRequest("Invalid report type or missing required parameters");
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
-  } catch (err) {
-    next(err);
+
+    // Get answer sheet and verify access
+    const answerSheet = await AnswerSheet.findById(answerSheetId).populate('examId');
+    if (!answerSheet) {
+      return res.status(404).json({ success: false, error: 'Answer sheet not found' });
+    }
+
+    // Check if user has access to this answer sheet
+    const exam = await Exam.findById(answerSheet.examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    // Check staff access
+    const staffAccess = await StaffAccess.findOne({
+      staffId: userId,
+      'classAccess.classId': exam.classId,
+      isActive: true
+    });
+
+    if (!staffAccess) {
+      return res.status(403).json({ success: false, error: 'Access denied to this answer sheet' });
+    }
+
+    // Print the answer sheet
+    const printResult = await AnswerSheetPrintingService.printIndividualAnswerSheet(
+      answerSheetId,
+      {
+        includeFeedback,
+        includePerformanceAnalysis,
+        includeAnswerSheetImage,
+        includeStepMarks,
+        includeDeductions,
+        format: format as 'PDF' | 'DOCX'
+      }
+    );
+
+    if (!printResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: printResult.error
+      });
+    }
+
+    logger.info(`Answer sheet printed: ${answerSheetId} by ${userId}`);
+
+    res.json({
+      success: true,
+      data: {
+        fileName: printResult.fileName,
+        filePath: printResult.filePath,
+        fileSize: printResult.fileSize,
+        downloadUrl: `/api/prints/download/${printResult.fileName}`
+      },
+      message: 'Answer sheet printed successfully'
+    });
+  } catch (error) {
+    logger.error('Error printing individual answer sheet:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
   }
-}
+};
+
+// Print batch answer sheets
+export const printBatchAnswerSheets = async (req: Request, res: Response) => {
+  try {
+    const { examId } = req.params;
+    const { studentIds, ...printOptions } = req.body;
+    
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Get exam and verify access
+    const exam = await Exam.findById(examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    // Check staff access
+    const staffAccess = await StaffAccess.findOne({
+      staffId: userId,
+      'classAccess.classId': exam.classId,
+      isActive: true
+    });
+
+    if (!staffAccess) {
+      return res.status(403).json({ success: false, error: 'Access denied to this exam' });
+    }
+
+    // Print batch answer sheets
+    const printResult = await AnswerSheetPrintingService.printBatchAnswerSheets(
+      examId,
+      studentIds,
+      {
+        includeFeedback: printOptions.includeFeedback ?? true,
+        includePerformanceAnalysis: printOptions.includePerformanceAnalysis ?? true,
+        includeAnswerSheetImage: printOptions.includeAnswerSheetImage ?? false,
+        includeStepMarks: printOptions.includeStepMarks ?? true,
+        includeDeductions: printOptions.includeDeductions ?? true,
+        format: printOptions.format ?? 'PDF'
+      }
+    );
+
+    if (!printResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: printResult.error
+      });
+    }
+
+    logger.info(`Batch answer sheets printed for exam: ${examId} by ${userId}`);
+
+    res.json({
+      success: true,
+      data: {
+        fileName: printResult.fileName,
+        filePath: printResult.filePath,
+        fileSize: printResult.fileSize,
+        downloadUrl: `/api/prints/download/${printResult.fileName}`
+      },
+      message: 'Batch answer sheets printed successfully'
+    });
+  } catch (error) {
+    logger.error('Error printing batch answer sheets:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Download printed file
+export const downloadPrintedFile = async (req: Request, res: Response) => {
+  try {
+    const { fileName } = req.params;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const filePath = `/Users/rishabhverma/satnam/softworks-backend/public/prints/${fileName}`;
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ success: false, error: 'File not found' });
+    }
+
+    // Set appropriate headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    // Send file
+    res.sendFile(filePath);
+
+    logger.info(`File downloaded: ${fileName} by ${userId}`);
+  } catch (error) {
+    logger.error('Error downloading printed file:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Get print history
+export const getPrintHistory = async (req: Request, res: Response) => {
+  try {
+    const { examId, page = 1, limit = 10 } = req.query;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // This would typically come from a print history database
+    // For now, return mock data
+    const printHistory = [
+      {
+        id: '1',
+        fileName: 'answer-sheet-123.pdf',
+        examId: examId || 'exam123',
+        printedBy: userId,
+        printedAt: new Date(),
+        fileSize: 1024000,
+        type: 'INDIVIDUAL'
+      },
+      {
+        id: '2',
+        fileName: 'batch-answer-sheets-123.pdf',
+        examId: examId || 'exam123',
+        printedBy: userId,
+        printedAt: new Date(),
+        fileSize: 2048000,
+        type: 'BATCH'
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: printHistory,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: printHistory.length,
+        pages: Math.ceil(printHistory.length / Number(limit))
+      }
+    });
+  } catch (error) {
+    logger.error('Error fetching print history:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Get print options
+export const getPrintOptions = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const printOptions = {
+      formats: ['PDF', 'DOCX'],
+      includeOptions: {
+        feedback: true,
+        performanceAnalysis: true,
+        answerSheetImage: true,
+        stepMarks: true,
+        deductions: true
+      },
+      batchOptions: {
+        maxSheetsPerBatch: 100,
+        compressionEnabled: true,
+        summaryPage: true
+      },
+      templates: [
+        {
+          id: 'default',
+          name: 'Default Template',
+          description: 'Standard answer sheet report template'
+        },
+        {
+          id: 'detailed',
+          name: 'Detailed Template',
+          description: 'Comprehensive report with all details'
+        },
+        {
+          id: 'summary',
+          name: 'Summary Template',
+          description: 'Brief summary report'
+        }
+      ]
+    };
+
+    res.json({
+      success: true,
+      data: printOptions
+    });
+  } catch (error) {
+    logger.error('Error fetching print options:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};

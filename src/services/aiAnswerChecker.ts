@@ -77,17 +77,24 @@ export class AIAnswerCheckerService {
         throw new Error('Answer sheet not found');
       }
 
-      // Get exam questions
-      const exam = await Exam.findById(answerSheet.examId).populate('questions');
-      if (!exam || !exam.questions) {
-        throw new Error('Exam or questions not found');
+      // Get exam and question paper
+      const exam = await Exam.findById(answerSheet.examId).populate('questionPaperId');
+      if (!exam) {
+        throw new Error('Exam not found');
+      }
+
+      // Get question paper with questions
+      const { QuestionPaper } = await import('../models/QuestionPaper');
+      const questionPaper = await QuestionPaper.findById(exam.questionPaperId).populate('questions');
+      if (!questionPaper || !questionPaper.questions) {
+        throw new Error('Question paper or questions not found for this exam');
       }
 
       // Simulate AI processing with realistic delays
       await this.simulateAIProcessing();
 
       // Process the answer sheet
-      const result = await this.processAnswerSheet(answerSheet, exam);
+      const result = await this.processAnswerSheet(answerSheet, questionPaper);
       
       // Update answer sheet with results
       await this.updateAnswerSheetWithResults(answerSheetId, result);
@@ -108,8 +115,8 @@ export class AIAnswerCheckerService {
   /**
    * Process answer sheet with AI analysis
    */
-  private async processAnswerSheet(answerSheet: any, exam: any): Promise<AICheckingResult> {
-    const questions = exam.questions;
+  private async processAnswerSheet(answerSheet: any, questionPaper: any): Promise<AICheckingResult> {
+    const questions = questionPaper.questions;
     const questionWiseResults = [];
     let totalMarks = 0;
     let obtainedMarks = 0;

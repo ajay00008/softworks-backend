@@ -4,9 +4,13 @@ import { Exam } from '../models/Exam';
 import { User } from '../models/User';
 import { Notification } from '../models/Notification';
 import { StaffAccess } from '../models/StaffAccess';
+import { Teacher } from '../models/Teacher';
+import { Student } from '../models/Student';
 import { logger } from '../utils/logger';
 import { ImageProcessingService } from '../services/imageProcessing';
 import { CloudStorageService } from '../services/cloudStorage';
+import fs from 'fs';
+import path from 'path';
 
 // Upload answer sheet
 export const uploadAnswerSheet = async (req: Request, res: Response) => {
@@ -693,3 +697,324 @@ async function processAnswerSheetWithAI(answerSheetId: string, answerSheet: any)
     throw error;
   }
 }
+
+// Match answer sheet to student by roll number
+export const matchAnswerSheetToStudent = async (req: Request, res: Response) => {
+  try {
+    const { answerSheetId, rollNumber } = req.body;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Get answer sheet
+    const answerSheet = await AnswerSheet.findById(answerSheetId).populate('examId');
+    if (!answerSheet) {
+      return res.status(404).json({ success: false, error: 'Answer sheet not found' });
+    }
+
+    // Get exam details
+    const exam = await Exam.findById(answerSheet.examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    // Find student by roll number in the exam's class
+    const student = await Student.findOne({
+      rollNumber: rollNumber,
+      classId: exam.classId
+    }).populate('userId', 'name email');
+
+    if (!student) {
+      return res.status(404).json({ 
+        success: false, 
+        error: `No student found with roll number ${rollNumber} in ${exam.classId.name}` 
+      });
+    }
+
+    // Check if answer sheet already exists for this student
+    const existingSheet = await AnswerSheet.findOne({
+      examId: exam._id,
+      studentId: student.userId,
+      isActive: true
+    });
+
+    if (existingSheet && existingSheet._id.toString() !== answerSheetId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Answer sheet already exists for student ${student.userId.name} (Roll: ${rollNumber})` 
+      });
+    }
+
+    // Update answer sheet with student information
+    answerSheet.studentId = student.userId;
+    answerSheet.rollNumberDetected = rollNumber;
+    answerSheet.rollNumberConfidence = 100; // Manual match
+    answerSheet.status = 'UPLOADED';
+    await answerSheet.save();
+
+    logger.info(`Answer sheet ${answerSheetId} matched to student ${student.userId.name} (Roll: ${rollNumber})`);
+
+    res.json({
+      success: true,
+      message: 'Answer sheet matched successfully',
+      data: {
+        answerSheetId: answerSheet._id,
+        studentName: student.userId.name,
+        rollNumber: rollNumber,
+        className: exam.classId.name
+      }
+    });
+  } catch (error) {
+    logger.error('Error matching answer sheet to student:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Get students for an exam (for matching)
+export const getExamStudents = async (req: Request, res: Response) => {
+  try {
+    const { examId } = req.params;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Get exam details
+    const exam = await Exam.findById(examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    // Verify teacher has access to this exam's class
+    const teacher = await Teacher.findOne({ userId });
+    if (!teacher) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Teacher record not found. Please contact administrator.' 
+      });
+    }
+
+    // Check if teacher has access to this class
+    if (!teacher.classIds.includes(exam.classId._id)) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Access denied to this exam\'s class' 
+      });
+    }
+
+    // Get all students in the exam's class
+    const students = await Student.find({ 
+      classId: exam.classId,
+      isActive: true 
+    })
+    .populate('userId', 'name email')
+    .sort({ rollNumber: 1 });
+
+    // Get existing answer sheets for this exam
+    const existingAnswerSheets = await AnswerSheet.find({
+      examId: exam._id,
+      isActive: true
+    }).select('studentId rollNumberDetected');
+
+    const existingStudentIds = existingAnswerSheets.map(sheet => sheet.studentId?.toString());
+
+    // Transform students data
+    const studentsData = students.map(student => ({
+      id: student.userId._id,
+      name: student.userId.name,
+      rollNumber: student.rollNumber,
+      email: student.userId.email,
+      hasAnswerSheet: existingStudentIds.includes(student.userId._id.toString()),
+      answerSheetId: existingAnswerSheets.find(sheet => 
+        sheet.studentId?.toString() === student.userId._id.toString()
+      )?._id
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        exam: {
+          id: exam._id,
+          title: exam.title,
+          className: exam.classId.name,
+          classDisplayName: exam.classId.displayName
+        },
+        students: studentsData,
+        totalStudents: students.length,
+        uploadedSheets: existingAnswerSheets.length
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting exam students:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Delete answer sheet
+export const deleteAnswerSheet = async (req: Request, res: Response) => {
+  try {
+    const { answerSheetId } = req.params;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const answerSheet = await AnswerSheet.findById(answerSheetId);
+    if (!answerSheet) {
+      return res.status(404).json({ success: false, error: 'Answer sheet not found' });
+    }
+
+    // Verify exam exists
+    const exam = await Exam.findById(answerSheet.examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    // Verify teacher exists (similar to getAnswerSheets function)
+    const teacher = await Teacher.findOne({ userId });
+    if (!teacher) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Teacher record not found. Please contact administrator.' 
+      });
+    }
+
+    // For now, allow all teachers from the same school to delete answer sheets
+    // This can be made more restrictive later if needed
+
+    // Delete the physical file if it exists
+    if (answerSheet.cloudStorageUrl) {
+      try {
+        // Check if it's a local file path
+        if (answerSheet.cloudStorageUrl.startsWith('/public/')) {
+          const filePath = path.join(process.cwd(), answerSheet.cloudStorageUrl);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            logger.info(`Deleted local file: ${filePath}`);
+          }
+        } else {
+          // Handle cloud storage deletion if needed
+          const cloudStorage = new CloudStorageService();
+          if (answerSheet.cloudStorageKey) {
+            await cloudStorage.deleteFile(answerSheet.cloudStorageKey);
+            logger.info(`Deleted cloud file: ${answerSheet.cloudStorageKey}`);
+          }
+        }
+      } catch (fileError) {
+        logger.error('Error deleting file:', fileError);
+        // Continue with database deletion even if file deletion fails
+      }
+    }
+
+    // Soft delete the answer sheet
+    answerSheet.isActive = false;
+    answerSheet.deletedAt = new Date();
+    answerSheet.deletedBy = userId;
+    await answerSheet.save();
+
+    logger.info(`Answer sheet deleted: ${answerSheetId} by ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Answer sheet deleted successfully'
+    });
+  } catch (error) {
+    logger.error('Error deleting answer sheet:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
+// Update answer sheet marks manually
+export const updateAnswerSheetMarks = async (req: Request, res: Response) => {
+  try {
+    const { answerSheetId } = req.params;
+    const { marks } = req.body;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    if (!answerSheetId || marks === undefined) {
+      return res.status(400).json({ success: false, error: 'Answer sheet ID and marks are required' });
+    }
+
+    // Get answer sheet and verify access
+    const answerSheet = await AnswerSheet.findById(answerSheetId)
+      .populate('examId')
+      .populate('studentId');
+
+    if (!answerSheet) {
+      return res.status(404).json({ success: false, error: 'Answer sheet not found' });
+    }
+
+    // Check if user is a teacher with access to this exam's class
+    const exam = await Exam.findById(answerSheet.examId).populate('classId');
+    if (!exam) {
+      return res.status(404).json({ success: false, error: 'Exam not found' });
+    }
+
+    const teacher = await Teacher.findOne({
+      userId: userId,
+      classIds: exam.classId._id
+    });
+
+    if (!teacher) {
+      return res.status(403).json({ success: false, error: 'Access denied to this answer sheet' });
+    }
+
+    // Get exam total marks for percentage calculation
+    const { QuestionPaper } = await import('../models/QuestionPaper');
+    const questionPaper = await QuestionPaper.findById(exam.questionPaperId);
+    const totalMarks = questionPaper?.markDistribution?.totalMarks || exam.totalMarks || 100;
+    
+    const percentage = totalMarks > 0 ? (marks / totalMarks) * 100 : 0;
+
+    // Update answer sheet with manual marks
+    await AnswerSheet.findByIdAndUpdate(answerSheetId, {
+      status: 'MANUALLY_REVIEWED',
+      aiCorrectionResults: {
+        answerSheetId,
+        status: 'SUCCESS',
+        confidence: 1.0, // Manual review has 100% confidence
+        totalMarks,
+        obtainedMarks: marks,
+        percentage: Math.round(percentage * 100) / 100,
+        questionWiseResults: [], // Empty for manual review
+        overallFeedback: 'Manually reviewed by teacher',
+        strengths: [],
+        weaknesses: [],
+        suggestions: [],
+        processingTime: 0,
+        errors: []
+      },
+      processedAt: new Date(),
+      confidence: 1.0
+    });
+
+    logger.info(`Manual marks updated for answer sheet: ${answerSheetId} by teacher: ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Marks updated successfully',
+      data: {
+        answerSheetId,
+        marks,
+        percentage: Math.round(percentage * 100) / 100,
+        status: 'MANUALLY_REVIEWED'
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error updating answer sheet marks:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to update marks',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

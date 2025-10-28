@@ -26,8 +26,8 @@ app.use(cors());
 // Apply JSON and URL-encoded parsing only to non-file-upload routes
 app.use((req, res, next) => {
   // Skip JSON/URL parsing for file upload routes (multipart/form-data)
-  if (req.path.includes('/upload') || 
-      req.path.includes('/answer-sheets') || 
+  // Only skip for actual file upload endpoints, not for JSON API endpoints
+  if (req.path.includes('/upload') && !req.path.includes('/batch-ai-check') ||
       req.path.includes('/reference-book/upload') ||
       req.path.includes('/upload-pdf')) {
     return next();
@@ -37,8 +37,8 @@ app.use((req, res, next) => {
 
 app.use((req, res, next) => {
   // Skip URL-encoded parsing for file upload routes (multipart/form-data)
-  if (req.path.includes('/upload') || 
-      req.path.includes('/answer-sheets') || 
+  // Only skip for actual file upload endpoints, not for JSON API endpoints
+  if (req.path.includes('/upload') && !req.path.includes('/batch-ai-check') ||
       req.path.includes('/reference-book/upload') ||
       req.path.includes('/upload-pdf')) {
     return next();

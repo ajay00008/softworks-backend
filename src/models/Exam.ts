@@ -16,6 +16,7 @@ export interface IExam extends Document {
   endDate?: Date;
   createdBy: mongoose.Types.ObjectId; // Teacher/Admin who created it
   questions: mongoose.Types.ObjectId[]; // References to Question model
+  questionPaperId?: mongoose.Types.ObjectId; // Reference to QuestionPaper model
   questionDistribution: {
     unit: string;
     bloomsLevel: string;
@@ -85,6 +86,11 @@ const ExamSchema = new Schema<IExam>(
       type: Schema.Types.ObjectId, 
       ref: "Question"
     }],
+    questionPaperId: { 
+      type: Schema.Types.ObjectId, 
+      ref: "QuestionPaper",
+      index: true
+    },
     questionDistribution: [{
       unit: { type: String, required: true },
       bloomsLevel: { type: String, required: true },

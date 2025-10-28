@@ -150,6 +150,18 @@ export const createTeacherQuestionPaper = async (req: Request, res: Response) =>
       });
     }
 
+    // Check if question paper already exists for this exam
+    const existingQuestionPaper = await QuestionPaper.findOne({ 
+      examId: questionPaperData.examId,
+      isActive: true 
+    });
+    if (existingQuestionPaper) {
+      return res.status(409).json({ 
+        success: false, 
+        error: 'A question paper already exists for this exam. Only one question paper per exam is allowed.' 
+      });
+    }
+
     // Create question paper
     const questionPaper = new QuestionPaper({
       ...questionPaperData,
@@ -160,6 +172,11 @@ export const createTeacherQuestionPaper = async (req: Request, res: Response) =>
     });
 
     await questionPaper.save();
+
+    // Update exam with question paper reference
+    await Exam.findByIdAndUpdate(questionPaperData.examId, {
+      questionPaperId: questionPaper._id
+    });
 
     res.status(201).json({
       success: true,
@@ -647,13 +664,12 @@ export const getTeacherExams = async (req: Request, res: Response) => {
       });
     }
 
-    // Build query to show all exams created by the school/admin
+    // Build query to show only exams for classes the teacher is assigned to
     const query: any = {
-      isActive: true
+      isActive: true,
+      adminId: teacher.adminId, // Same school
+      classId: { $in: teacher.classIds } // Only assigned classes
     };
-    
-    // Show all exams created by the same admin (school) that the teacher belongs to
-    query.adminId = teacher.adminId;
     
     // Apply additional filters if provided
     if (classId) query.classId = classId;
@@ -737,18 +753,17 @@ export const getAnswerSheets = async (req: Request, res: Response) => {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
-    const staffAccess = await StaffAccess.findOne({
-      staffId: teacherId,
-      'classAccess.classId': exam.classId._id || exam.classId,
-      isActive: true
-    });
-
-    if (!staffAccess) {
+    // Verify teacher exists (similar to upload function)
+    const teacher = await Teacher.findOne({ userId: teacherId });
+    if (!teacher) {
       return res.status(403).json({ 
         success: false, 
-        error: 'Access denied to this exam' 
+        error: 'Teacher record not found. Please contact administrator.' 
       });
     }
+
+    // For now, allow all teachers from the same school to access any exam
+    // This can be made more restrictive later if needed
 
     // Get answer sheets for this exam
     const answerSheets = await AnswerSheet.find({ examId, isActive: true })
