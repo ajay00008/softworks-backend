@@ -57,16 +57,14 @@ export class ExamContextService {
 
       // Get accessible classes (classes teacher has access to for this exam)
       const accessibleClasses = await Class.find({
-        _id: { $in: teacher.classIds },
-        _id: exam.classId // Only the exam's class
+        _id: { $in: teacher.classIds, $eq: exam.classId } // Only the exam's class
       });
 
       // Get accessible subjects (subjects teacher teaches for this exam's class)
       const accessibleSubjects = await Subject.find({
         _id: { $in: exam.subjectIds },
-        classIds: exam.classId,
-        _id: { $in: teacher.subjectIds }
-      });
+        classIds: exam.classId
+      }).where('_id').in(teacher.subjectIds);
 
       // Get students for this exam's class
       const students = await Student.find({
@@ -138,9 +136,13 @@ export class ExamContextService {
         isActive: true
       }).populate('classAccess.classId');
 
+      logger.info(`Found ${staffAccess.length} staff access records for teacher: ${teacherId}`);
+      
       const accessibleClassIds = staffAccess.flatMap(access => 
         access.classAccess.map(ca => ca.classId)
       );
+
+      logger.info(`Accessible class IDs: ${accessibleClassIds.length}`, accessibleClassIds);
 
       // Get exams for accessible classes
       const exams = await Exam.find({
@@ -151,11 +153,33 @@ export class ExamContextService {
       .populate('subjectIds')
       .sort({ scheduledDate: -1 });
 
+      logger.info(`Found ${exams.length} exams for accessible classes`);
+
       // Filter exams based on teacher's subject assignments
       const teacherSubjectIds = teacher.subjectIds.map(id => id.toString());
+      logger.info(`Teacher subject IDs: ${teacherSubjectIds.length}`, teacherSubjectIds);
+      
+      // Debug: Log exam subject IDs for comparison
+      exams.forEach((exam, index) => {
+        const examSubjectIds = exam.subjectIds.map(s => s._id ? s._id.toString() : s.toString());
+        const hasMatchingSubject = exam.subjectIds.some(subjectId => 
+          teacherSubjectIds.includes(subjectId._id ? subjectId._id.toString() : subjectId.toString())
+        );
+        logger.info(`Exam ${index + 1} (${exam.title}):`, {
+          examSubjectIds,
+          teacherSubjectIds,
+          hasMatchingSubject,
+          matchingSubjects: exam.subjectIds.filter(subjectId => 
+            teacherSubjectIds.includes(subjectId._id ? subjectId._id.toString() : subjectId.toString())
+          ).map(s => s.name || s.toString())
+        });
+      });
+      
       const accessibleExams = exams.filter(exam => 
-        exam.subjectIds.some(subjectId => teacherSubjectIds.includes(subjectId.toString()))
+        exam.subjectIds.some(subjectId => teacherSubjectIds.includes(subjectId._id ? subjectId._id.toString() : subjectId.toString()))
       );
+
+      logger.info(`Accessible exams after subject filtering: ${accessibleExams.length}`);
 
       // Add context data for each exam
       const examsWithContext = await Promise.all(

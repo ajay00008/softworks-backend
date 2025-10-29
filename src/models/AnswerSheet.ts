@@ -172,6 +172,49 @@ const AnswerSheetSchema = new Schema<IAnswerSheet>(
       processingTime: { type: Number, min: 0 },
       errors: [{ type: String }]
     },
+    aiProcessingResults: {
+      rollNumberDetection: {
+        rollNumber: { type: String },
+        confidence: { type: Number, min: 0, max: 1 },
+        boundingBox: {
+          x: { type: Number },
+          y: { type: Number },
+          width: { type: Number },
+          height: { type: Number }
+        },
+        alternatives: [{
+          rollNumber: { type: String },
+          confidence: { type: Number, min: 0, max: 1 }
+        }],
+        imageQuality: { type: String, enum: ["EXCELLENT", "GOOD", "FAIR", "POOR"] },
+        processingTime: { type: Number, min: 0 }
+      },
+      studentMatching: {
+        matchedStudent: {
+          id: { type: String },
+          name: { type: String },
+          rollNumber: { type: String },
+          email: { type: String }
+        },
+        confidence: { type: Number, min: 0, max: 1 },
+        alternatives: [{
+          student: {
+            id: { type: String },
+            name: { type: String },
+            rollNumber: { type: String }
+          },
+          confidence: { type: Number, min: 0, max: 1 }
+        }],
+        processingTime: { type: Number, min: 0 }
+      },
+      imageAnalysis: {
+        quality: { type: String, enum: ["EXCELLENT", "GOOD", "FAIR", "POOR"] },
+        isAligned: { type: Boolean }
+      },
+      issues: [{ type: String }],
+      suggestions: [{ type: String }],
+      processingTime: { type: Number, min: 0 }
+    },
     manualOverrides: [{
       questionId: { type: Schema.Types.ObjectId, ref: "Question", required: true },
       correctedAnswer: { type: String, required: true },

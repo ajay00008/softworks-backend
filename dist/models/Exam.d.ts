@@ -14,6 +14,7 @@ export interface IExam extends Document {
     endDate?: Date;
     createdBy: mongoose.Types.ObjectId;
     questions: mongoose.Types.ObjectId[];
+    questionPaperId?: mongoose.Types.ObjectId;
     questionDistribution: {
         unit: string;
         bloomsLevel: string;

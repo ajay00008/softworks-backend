@@ -693,6 +693,82 @@ export const getTeacherExams = async (req: Request, res: Response) => {
   }
 };
 
+// Get students in assigned classes
+export const getAssignedStudents = async (req: Request, res: Response) => {
+  try {
+    const teacherId = (req as any).auth?.sub;
+    const { classId, search, page = 1, limit = 50 } = req.query;
+
+    if (!teacherId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Get teacher's assigned classes
+    const teacher = await Teacher.findOne({ userId: teacherId });
+    if (!teacher) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Teacher record not found' 
+      });
+    }
+
+    // Build query for students in assigned classes
+    const query: any = {
+      classId: { $in: teacher.classIds },
+      isActive: true
+    };
+
+    // Filter by specific class if provided
+    if (classId) {
+      query.classId = classId;
+    }
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { rollNumber: { $regex: search, $options: 'i' } },
+        { 'userId.name': { $regex: search, $options: 'i' } },
+        { 'userId.email': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Get students with pagination
+    const skip = (Number(page) - 1) * Number(limit);
+    const students = await Student.find(query)
+      .populate('userId', 'name email')
+      .populate('classId', 'name displayName level section')
+      .sort({ rollNumber: 1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    // Get total count for pagination
+    const totalCount = await Student.countDocuments(query);
+
+    // Get class information for assigned classes
+    const classes = await Class.find({ _id: { $in: teacher.classIds } })
+      .select('name displayName level section')
+      .sort({ level: 1, section: 1 });
+
+    res.json({
+      success: true,
+      data: {
+        students,
+        classes,
+        pagination: {
+          currentPage: Number(page),
+          totalPages: Math.ceil(totalCount / Number(limit)),
+          totalCount,
+          hasNext: skip + students.length < totalCount,
+          hasPrev: Number(page) > 1
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Error getting assigned students:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+};
+
 // Download results
 export const downloadResults = async (req: Request, res: Response) => {
   try {

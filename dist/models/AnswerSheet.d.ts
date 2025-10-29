@@ -1,6 +1,21 @@
 import mongoose, { Document, Model } from "mongoose";
-export type AnswerSheetStatus = "UPLOADED" | "PROCESSING" | "AI_CORRECTED" | "MANUALLY_REVIEWED" | "COMPLETED" | "MISSING" | "ABSENT";
+export type AnswerSheetStatus = "UPLOADED" | "PROCESSING" | "AI_CORRECTED" | "MANUALLY_REVIEWED" | "COMPLETED" | "MISSING" | "ABSENT" | "FLAGGED";
 export type ScanQuality = "EXCELLENT" | "GOOD" | "FAIR" | "POOR" | "UNREADABLE";
+export type FlagType = "UNMATCHED_ROLL" | "POOR_QUALITY" | "MISSING_PAGES" | "ALIGNMENT_ISSUE" | "DUPLICATE_UPLOAD" | "INVALID_FORMAT" | "SIZE_TOO_LARGE" | "CORRUPTED_FILE" | "MANUAL_REVIEW_REQUIRED";
+export type FlagSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type ProcessingStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "FLAGGED";
+export interface IAnswerSheetFlag {
+    type: FlagType;
+    severity: FlagSeverity;
+    description: string;
+    detectedAt: Date;
+    detectedBy?: mongoose.Types.ObjectId;
+    resolved: boolean;
+    resolvedBy?: mongoose.Types.ObjectId;
+    resolvedAt?: Date;
+    resolutionNotes?: string;
+    autoResolved: boolean;
+}
 export interface IAnswerSheet extends Document {
     examId: mongoose.Types.ObjectId;
     studentId: mongoose.Types.ObjectId;
@@ -57,6 +72,12 @@ export interface IAnswerSheet extends Document {
     completedAt?: Date;
     language: string;
     isActive: boolean;
+    flags: IAnswerSheetFlag[];
+    processingStatus: ProcessingStatus;
+    flagCount: number;
+    hasCriticalFlags: boolean;
+    lastFlaggedAt?: Date;
+    flagResolutionRate?: number;
 }
 export declare const AnswerSheet: Model<IAnswerSheet>;
 //# sourceMappingURL=AnswerSheet.d.ts.map

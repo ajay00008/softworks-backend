@@ -1,6 +1,7 @@
-import type { Request, Response, NextFunction } from "express";
-export declare function printAllStudentsAnswers(req: Request, res: Response, next: NextFunction): Promise<void>;
-export declare function printIndividualStudentAnswer(req: Request, res: Response, next: NextFunction): Promise<void>;
-export declare function printClassResultsSummary(req: Request, res: Response, next: NextFunction): Promise<void>;
-export declare function printPerformanceReport(req: Request, res: Response, next: NextFunction): Promise<void>;
+import type { Request, Response } from 'express';
+export declare const printIndividualAnswerSheet: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const printBatchAnswerSheets: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const downloadPrintedFile: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const getPrintHistory: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
+export declare const getPrintOptions: (req: Request, res: Response) => Promise<Response<any, Record<string, any>> | undefined>;
 //# sourceMappingURL=printingController.d.ts.map

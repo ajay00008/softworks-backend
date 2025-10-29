@@ -97,6 +97,7 @@ import {
   getResults,
   getPerformanceGraphs,
   getTeacherExams,
+  getAssignedStudents,
   downloadResults,
   getAnswerSheets,
 } from "../controllers/teacherDashboardController";
@@ -3615,6 +3616,13 @@ import {
   updateAnswerSheetMarks,
 } from "../controllers/answerSheetController";
 import {
+  batchUploadAnswerSheetsEnhanced,
+  uploadAnswerSheetEnhanced,
+  matchAnswerSheetToStudentEnhanced,
+  getAnswerSheetsWithAIResults,
+  autoMatchUnmatchedSheets,
+} from "../controllers/answerSheetControllerEnhanced";
+import {
   sendMissingAnswerSheetNotification,
   getUserNotifications,
   markNotificationAsRead,
@@ -4093,6 +4101,50 @@ router.get(
 
 /**
  * @openapi
+ * /api/teacher/students:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get students in assigned classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *         description: Filter by specific class ID
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by name, email, or roll number
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of students per page
+ *     responses:
+ *       200:
+ *         description: Students retrieved successfully
+ *       403:
+ *         description: Access denied
+ */
+router.get(
+  "/teacher/students",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getAssignedStudents
+);
+
+/**
+ * @openapi
  * /api/admin/answer-sheets/{answerSheetId}/ai-results:
  *   put:
  *     tags: [Admin - Answer Sheets]
@@ -4168,6 +4220,190 @@ router.post(
   requireAuth,
   requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   addManualOverride
+);
+
+// ==================== ENHANCED ANSWER SHEET ROUTES ====================
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/upload-enhanced/{examId}:
+ *   post:
+ *     tags: [Teacher - Enhanced Answer Sheets]
+ *     summary: Enhanced batch upload answer sheets with AI roll number detection
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Answer sheets processed successfully with AI
+ *       400:
+ *         description: No files uploaded
+ *       403:
+ *         description: Access denied to this class
+ *       404:
+ *         description: Exam not found
+ */
+router.post(
+  "/teacher/answer-sheets/upload-enhanced/:examId",
+  answerSheetUpload.array("files", 20),
+  requireAuth,
+  requireRoles("TEACHER"),
+  batchUploadAnswerSheetsEnhanced
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/upload-single-enhanced:
+ *   post:
+ *     tags: [Teacher - Enhanced Answer Sheets]
+ *     summary: Enhanced single answer sheet upload with AI processing
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               examId:
+ *                 type: string
+ *               studentId:
+ *                 type: string
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *               language:
+ *                 type: string
+ *                 enum: [ENGLISH, TAMIL, HINDI, MALAYALAM, TELUGU, KANNADA, FRENCH]
+ *                 default: ENGLISH
+ *     responses:
+ *       201:
+ *         description: Answer sheet uploaded and processed successfully
+ *       400:
+ *         description: No file uploaded or validation error
+ *       403:
+ *         description: Access denied to this class
+ *       404:
+ *         description: Exam not found
+ */
+router.post(
+  "/teacher/answer-sheets/upload-single-enhanced",
+  answerSheetUpload.single("file"),
+  requireAuth,
+  requireRoles("TEACHER"),
+  uploadAnswerSheetEnhanced
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/match-enhanced:
+ *   post:
+ *     tags: [Teacher - Enhanced Answer Sheets]
+ *     summary: Enhanced student matching with AI suggestions
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               answerSheetId:
+ *                 type: string
+ *               rollNumber:
+ *                 type: string
+ *               studentId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheet matched to student successfully
+ *       400:
+ *         description: Invalid request or answer sheet already exists
+ *       404:
+ *         description: Answer sheet or student not found
+ */
+router.post(
+  "/teacher/answer-sheets/match-enhanced",
+  requireAuth,
+  requireRoles("TEACHER"),
+  matchAnswerSheetToStudentEnhanced
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/ai-results/{examId}:
+ *   get:
+ *     tags: [Teacher - Enhanced Answer Sheets]
+ *     summary: Get answer sheets with AI processing results
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Answer sheets with AI results retrieved successfully
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.get(
+  "/teacher/answer-sheets/ai-results/:examId",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getAnswerSheetsWithAIResults
+);
+
+/**
+ * @openapi
+ * /api/teacher/answer-sheets/auto-match/{examId}:
+ *   post:
+ *     tags: [Teacher - Enhanced Answer Sheets]
+ *     summary: Auto-match unmatched answer sheets using AI
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Auto-matching completed successfully
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Exam not found
+ */
+router.post(
+  "/teacher/answer-sheets/auto-match/:examId",
+  requireAuth,
+  requireRoles("TEACHER"),
+  autoMatchUnmatchedSheets
 );
 
 // ==================== AI ANSWER CHECKING ROUTES ====================
