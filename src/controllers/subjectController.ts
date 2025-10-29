@@ -214,6 +214,7 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
     const [subjects, total] = await Promise.all([
       Subject.find(query)
         .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt')
+        .populate('classIds', 'name displayName level section academicYear')
         .sort({ category: 1, name: 1 })
         .skip(skip)
         .limit(limit)
@@ -294,6 +295,7 @@ export async function getSubjectsByAdmin(req: Request, res: Response, next: Next
     const [subjects, total] = await Promise.all([
       Subject.find(query)
         .select('_id code name shortName category classIds description color isActive referenceBook createdAt updatedAt')
+        .populate('classIds', 'name displayName level section academicYear')
         .sort({ category: 1, name: 1 })
         .skip(skip)
         .limit(limit)
