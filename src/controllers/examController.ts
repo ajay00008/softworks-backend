@@ -14,7 +14,7 @@ const CreateExamSchema = z.object({
   description: z.string().optional(),
   examType: z.enum([
     "UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL",
-    "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"
+    "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM", "CUSTOM_EXAM"
   ]),
   subjectIds: z.array(z.string().min(1)).min(1, "At least one subject must be selected"),
   classId: z.string().min(1),

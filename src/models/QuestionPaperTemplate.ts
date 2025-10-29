@@ -4,6 +4,7 @@ export interface IQuestionPaperTemplate extends Document {
   title: string;
   description?: string;
   subjectId: mongoose.Types.ObjectId;
+  examType: string; // Exam type (UNIT_TEST, MID_TERM, FINAL, CUSTOM_EXAM, etc.)
   adminId: mongoose.Types.ObjectId;
   uploadedBy: mongoose.Types.ObjectId;
   
@@ -47,6 +48,17 @@ export interface IQuestionPaperTemplate extends Document {
     }>;
   };
   
+  // AI validation results
+  aiValidation: {
+    isValid: boolean;
+    confidence: number; // 0-100 confidence score
+    detectedSubject?: string;
+    detectedExamType?: string;
+    validationErrors: string[];
+    suggestions: string[];
+    validatedAt: Date;
+  };
+  
   // Template settings for AI generation
   aiSettings: {
     useTemplate: boolean;
@@ -76,6 +88,12 @@ const QuestionPaperTemplateSchema = new Schema<IQuestionPaperTemplate>(
       type: Schema.Types.ObjectId, 
       ref: "Subject", 
       required: true,
+      index: true
+    },
+    examType: { 
+      type: String, 
+      required: true,
+      enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL", "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM", "CUSTOM_EXAM"],
       index: true
     },
     adminId: { 
@@ -126,6 +144,15 @@ const QuestionPaperTemplateSchema = new Schema<IQuestionPaperTemplate>(
         marks: { type: Number, required: true }
       }]
     },
+    aiValidation: {
+      isValid: { type: Boolean, default: false },
+      confidence: { type: Number, min: 0, max: 100, default: 0 },
+      detectedSubject: { type: String },
+      detectedExamType: { type: String },
+      validationErrors: [{ type: String }],
+      suggestions: [{ type: String }],
+      validatedAt: { type: Date, default: Date.now }
+    },
     aiSettings: {
       useTemplate: { type: Boolean, default: true },
       followPattern: { type: Boolean, default: true },
@@ -146,8 +173,9 @@ const QuestionPaperTemplateSchema = new Schema<IQuestionPaperTemplate>(
 );
 
 // Indexes for efficient queries
-QuestionPaperTemplateSchema.index({ subjectId: 1, isActive: 1 });
+QuestionPaperTemplateSchema.index({ subjectId: 1, examType: 1, isActive: 1 });
 QuestionPaperTemplateSchema.index({ adminId: 1, isActive: 1 });
 QuestionPaperTemplateSchema.index({ uploadedBy: 1, isActive: 1 });
+QuestionPaperTemplateSchema.index({ 'aiValidation.isValid': 1, 'aiValidation.confidence': -1 });
 
 export default mongoose.model<IQuestionPaperTemplate>('QuestionPaperTemplate', QuestionPaperTemplateSchema);

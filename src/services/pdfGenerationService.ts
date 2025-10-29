@@ -82,62 +82,113 @@ export class PDFGenerationService {
     });
   }
 
+  /**
+   * Extract text content from a PDF file
+   * For now, this is a mock implementation that returns sample text
+   * In production, you would use a proper PDF text extraction library
+   */
+  static async extractTextFromPDF(filePath: string): Promise<string> {
+    try {
+      console.log('Extracting text from PDF:', filePath);
+      
+      if (!fs.existsSync(filePath)) {
+        console.error('PDF file not found:', filePath);
+        throw new Error(`PDF file not found: ${filePath}`);
+      }
+
+      console.log('PDF file exists, returning sample text');
+      
+      // For now, return sample text that matches common question paper patterns
+      // This allows us to test the pattern extraction logic
+      const sampleText = `
+        MATHEMATICS QUESTION PAPER
+        Class: 10
+        Unit Test - Chapter 1: Real Numbers
+        Time: 90 minutes
+        Total Marks: 50
+        
+        INSTRUCTIONS:
+        1. All questions are compulsory
+        2. Section A contains 10 questions of 1 mark each
+        3. Section B contains 8 questions of 2 marks each  
+        4. Section C contains 5 questions of 3 marks each
+        5. Section D contains 2 questions of 5 marks each
+        
+        SECTION A (1 mark each) - 10 questions
+        Q1. What is the HCF of 12 and 18?
+        Q2. Find the LCM of 6 and 8
+        Q3. Is √2 a rational number?
+        Q4. Express 0.375 as a fraction
+        Q5. Find the decimal expansion of 1/7
+        Q6. What is the fundamental theorem of arithmetic?
+        Q7. Find the HCF of 24 and 36
+        Q8. Is 0.101101110... rational?
+        Q9. Find the LCM of 15 and 20
+        Q10. Express 2.5 as a fraction
+        
+        SECTION B (2 marks each) - 8 questions
+        Q11. Prove that √3 is irrational
+        Q12. Find the HCF and LCM of 12, 15 and 21
+        Q13. Show that any positive odd integer is of the form 6q+1, 6q+3 or 6q+5
+        Q14. Find the decimal expansion of 3/8
+        Q15. Prove that 3+2√5 is irrational
+        Q16. Find the HCF of 96 and 404
+        Q17. Show that every positive integer is either even or odd
+        Q18. Find the LCM of 8, 9 and 25
+        
+        SECTION C (3 marks each) - 5 questions
+        Q19. Prove that √5 is irrational
+        Q20. Find the HCF and LCM of 6, 72 and 120
+        Q21. Show that the square of any positive integer is of the form 3m or 3m+1
+        Q22. Find the decimal expansion of 1/13
+        Q23. Prove that 2+3√7 is irrational
+        
+        SECTION D (5 marks each) - 2 questions
+        Q24. Prove that √2 is irrational
+        Q25. Find the HCF and LCM of 6, 72 and 120 using prime factorization
+      `;
+      
+      console.log('Sample text generated, length:', sampleText.length);
+      return sampleText;
+    } catch (error) {
+      console.error('Error extracting text from PDF:', error);
+      throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   // ---------------- HEADER ----------------
   private static addHeader(doc: any, subject: string, className: string, exam: string, total: number, duration: number) {
     const pageWidth = doc.page.width;
     const margin = 50;
 
-    // Debug logging
-    console.log('PDF Header Data:', { subject, className, exam, total, duration });
+    // Classic academic header (monochrome, clean)
+    const subjectName = subject || 'Subject';
+    const classNameValue = className || '';
+    const examTitle = (exam || 'Question Paper').toUpperCase();
 
-    // Professional header with proper alignment
-    doc.fontSize(20)
-      .font("Helvetica-Bold")
+    // Title
+    doc.font('Times-Bold')
+      .fontSize(18)
       .fillColor('black')
-      .text(exam || 'Question Paper', margin, 50, { align: 'center' });
+      .text(examTitle, margin, 50, { align: 'center' });
 
-    doc.moveDown(1);
-    
-    // Subject and class info in a properly aligned box
-    const infoBoxY = doc.y;
-    const infoBoxHeight = 60; // Increased height to accommodate all content
-    
-    // Info box background with better styling
-    doc.rect(margin, infoBoxY, pageWidth - 2 * margin, infoBoxHeight)
-       .fillAndStroke('#f8f9fa', '#dee2e6')
-       .stroke();
+    // Thin underline
+    const titleBottomY = doc.y + 6;
+    doc.moveTo(margin, titleBottomY).lineTo(pageWidth - margin, titleBottomY).stroke('#000000');
 
-    // Subject and class info - properly aligned with fallback values
-    const subjectName = subject || 'Mathematics';
-    const classNameValue = className || 'Class 10';
-    
-    doc.fontSize(14)
-      .font("Helvetica-Bold")
-      .fillColor('black')
-      .text(`Subject: ${subjectName}`, margin + 20, infoBoxY + 15);
+    doc.moveDown(0.6);
 
-    doc.fontSize(12)
-      .font("Helvetica")
-      .fillColor('black')
-      .text(`Class: ${classNameValue}`, margin + 20, infoBoxY + 35);
+    // Meta row: Subject | Class (left) and Marks | Time (right)
+    doc.font('Times-Roman').fontSize(12);
+    const leftText = `Subject: ${subjectName}${classNameValue ? `   Class: ${classNameValue}` : ''}`;
+    const rightText = `Total Marks: ${total || 0}   Time: ${duration || 0} minutes`;
 
-    // Exam details on the right - properly aligned within the container
-    const detailsX = pageWidth - margin - 200; // Adjusted for better spacing
-    doc.fontSize(12)
-      .font("Helvetica-Bold")
-      .fillColor('black')
-      .text("Exam Details", detailsX, infoBoxY + 15);
-    
-    doc.fontSize(11)
-      .font("Helvetica")
-      .fillColor('black')
-      .text(`Total Marks: ${total || 100}`, detailsX, infoBoxY + 32)
-      .text(`Duration: ${duration || 180} minutes`, detailsX, infoBoxY + 47); // Properly positioned within container
+    // Left
+    doc.text(leftText, margin, titleBottomY + 8, { continued: false });
+    // Right
+    const rightWidth = doc.widthOfString(rightText);
+    doc.text(rightText, pageWidth - margin - rightWidth, titleBottomY + 8);
 
-    doc.y = infoBoxY + infoBoxHeight + 25;
-
-    // Decorative line with proper positioning
-    doc.moveTo(margin, doc.y).lineTo(pageWidth - margin, doc.y).stroke('#007bff', 2);
     doc.moveDown(0.8);
   }
 
@@ -146,144 +197,61 @@ export class PDFGenerationService {
     const pageWidth = doc.page.width;
     const margin = 50;
 
-    // Professional instructions section with proper alignment
-    doc.fontSize(14)
-      .font("Helvetica-Bold")
-      .fillColor('black')
-      .text("General Instructions:", margin, doc.y);
+    // Heading
+    doc.font('Times-Bold').fontSize(12).text('INSTRUCTIONS:', margin, doc.y);
+    doc.moveDown(0.3);
 
-    doc.moveDown(0.8);
-
-    // Instructions in a properly aligned bordered box
-    const instructionsY = doc.y;
-    const instructionsHeight = 110;
-    
-    // Instructions background with better styling
-    doc.rect(margin, instructionsY, pageWidth - 2 * margin, instructionsHeight)
-       .fillAndStroke('#fff3cd', '#ffeaa7')
-       .stroke();
-
+    // Numbered instructions, simple black text
     const instructions = [
-      "1. All questions are compulsory and must be attempted.",
-      "2. Read all questions carefully before answering.",
-      "3. For multiple choice questions, choose the best answer.",
-      "4. For fill in the blanks, write the complete word or phrase.",
-      "5. For drawing questions, use a pencil and draw neatly.",
-      "6. Manage your time effectively and attempt all sections."
+      '1. All questions are compulsory.',
+      '2. Read the questions carefully and answer in your own words.',
+      '3. Figures to the right indicate full marks for the question.',
+      '4. Write neat and legible answers.',
+      '5. Do not write anything on the question paper.'
     ];
 
-    doc.fontSize(11).font("Helvetica").fillColor('black');
-    let currentY = instructionsY + 18;
+    doc.font('Times-Roman').fontSize(11).fillColor('black');
+    const width = pageWidth - 2 * margin;
     instructions.forEach((line) => {
-      doc.text(line, margin + 20, currentY, { width: pageWidth - 2 * margin - 40 });
-      currentY += 14;
+      doc.text(line, margin, doc.y, { width });
+      doc.moveDown(0.2);
     });
 
-    doc.y = instructionsY + instructionsHeight + 25;
-
-    // Section separator with proper positioning
-    doc.moveTo(margin, doc.y).lineTo(pageWidth - margin, doc.y).stroke('#6c757d', 1);
-    doc.moveDown(0.8);
+    doc.moveDown(0.6);
   }
 
   // ---------------- QUESTION ----------------
   private static addQuestion(doc: any, question: GeneratedQuestion, number: number) {
-    // Check if we need a new page - more conservative approach
-    if (doc.y > 650) {
+    // New page if near bottom
+    if (doc.y > 720) {
       doc.addPage();
     }
 
     const pageWidth = doc.page.width;
     const margin = 50;
+    const width = pageWidth - 2 * margin;
 
-    // Question container with proper alignment
-    const questionY = doc.y;
-    const questionWidth = pageWidth - 2 * margin;
-    
-    // Question number with circle - properly positioned
-    const circleRadius = 15;
-    const circleX = margin;
-    const circleY = questionY + 5; // Offset for better alignment
-    
-    doc.circle(circleX + circleRadius, circleY + circleRadius, circleRadius)
-       .fillAndStroke('#007bff', '#007bff')
-       .stroke();
-    
-    doc.fontSize(12)
-      .font("Helvetica-Bold")
-      .fillColor('white')
-      .text(number.toString(), circleX + circleRadius - 4, circleY + 8);
+    // Qn. Question text  [marks]
+    doc.font('Times-Bold').fontSize(12).fillColor('black');
+    const prefix = `Q${number}. `;
+    const marksSuffix = question.marks ? `   [${question.marks} mark${question.marks > 1 ? 's' : ''}]` : '';
 
-    // Question text - properly aligned
-    const questionTextX = circleX + circleRadius * 2 + 20;
-    const questionTextY = questionY;
-    
-    doc.fontSize(12)
-      .font("Helvetica-Bold")
-      .fillColor('black')
-      .text(question.questionText, questionTextX, questionTextY, { 
-        width: questionWidth - circleRadius * 2 - 50 
-      });
+    // Render question line
+    doc.text(prefix + question.questionText + marksSuffix, margin, doc.y, { width });
+    doc.moveDown(0.2);
 
-    // Calculate question text height for proper alignment
-    const questionTextHeight = doc.heightOfString(question.questionText, { 
-      width: questionWidth - circleRadius * 2 - 50 
-    });
-    
-    let currentY = Math.max(questionY + questionTextHeight + 10, questionY + 25);
-
-    // Options with proper alignment - only for multiple choice questions
-    if (question.questionType === 'CHOOSE_MULTIPLE_ANSWERS') {
-      console.log('DEBUG - PDF Generation - CHOOSE_MULTIPLE_ANSWERS question:', {
-        questionText: question.questionText,
-        options: question.options,
-        optionsLength: question.options?.length,
-        hasOptions: !!question.options
-      });
-    }
-    
-    if (question.options && question.options.length > 0 && 
+    // Options (a), (b), ... for MCQ types
+    if (question.options && question.options.length > 0 &&
         (question.questionType === 'CHOOSE_BEST_ANSWER' || question.questionType === 'CHOOSE_MULTIPLE_ANSWERS')) {
+      doc.font('Times-Roman').fontSize(11);
       question.options.forEach((opt, i) => {
-        const letter = String.fromCharCode(65 + i);
-        const optionY = currentY + (i * 20);
-        
-        // Option letter in a small circle - properly positioned
-        doc.circle(questionTextX + 10, optionY + 8, 7)
-           .fillAndStroke('#28a745', '#28a745')
-           .stroke();
-        
-        doc.fontSize(10)
-          .font("Helvetica-Bold")
-          .fillColor('white')
-          .text(letter, questionTextX + 6, optionY + 4);
-        
-        // Option text - properly aligned
-        doc.fontSize(11)
-          .font("Helvetica")
-          .fillColor('black')
-          .text(opt, questionTextX + 25, optionY, { 
-            width: questionWidth - circleRadius * 2 - 80 
-          });
+        const label = String.fromCharCode(97 + i); // a, b, c ...
+        doc.text(`(${label}) ${opt}`, margin + 18, doc.y, { width });
       });
-      
-      currentY += question.options.length * 20 + 20;
+      doc.moveDown(0.2);
     }
 
-    // Marks indicator - properly positioned
-    const marksX = pageWidth - margin - 80;
-    const marksY = currentY - 15;
-    
-    doc.rect(marksX, marksY, 70, 20)
-       .fillAndStroke('#ffc107', '#ffc107')
-       .stroke();
-    
-    doc.fontSize(10)
-      .font("Helvetica-Bold")
-      .fillColor('black')
-      .text(`${question.marks} marks`, marksX + 8, marksY + 5);
-
-    doc.y = currentY + 10;
+    doc.moveDown(0.4);
   }
 
   // ---------------- FOOTER ----------------
@@ -302,32 +270,12 @@ export class PDFGenerationService {
     for (let i = startPage; i < startPage + pageCount; i++) {
       try {
         doc.switchToPage(i);
-        
-        // Professional footer with branding
-        const footerY = 750;
-        
-        // Footer background
-        doc.rect(margin, footerY, pageWidth - 2 * margin, 30)
-           .fillAndStroke('#f8f9fa', '#dee2e6')
-           .stroke();
-        
-        // EduAdmin branding
-        doc.fontSize(10)
-          .font("Helvetica-Bold")
-          .fillColor('#007bff')
-          .text("EduAdmin System", margin + 15, footerY + 8);
-        
-        // Page number
+        const footerY = 770;
+
+        // Simple monochrome footer
         const pageText = `Page ${i - startPage + 1} of ${pageCount}`;
-        doc.fontSize(9)
-          .font("Helvetica")
-          .fillColor('#6c757d')
-          .text(pageText, pageWidth - margin - 80, footerY + 8, { align: "right" });
-        
-        // Footer line
-        doc.moveTo(margin, footerY + 25)
-           .lineTo(pageWidth - margin, footerY + 25)
-           .stroke('#007bff', 1);
+        doc.font('Times-Roman').fontSize(9).fillColor('#000000')
+          .text(pageText, pageWidth - margin - 80, footerY, { align: 'right' });
            
       } catch (error) {
         console.warn(`Could not switch to page ${i}:`, error);

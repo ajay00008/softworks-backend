@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type ExamStatus = "DRAFT" | "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
-export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL" | "DAILY" | "WEEKLY" | "MONTHLY" | "UNIT_WISE" | "PAGE_WISE" | "TERM_TEST" | "ANNUAL_EXAM";
+export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL" | "DAILY" | "WEEKLY" | "MONTHLY" | "UNIT_WISE" | "PAGE_WISE" | "TERM_TEST" | "ANNUAL_EXAM" | "CUSTOM_EXAM";
 
 export interface IExam extends Document {
   title: string;
@@ -43,7 +43,7 @@ const ExamSchema = new Schema<IExam>(
     },
     examType: { 
       type: String, 
-      enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL", "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM"],
+      enum: ["UNIT_TEST", "MID_TERM", "FINAL", "QUIZ", "ASSIGNMENT", "PRACTICAL", "DAILY", "WEEKLY", "MONTHLY", "UNIT_WISE", "PAGE_WISE", "TERM_TEST", "ANNUAL_EXAM", "CUSTOM_EXAM"],
       required: true
     },
     subjectIds: [{ 

@@ -212,6 +212,9 @@ import {
   downloadTemplate,
   analyzeTemplate,
   uploadTemplate,
+  getDefaultTemplate,
+  getTemplatesForAutoFetch,
+  checkTemplatesExist,
 } from "../controllers/questionPaperTemplateController";
 import {
   createSamplePaper,
@@ -7360,6 +7363,132 @@ router.get(
 
 /**
  * @openapi
+ * /api/admin/question-paper-templates/{id}/download:
+ *   get:
+ *     summary: Download template file
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template file downloaded
+ *       404:
+ *         description: Template not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/question-paper-templates/:id/download",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  downloadTemplate
+);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/default/{subjectId}/{examType}:
+ *   get:
+ *     summary: Get templates for subject/exam type
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: subjectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: examType
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Templates retrieved successfully
+ *       404:
+ *         description: No templates found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/question-paper-templates/default/:subjectId/:examType",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getDefaultTemplate
+);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/check-exists:
+ *   get:
+ *     summary: Check if templates exist for an exam
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Check completed successfully
+ *       400:
+ *         description: Missing required parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/question-paper-templates/check-exists",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  checkTemplatesExist
+);
+
+/**
+ * @openapi
+ * /api/admin/question-paper-templates/auto-fetch:
+ *   get:
+ *     summary: Get templates suitable for auto-fetch marks
+ *     tags: [Question Paper Templates]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: subjectId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: examType
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Templates retrieved successfully
+ *       400:
+ *         description: Missing required parameters
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/admin/question-paper-templates/auto-fetch",
+  requireAuth,
+  requireRoles("ADMIN", "SUPER_ADMIN"),
+  getTemplatesForAutoFetch
+);
+
+/**
+ * @openapi
  * /api/admin/question-paper-templates/{id}:
  *   get:
  *     summary: Get template by ID
@@ -7456,35 +7585,6 @@ router.delete(
   requireAuth,
   requireRoles("ADMIN", "SUPER_ADMIN"),
   deleteTemplate
-);
-
-/**
- * @openapi
- * /api/admin/question-paper-templates/{id}/download:
- *   get:
- *     summary: Download template file
- *     tags: [Question Paper Templates]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Template file downloaded
- *       404:
- *         description: Template not found
- *       401:
- *         description: Unauthorized
- */
-router.get(
-  "/admin/question-paper-templates/:id/download",
-  requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
-  downloadTemplate
 );
 
 /**
