@@ -185,9 +185,11 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
     const { page, limit, search, category, level, isActive } = GetSubjectsQuerySchema.parse(req.query);
     const auth = (req as any).auth;
     const adminId = auth.adminId;
+    const role = auth.role;
     
-    
-    const query: any = { adminId };
+    // For SUPER_ADMIN, return all subjects from all admins
+    // For ADMIN, return only their own subjects
+    const query: any = role === 'SUPER_ADMIN' ? {} : { adminId };
     
     if (category) {
       query.category = category.toUpperCase();

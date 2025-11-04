@@ -14,10 +14,17 @@ const LoginSchema = z.object({
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password } = LoginSchema.parse(req.body);
-    const user = await User.findOne({ email, isActive: true });
+    const user = await User.findOne({ email });
     if (!user) throw new createHttpError.Unauthorized("Invalid credentials");
+    
+    // Verify password first (security best practice)
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) throw new createHttpError.Unauthorized("Invalid credentials");
+    
+    // Check if account is deactivated after password verification
+    if (!user.isActive) {
+      throw new createHttpError.Unauthorized("Your account is deactivated");
+    }
 
     const payload: any = { sub: (user._id as any).toString(), role: user.role };
     
