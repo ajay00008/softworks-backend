@@ -71,6 +71,12 @@ export const batchUploadAnswerSheetsEnhanced = async (req: Request, res: Respons
           file.buffer // In real implementation, this might be processed image
         );
 
+        // Determine final status - prioritize matched students
+        let finalStatus = aiResult.status;
+        if (aiResult.studentMatching.matchedStudent && aiResult.studentMatching.confidence > 0.7) {
+          finalStatus = 'UPLOADED'; // Force UPLOADED status if student is matched with good confidence
+        }
+
         // Create answer sheet record
         const answerSheetData: any = {
           examId,
@@ -79,10 +85,10 @@ export const batchUploadAnswerSheetsEnhanced = async (req: Request, res: Respons
           originalFileName: file.originalname,
           cloudStorageUrl: uploadResult.original.url,
           cloudStorageKey: uploadResult.original.key,
-          status: aiResult.status,
+          status: finalStatus,
           scanQuality: aiResult.scanQuality,
           isAligned: aiResult.isAligned,
-          rollNumberDetected: aiResult.rollNumberDetection.rollNumber,
+          rollNumberDetected: aiResult.rollNumberDetection.rollNumber || null,
           rollNumberConfidence: aiResult.rollNumberDetection.confidence * 100,
           language: 'ENGLISH',
           aiProcessingResults: {
@@ -131,24 +137,78 @@ export const batchUploadAnswerSheetsEnhanced = async (req: Request, res: Respons
     // Send notifications for successfully processed sheets
     if (results.length > 0) {
       try {
+        const { NotificationService } = await import('../services/notificationService');
         const notificationPromises = results
           .filter(result => result.matchedStudent)
           .map(async (result) => {
-            const notification = new Notification({
-              userId: result.matchedStudent!.id,
+            return NotificationService.createNotification({
               type: 'ANSWER_SHEET_UPLOADED',
+              priority: 'LOW',
               title: 'Answer Sheet Uploaded',
               message: `Your answer sheet for ${exam.title} has been uploaded and processed successfully.`,
-              data: {
-                examId: exam._id,
-                answerSheetId: result.answerSheetId,
+              recipientId: result.matchedStudent!.id,
+              relatedEntityId: result.answerSheetId.toString(),
+              relatedEntityType: 'answerSheet',
+              metadata: {
+                examId: exam._id.toString(),
+                answerSheetId: result.answerSheetId.toString(),
                 examTitle: exam.title
               }
             });
-            return notification.save();
           });
 
         await Promise.all(notificationPromises);
+
+        // Also notify teacher who uploaded (and their admin via Socket.IO)
+        if (uploadedBy) {
+          await NotificationService.createNotification({
+            type: 'ANSWER_SHEET_UPLOADED',
+            priority: 'LOW',
+            title: 'Answer Sheets Processed',
+            message: `${results.length} answer sheet(s) for ${exam.title} have been processed successfully.`,
+            recipientId: uploadedBy,
+            relatedEntityId: exam._id.toString(),
+            relatedEntityType: 'exam',
+            metadata: {
+              examId: exam._id.toString(),
+              examTitle: exam.title,
+              processedCount: results.length
+            }
+          });
+        }
+
+        // Send notifications to admin for unmatched answer sheets
+        const unmatchedResults = results.filter(r => !r.matchedStudent);
+        if (unmatchedResults.length > 0 && uploadedBy) {
+          try {
+            // Get teacher's adminId
+            const teacher = await Teacher.findOne({ userId: uploadedBy });
+            if (teacher && teacher.adminId) {
+              await NotificationService.createNotification({
+                type: 'MANUAL_REVIEW_REQUIRED',
+                priority: 'MEDIUM',
+                title: 'Unmatched Answer Sheets Require Review',
+                message: `${unmatchedResults.length} answer sheet(s) for ${exam.title} could not be matched to students. Please review and match manually.`,
+                recipientId: teacher.adminId.toString(),
+                relatedEntityId: exam._id.toString(),
+                relatedEntityType: 'exam',
+                metadata: {
+                  examId: exam._id.toString(),
+                  examTitle: exam.title,
+                  unmatchedCount: unmatchedResults.length,
+                  unmatchedSheets: unmatchedResults.map(r => ({
+                    answerSheetId: r.answerSheetId,
+                    fileName: r.originalFileName,
+                    rollNumber: r.rollNumberDetected
+                  }))
+                }
+              });
+              logger.info(`Sent notification to admin ${teacher.adminId} for ${unmatchedResults.length} unmatched answer sheets`);
+            }
+          } catch (adminNotifError) {
+            logger.error('Failed to send admin notification for unmatched sheets:', adminNotifError);
+          }
+        }
       } catch (error) {
         logger.error('Failed to send notifications:', error);
       }
@@ -156,15 +216,16 @@ export const batchUploadAnswerSheetsEnhanced = async (req: Request, res: Respons
 
     res.json({
       success: true,
-      data: results,
-      errors: errors.length > 0 ? errors : undefined,
-      summary: {
+      data: {
+        message: "Answer sheets uploaded successfully",
+        results: results,
         totalFiles: files.length,
-        processedSuccessfully: results.length,
-        errors: errors.length,
+        successfulUploads: results.length,
+        failedUploads: errors.length,
         matchedStudents: results.filter(r => r.matchedStudent).length,
         unmatchedSheets: results.filter(r => !r.matchedStudent).length
-      }
+      },
+      errors: errors.length > 0 ? errors : undefined
     });
 
   } catch (error) {
@@ -242,6 +303,12 @@ export const uploadAnswerSheetEnhanced = async (req: Request, res: Response) => 
       file.buffer
     );
 
+    // Determine final status - prioritize matched students
+    let finalStatus = aiResult?.status || 'UPLOADED';
+    if (aiResult?.studentMatching?.matchedStudent && aiResult.studentMatching.confidence > 0.7) {
+      finalStatus = 'UPLOADED'; // Force UPLOADED status if student is matched with good confidence
+    }
+
     // Create answer sheet record
     const answerSheetData: any = {
       examId,
@@ -250,11 +317,11 @@ export const uploadAnswerSheetEnhanced = async (req: Request, res: Response) => 
       originalFileName: file.originalname,
       cloudStorageUrl: uploadResult.original.url,
       cloudStorageKey: uploadResult.original.key,
-      status: aiResult?.status || 'UPLOADED',
+      status: finalStatus,
       scanQuality: aiResult?.scanQuality || 'GOOD',
       isAligned: aiResult?.isAligned ?? true,
-      rollNumberDetected: aiResult?.rollNumberDetection.rollNumber,
-      rollNumberConfidence: aiResult?.rollNumberDetection.confidence ? aiResult.rollNumberDetection.confidence * 100 : 0,
+      rollNumberDetected: aiResult?.rollNumberDetection?.rollNumber || null,
+      rollNumberConfidence: aiResult?.rollNumberDetection?.confidence ? aiResult.rollNumberDetection.confidence * 100 : 0,
       language,
       aiProcessingResults: aiResult ? {
         rollNumberDetection: aiResult.rollNumberDetection,
@@ -272,21 +339,74 @@ export const uploadAnswerSheetEnhanced = async (req: Request, res: Response) => 
     const answerSheet = new AnswerSheet(answerSheetData);
     await answerSheet.save();
 
-    // Send notification if student was matched
+    // Send notification if student was matched (and to teacher/admin via Socket.IO)
     if (aiResult?.studentMatching.matchedStudent) {
       try {
-        const notification = new Notification({
-          userId: aiResult.studentMatching.matchedStudent.id,
+        const { NotificationService } = await import('../services/notificationService');
+        await NotificationService.createNotification({
           type: 'ANSWER_SHEET_UPLOADED',
+          priority: 'LOW',
           title: 'Answer Sheet Uploaded',
           message: `Your answer sheet for ${exam.title} has been uploaded and processed successfully.`,
-          data: {
-            examId: exam._id,
+          recipientId: aiResult.studentMatching.matchedStudent.id,
+          relatedEntityId: answerSheet._id.toString(),
+          relatedEntityType: 'answerSheet',
+          metadata: {
+            examId: exam._id.toString(),
             answerSheetId: answerSheet._id,
             examTitle: exam.title
           }
         });
-        await notification.save();
+      } catch (error) {
+        logger.error('Failed to send notification:', error);
+      }
+    }
+
+    // Also send notification to teacher who uploaded (and their admin via Socket.IO)
+    if (uploadedBy) {
+      try {
+        const { NotificationService } = await import('../services/notificationService');
+        if (aiResult?.studentMatching.matchedStudent) {
+          // Sheet was matched
+          await NotificationService.createNotification({
+            type: 'ANSWER_SHEET_UPLOADED',
+            priority: 'LOW',
+            title: 'Answer Sheet Processed',
+            message: `Answer sheet for ${exam.title} has been processed and matched to student.`,
+            recipientId: uploadedBy,
+            relatedEntityId: answerSheet._id.toString(),
+            relatedEntityType: 'answerSheet',
+            metadata: {
+              examId: exam._id.toString(),
+              answerSheetId: answerSheet._id.toString(),
+              examTitle: exam.title,
+              studentName: aiResult.studentMatching.matchedStudent.name
+            }
+          });
+        } else {
+          // Sheet was not matched - notify admin
+          const teacher = await Teacher.findOne({ userId: uploadedBy });
+          if (teacher && teacher.adminId) {
+            await NotificationService.createNotification({
+              type: 'MANUAL_REVIEW_REQUIRED',
+              priority: 'MEDIUM',
+              title: 'Unmatched Answer Sheet Requires Review',
+              message: `Answer sheet "${file.originalname}" for ${exam.title} could not be matched to a student. Detected roll number: ${aiResult?.rollNumberDetection?.rollNumber || 'Not detected'}. Please review and match manually.`,
+              recipientId: teacher.adminId.toString(),
+              relatedEntityId: answerSheet._id.toString(),
+              relatedEntityType: 'answerSheet',
+              metadata: {
+                examId: exam._id.toString(),
+                examTitle: exam.title,
+                answerSheetId: answerSheet._id.toString(),
+                fileName: file.originalname,
+                rollNumberDetected: aiResult?.rollNumberDetection?.rollNumber,
+                rollNumberConfidence: aiResult?.rollNumberDetection?.confidence
+              }
+            });
+            logger.info(`Sent notification to admin ${teacher.adminId} for unmatched answer sheet ${answerSheet._id}`);
+          }
+        }
       } catch (error) {
         logger.error('Failed to send notification:', error);
       }

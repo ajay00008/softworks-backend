@@ -20,7 +20,22 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
     (req as any).auth = payload;
     next();
-  } catch {
+  } catch (error: any) {
+    // Log token validation errors for debugging
+    if (error.name === 'TokenExpiredError') {
+      console.log('[AUTH] ⚠️ Token expired:', {
+        expiredAt: error.expiredAt,
+        timestamp: new Date().toISOString()
+      });
+      return next(new createHttpError.Unauthorized("Token expired. Please log in again."));
+    } else if (error.name === 'JsonWebTokenError') {
+      console.log('[AUTH] ⚠️ Invalid token:', {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+      return next(new createHttpError.Unauthorized("Invalid token. Please log in again."));
+    }
+    // Generic error fallback
     return next(new createHttpError.Unauthorized("Invalid or expired token"));
   }
 }
@@ -34,6 +49,48 @@ export function requireRoles(...roles: UserRole[]) {
     }
     next();
   };
+}
+
+// Flexible auth middleware that accepts token from header or query parameter
+// Useful for endpoints called via window.open() which can't send headers
+export function requireAuthFlexible(req: Request, _res: Response, next: NextFunction) {
+  // Try to get token from Authorization header first
+  const header = req.header("Authorization");
+  let token: string | undefined;
+  
+  if (header && header.startsWith("Bearer ")) {
+    token = header.substring(7);
+  } else {
+    // Fallback to query parameter (for window.open() calls)
+    token = req.query.token as string | undefined;
+  }
+  
+  if (!token) {
+    return next(new createHttpError.Unauthorized("Missing authorization token"));
+  }
+  
+  try {
+    const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
+    (req as any).auth = payload;
+    next();
+  } catch (error: any) {
+    // Log token validation errors for debugging
+    if (error.name === 'TokenExpiredError') {
+      console.log('[AUTH] ⚠️ Token expired:', {
+        expiredAt: error.expiredAt,
+        timestamp: new Date().toISOString()
+      });
+      return next(new createHttpError.Unauthorized("Token expired. Please log in again."));
+    } else if (error.name === 'JsonWebTokenError') {
+      console.log('[AUTH] ⚠️ Invalid token:', {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+      return next(new createHttpError.Unauthorized("Invalid token. Please log in again."));
+    }
+    // Generic error fallback
+    return next(new createHttpError.Unauthorized("Invalid or expired token"));
+  }
 }
 
 

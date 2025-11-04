@@ -96,7 +96,7 @@ const AnswerSheetSchema = new Schema<IAnswerSheet>(
     studentId: { 
       type: Schema.Types.ObjectId, 
       ref: "User", 
-      required: true,
+      required: false, // Allow null for unmatched answer sheets
       index: true
     },
     uploadedBy: { 
@@ -342,7 +342,17 @@ const AnswerSheetSchema = new Schema<IAnswerSheet>(
 );
 
 // Indexes for efficient queries
-AnswerSheetSchema.index({ examId: 1, studentId: 1 }, { unique: true });
+// Unique index only when studentId is not null and isActive is true (prevents duplicate answer sheets per student)
+// MongoDB allows multiple null values in unique indexes, so unmatched sheets won't conflict
+// Excludes soft-deleted documents (isActive: false)
+AnswerSheetSchema.index({ examId: 1, studentId: 1 }, { 
+  unique: true,
+  partialFilterExpression: { 
+    studentId: { $ne: null },
+    isActive: { $ne: false }
+  },
+  name: 'examId_studentId_unique_when_not_null_and_active'
+});
 AnswerSheetSchema.index({ status: 1, uploadedAt: 1 });
 AnswerSheetSchema.index({ isMissing: 1, isAbsent: 1 });
 AnswerSheetSchema.index({ uploadedBy: 1, status: 1 });

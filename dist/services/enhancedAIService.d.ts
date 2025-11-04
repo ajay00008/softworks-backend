@@ -26,6 +26,7 @@ export interface EnhancedQuestionGenerationRequest {
     difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
     twistedQuestionsPercentage: number;
     patternFilePath?: string;
+    patternDiagramInfo?: string;
     referenceBookContent?: string;
     samplePapers?: Array<{
         _id: string;

@@ -3,6 +3,7 @@ export interface IQuestionPaperTemplate extends Document {
     title: string;
     description?: string;
     subjectId: mongoose.Types.ObjectId;
+    examType: string;
     adminId: mongoose.Types.ObjectId;
     uploadedBy: mongoose.Types.ObjectId;
     templateFile: {
@@ -40,6 +41,15 @@ export interface IQuestionPaperTemplate extends Document {
             questions: number;
             marks: number;
         }>;
+    };
+    aiValidation: {
+        isValid: boolean;
+        confidence: number;
+        detectedSubject?: string;
+        detectedExamType?: string;
+        validationErrors: string[];
+        suggestions: string[];
+        validatedAt: Date;
     };
     aiSettings: {
         useTemplate: boolean;

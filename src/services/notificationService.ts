@@ -1,5 +1,7 @@
 import { Notification } from '../models/Notification';
-import { logger } from '../utils/logger';
+import { logger } from '../utils/logger.js';
+import { SocketService } from './socketService.js';
+import { User } from '../models/User.js';
 
 export interface NotificationData {
   type: string;
@@ -33,6 +35,38 @@ export class NotificationService {
 
       await notification.save();
       
+      // Send real-time notification via Socket.IO
+      try {
+        // Check if recipient is an admin - if so, use sendNotificationToAdmin
+        // Otherwise, use sendNotificationToUser (for teachers)
+        const recipient = await User.findById(data.recipientId);
+        const isAdmin = recipient && (recipient.role === 'ADMIN' || recipient.role === 'SUPER_ADMIN');
+        
+        const notificationPayload = {
+          id: String(notification._id),
+          type: notification.type,
+          priority: notification.priority,
+          title: notification.title,
+          message: notification.message,
+          status: notification.status,
+          createdAt: notification.createdAt,
+          recipientId: data.recipientId, // Add recipientId to payload
+          metadata: notification.metadata
+        };
+
+        if (isAdmin) {
+          // Send to admin's user room only (NOT admin room to prevent teachers from receiving)
+          // Admin-specific notifications should only go to the admin, not their teachers
+          await SocketService.sendNotificationToUser(data.recipientId, notificationPayload);
+        } else {
+          // Send to user room - for teachers or other users
+          await SocketService.sendNotificationToUser(data.recipientId, notificationPayload);
+        }
+      } catch (socketError) {
+        logger.warn('Failed to send socket notification:', socketError);
+        // Don't fail the notification creation if socket fails
+      }
+      
       logger.info(`Notification created: ${notification._id} for ${data.recipientId}`);
       return notification;
 
@@ -44,6 +78,7 @@ export class NotificationService {
 
   /**
    * Create AI correction complete notification
+   * Sends notification to both teacher and their admin
    */
   static async createAICorrectionCompleteNotification(
     recipientId: string,
@@ -52,7 +87,7 @@ export class NotificationService {
     percentage: number,
     confidence: number
   ): Promise<any> {
-    return this.createNotification({
+    const notification = await this.createNotification({
       type: 'AI_CORRECTION_COMPLETE',
       priority: 'LOW',
       title: 'AI Correction Complete',
@@ -67,17 +102,37 @@ export class NotificationService {
         completedAt: new Date().toISOString()
       }
     });
+
+    // Also send notification to admin (via Socket.IO)
+    try {
+      await SocketService.sendNotificationToTeacherAndAdmin(recipientId, {
+        id: String(notification._id),
+        type: notification.type,
+        priority: notification.priority,
+        title: notification.title,
+        message: notification.message,
+        status: notification.status,
+        createdAt: notification.createdAt,
+        recipientId: recipientId, // Add recipientId to payload
+        metadata: notification.metadata
+      });
+    } catch (socketError) {
+      logger.warn('Failed to send socket notification to admin:', socketError);
+    }
+
+    return notification;
   }
 
   /**
    * Create AI processing started notification
+   * Sends notification to both teacher and their admin
    */
   static async createAIProcessingStartedNotification(
     recipientId: string,
     answerSheetId: string,
     studentName: string
   ): Promise<any> {
-    return this.createNotification({
+    const notification = await this.createNotification({
       type: 'AI_PROCESSING_STARTED',
       priority: 'LOW',
       title: 'AI Processing Started',
@@ -91,10 +146,29 @@ export class NotificationService {
         estimatedCompletionTime: '5-10 minutes'
       }
     });
+
+    // Also send to admin via Socket.IO
+    try {
+      await SocketService.sendNotificationToTeacherAndAdmin(recipientId, {
+          id: String(notification._id),
+        type: notification.type,
+        priority: notification.priority,
+        title: notification.title,
+        message: notification.message,
+        status: notification.status,
+        createdAt: notification.createdAt,
+        metadata: notification.metadata
+      });
+    } catch (socketError) {
+      logger.warn('Failed to send socket notification to admin:', socketError);
+    }
+
+    return notification;
   }
 
   /**
    * Create AI processing failed notification
+   * Sends notification to both teacher and their admin
    */
   static async createAIProcessingFailedNotification(
     recipientId: string,
@@ -102,7 +176,7 @@ export class NotificationService {
     studentName: string,
     errorMessage: string
   ): Promise<any> {
-    return this.createNotification({
+    const notification = await this.createNotification({
       type: 'AI_PROCESSING_FAILED',
       priority: 'HIGH',
       title: 'AI Processing Failed',
@@ -116,6 +190,24 @@ export class NotificationService {
         failedAt: new Date().toISOString()
       }
     });
+
+    // Also send to admin via Socket.IO
+    try {
+      await SocketService.sendNotificationToTeacherAndAdmin(recipientId, {
+          id: String(notification._id),
+        type: notification.type,
+        priority: notification.priority,
+        title: notification.title,
+        message: notification.message,
+        status: notification.status,
+        createdAt: notification.createdAt,
+        metadata: notification.metadata
+      });
+    } catch (socketError) {
+      logger.warn('Failed to send socket notification to admin:', socketError);
+    }
+
+    return notification;
   }
 
   /**
@@ -127,11 +219,15 @@ export class NotificationService {
     offset: number = 0
   ): Promise<any[]> {
     try {
+      // Convert userId to ObjectId if it's a string
+      const mongoose = await import('mongoose');
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
+        ? new mongoose.Types.ObjectId(userId) 
+        : userId;
+
       const notifications = await Notification.find({
-        $or: [
-          { recipientId: userId },
-          { recipientId: 'admin' } // Global notifications
-        ]
+        recipientId: userObjectId,
+        isActive: true
       })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -177,12 +273,15 @@ export class NotificationService {
    */
   static async markAllAsRead(userId: string): Promise<number> {
     try {
+      // Convert userId to ObjectId if it's a string
+      const mongoose = await import('mongoose');
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
+        ? new mongoose.Types.ObjectId(userId) 
+        : userId;
+
       const result = await Notification.updateMany(
-        { 
-          $or: [
-            { recipientId: userId },
-            { recipientId: 'admin' }
-          ],
+        {
+          recipientId: userObjectId,
           status: 'UNREAD'
         },
         { 
@@ -205,12 +304,16 @@ export class NotificationService {
    */
   static async getUnreadCount(userId: string): Promise<number> {
     try {
+      // Convert userId to ObjectId if it's a string
+      const mongoose = await import('mongoose');
+      const userObjectId = mongoose.Types.ObjectId.isValid(userId) 
+        ? new mongoose.Types.ObjectId(userId) 
+        : userId;
+
       const count = await Notification.countDocuments({
-        $or: [
-          { recipientId: userId },
-          { recipientId: 'admin' }
-        ],
-        status: 'UNREAD'
+        recipientId: userObjectId,
+        status: 'UNREAD',
+        isActive: true
       });
 
       return count;

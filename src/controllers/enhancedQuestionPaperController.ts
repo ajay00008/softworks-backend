@@ -8,6 +8,8 @@ import { Subject } from '../models/Subject';
 import { Class } from '../models/Class';
 import { EnhancedAIService } from '../services/enhancedAIService';
 import { PDFGenerationService } from '../services/pdfGenerationService';
+import { PatternAnalysisService } from '../services/patternAnalysisService';
+import { ensurePromiseWithResolvers } from '../utils/promisePolyfill';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -752,6 +754,14 @@ export async function publishQuestionPaper(req: Request, res: Response, next: Ne
 // Generate Complete Question Paper with AI (Direct Generation)
 export async function generateCompleteAIQuestionPaper(req: Request, res: Response, next: NextFunction) {
   try {
+    // Log raw request body BEFORE Zod validation
+    console.log('\n' + '='.repeat(80));
+    console.log('📦 RAW REQUEST BODY (before Zod validation):');
+    console.log('='.repeat(80));
+    console.log('req.body keys:', Object.keys(req.body || {}));
+    console.log('req.body.patternId:', (req.body as any)?.patternId);
+    console.log('='.repeat(80) + '\n');
+    
     const questionPaperData = CreateQuestionPaperSchema.parse(req.body);
     const auth = (req as any).auth;
     const adminId = auth?.adminId;
@@ -856,16 +866,87 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     console.log('Sample papers found for AI generation:', samplePapers.length);
 
     // Handle pattern file if provided
+    // IMPORTANT: Get patternId from request body (it may not be saved in the model)
     let patternFilePath = null;
-    if (questionPaperData.patternId) {
-      // Construct pattern file path from pattern ID
-      patternFilePath = path.join(process.cwd(), 'public', 'question-patterns', questionPaperData.patternId);
+    let patternDiagramInfo = null;
+    let diagramAnalysis = null; // Store analysis to access diagram images
+    
+    // Get patternId from request body directly (before validation might strip it)
+    const patternId = (req.body as any).patternId || questionPaperData.patternId;
+    
+    console.log('\n' + '='.repeat(80));
+    console.log('🔍 CHECKING PATTERN FILE:');
+    console.log('='.repeat(80));
+    console.log('patternId from req.body (raw):', (req.body as any).patternId);
+    console.log('patternId from questionPaperData (parsed):', questionPaperData.patternId);
+    console.log('Using patternId:', patternId);
+    
+    if (patternId) {
+      // Try to find pattern file in multiple locations:
+      // 1. question-patterns folder (uploaded patterns)
+      // 2. question-paper-templates folder (template files)
+      const patternPath1 = path.join(process.cwd(), 'public', 'question-patterns', patternId);
+      const patternPath2 = path.join(process.cwd(), 'public', 'question-paper-templates', patternId);
       
-      // Check if pattern file exists
-      if (!fs.existsSync(patternFilePath)) {
-        throw new createHttpError.NotFound("Pattern file not found");
+      console.log('Checking pattern file locations:');
+      console.log('  Location 1 (question-patterns):', patternPath1);
+      console.log('  Location 2 (question-paper-templates):', patternPath2);
+      
+      // Try question-patterns first (uploaded patterns)
+      if (fs.existsSync(patternPath1)) {
+        patternFilePath = patternPath1;
+        console.log('✅ Pattern file found in question-patterns folder');
+      } 
+      // If not found, try question-paper-templates (template files)
+      else if (fs.existsSync(patternPath2)) {
+        patternFilePath = patternPath2;
+        console.log('✅ Pattern file found in question-paper-templates folder');
       }
+      // If still not found, error
+      else {
+        console.error('❌ Pattern file not found in either location');
+        console.error('  Checked:', patternPath1);
+        console.error('  Checked:', patternPath2);
+        throw new createHttpError.NotFound(`Pattern file not found. Checked locations: question-patterns/${patternId} and question-paper-templates/${patternId}`);
+      }
+      
+      console.log('✅ Pattern file exists');
+
+      // Analyze pattern file for diagrams and graphs
+      try {
+        console.log('🔄 Starting pattern analysis for diagrams...');
+        diagramAnalysis = await PatternAnalysisService.analyzePatternForDiagrams(patternFilePath);
+        
+        console.log('Pattern analysis result:', {
+          hasDiagrams: diagramAnalysis.hasDiagrams,
+          diagramCount: diagramAnalysis.diagramCount,
+          analysisComplete: diagramAnalysis.analysisComplete
+        });
+        
+        if (diagramAnalysis.hasDiagrams && diagramAnalysis.analysisComplete) {
+          console.log(`✅ Found ${diagramAnalysis.diagramCount} diagram(s) in pattern file`);
+          patternDiagramInfo = PatternAnalysisService.formatDiagramsForPrompt(diagramAnalysis);
+          console.log('✅ Pattern diagram info formatted and ready to send to AI');
+          console.log('Diagram info snippet:', patternDiagramInfo.substring(0, 300));
+        } else {
+          console.log('❌ No diagrams found in pattern file or analysis incomplete');
+          if (!diagramAnalysis.hasDiagrams) {
+            console.log('   Reason: hasDiagrams = false');
+          }
+          if (!diagramAnalysis.analysisComplete) {
+            console.log('   Reason: analysisComplete = false');
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error analyzing pattern for diagrams:', error);
+        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        // Continue without diagram info - not a critical error
+      }
+    } else {
+      console.log('❌ NO patternId provided in questionPaperData');
+      console.log('questionPaperData keys:', Object.keys(questionPaperData));
     }
+    console.log('='.repeat(80) + '\n');
 
     // Prepare AI request with reference book and template data
     const aiRequest = {
@@ -886,11 +967,264 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
       referenceBookContent: referenceBookContent,
       samplePapers: samplePapers,
-      ...(patternFilePath && { patternFilePath }) // Add pattern file path to AI request only if it exists
+      ...(patternFilePath && { patternFilePath }), // Add pattern file path to AI request only if it exists
+      ...(patternDiagramInfo && { patternDiagramInfo }) // Add diagram information if available
     };
 
     // Generate questions using AI
     const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest);
+
+    // Process pending diagrams from AI response
+    // The AI returns diagram objects with status: 'pending' that need to be generated
+    const { DiagramGenerationService } = await import('../services/diagramGenerationService');
+    
+    // Helper function to convert PDF diagram to PNG if needed
+    const convertPDFDiagramToPNG = async (diagramPath: string): Promise<{ imagePath: string; imageBuffer: Buffer } | null> => {
+      if (!diagramPath.endsWith('.pdf')) {
+        return null; // Not a PDF, no conversion needed
+      }
+      
+      try {
+        // CRITICAL: Import canvas FIRST to ensure Path2D is available before pdfjs-dist
+        // @napi-rs/canvas provides Path2D natively, which pdfjs-dist needs
+        const canvasModule = await import('@napi-rs/canvas');
+        const { createCanvas } = canvasModule;
+        const Path2D = (canvasModule as any).Path2D;
+        
+        // Make Path2D globally available BEFORE importing pdfjs-dist
+        // pdfjs-dist checks for Path2D during module initialization
+        if (Path2D && typeof (globalThis as any).Path2D === 'undefined') {
+          (globalThis as any).Path2D = Path2D;
+          console.log('✅ Path2D from @napi-rs/canvas is now globally available');
+        } else if (Path2D) {
+          console.log('✅ Path2D already available globally');
+        } else {
+          console.warn('⚠️ Path2D not found in @napi-rs/canvas - using polyfill may cause issues');
+        }
+        
+        // Ensure Promise.withResolvers polyfill (for Node.js < 22)
+        ensurePromiseWithResolvers();
+        
+        // DEBUGGER BREAKPOINT: Before importing pdfjs-dist
+        debugger; // Breakpoint: PDF diagram conversion - before import
+        
+        // Now import pdfjs-dist - Path2D should be available
+        const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs');
+        const pdfjsLib = pdfjsModule.default || pdfjsModule;
+        const fs = await import('fs');
+        const path = await import('path');
+        
+        const pdfBuffer = fs.readFileSync(diagramPath);
+        
+        // DEBUGGER BREAKPOINT: Before calling getDocument (where Promise.withResolvers error occurs)
+        debugger; // Breakpoint: About to call pdfjsLib.getDocument in convertPDFDiagramToPNG
+        
+        const loadingTask = pdfjsLib.getDocument({ 
+          data: new Uint8Array(pdfBuffer),
+          useSystemFonts: true,
+          verbosity: 0,
+          disableWorker: true
+        });
+        
+        // DEBUGGER BREAKPOINT: After getDocument call
+        debugger; // Breakpoint: After getDocument call, before awaiting promise
+        
+        const pdfDocument = await loadingTask.promise;
+        const page = await pdfDocument.getPage(1); // Get first page
+        const scale = 2.0;
+        const viewport = page.getViewport({ scale });
+        const canvas = createCanvas(viewport.width, viewport.height);
+        const context = canvas.getContext('2d');
+        
+        await page.render({
+          canvasContext: context,
+          viewport: viewport
+        }).promise;
+        
+        const imageBuffer = canvas.toBuffer('image/png');
+        const pngPath = diagramPath.replace(/\.pdf$/i, '.png');
+        fs.writeFileSync(pngPath, imageBuffer);
+        
+        return { imagePath: pngPath, imageBuffer };
+      } catch (error) {
+        console.warn(`Failed to convert PDF diagram to PNG: ${diagramPath}`, error);
+        return null;
+      }
+    };
+    
+    // First, check if pattern has diagrams (these take priority)
+    // We should assign pattern diagrams to ALL questions that need diagrams, not just pending ones
+    if (diagramAnalysis && diagramAnalysis.hasDiagrams && diagramAnalysis.diagrams.length > 0) {
+      // Find ALL questions that need diagrams:
+      // 1. Questions with diagram objects (pending or ready)
+      // 2. Questions of type DRAWING_DIAGRAM or MARKING_PARTS
+      // 3. Questions with visualAids mentioning graphs/diagrams
+      // 4. Questions that mention graph/diagram/draw/plot in the question text
+      const allDiagramQuestions = generatedQuestions.map((q, idx) => {
+        const questionTextLower = (q.questionText || '').toLowerCase();
+        const needsDiagram = 
+          q.diagram !== undefined || // Has diagram object
+          q.questionType === 'DRAWING_DIAGRAM' || 
+          q.questionType === 'MARKING_PARTS' ||
+          (q.visualAids && q.visualAids.length > 0) ||
+          questionTextLower.includes('graph') || 
+          questionTextLower.includes('diagram') ||
+          questionTextLower.includes('draw') ||
+          questionTextLower.includes('plot') ||
+          questionTextLower.includes('sketch') ||
+          questionTextLower.includes('figure');
+        return needsDiagram ? { question: q, index: idx } : null;
+      }).filter((item): item is { question: typeof generatedQuestions[0]; index: number } => item !== null);
+      
+      console.log(`📊 Found ${allDiagramQuestions.length} questions needing diagrams and ${diagramAnalysis.diagrams.length} diagram images from pattern`);
+      
+      // Convert pattern PDF diagrams to PNG if needed (should already be PNG from patternAnalysisService, but double-check)
+      console.log('🔄 Checking pattern diagrams for PDF to PNG conversion...');
+      for (let i = 0; i < diagramAnalysis.diagrams.length; i++) {
+        const patternDiagram = diagramAnalysis.diagrams[i];
+        if (!patternDiagram) continue;
+        
+        console.log(`  Diagram ${i + 1}: path=${patternDiagram.imagePath}, hasBuffer=${!!patternDiagram.imageBuffer}, isPDF=${patternDiagram.imagePath?.endsWith('.pdf')}`);
+        
+        if (patternDiagram.imagePath && patternDiagram.imagePath.endsWith('.pdf')) {
+          console.log(`⚠️ WARNING: Found PDF diagram at ${patternDiagram.imagePath} - should have been converted already!`);
+          console.log(`🔄 Attempting to convert PDF diagram ${i + 1} to PNG: ${patternDiagram.imagePath}`);
+          
+          const converted = await convertPDFDiagramToPNG(patternDiagram.imagePath);
+          if (converted) {
+            patternDiagram.imagePath = converted.imagePath;
+            patternDiagram.imageBuffer = converted.imageBuffer;
+            console.log(`✅ Successfully converted PDF diagram to PNG: ${converted.imagePath}`);
+          } else {
+            console.error(`❌ FAILED to convert PDF diagram ${i + 1} to PNG - diagram may not appear in final PDF`);
+            // Remove the PDF path so it doesn't get assigned - set to empty string instead of undefined
+            delete patternDiagram.imagePath;
+          }
+        } else if (patternDiagram.imagePath && patternDiagram.imagePath.endsWith('.png')) {
+          console.log(`✅ Diagram ${i + 1} is already PNG: ${patternDiagram.imagePath}`);
+        }
+      }
+      
+      // Filter out diagrams without valid image paths (failed conversions)
+      const validDiagrams = diagramAnalysis.diagrams.filter(d => d.imagePath && !d.imagePath.endsWith('.pdf'));
+      console.log(`📊 Valid diagrams available for assignment: ${validDiagrams.length} out of ${diagramAnalysis.diagrams.length}`);
+      
+      if (validDiagrams.length === 0) {
+        console.error('❌ WARNING: No valid diagram images available after conversion! Diagrams will not be assigned.');
+      } else {
+        // Assign pattern diagrams to all questions that need them
+        allDiagramQuestions.forEach((item, questionIdx) => {
+          const question = item.question;
+          const diagramIndex = questionIdx % validDiagrams.length; // Cycle through valid pattern diagrams
+          const patternDiagram = validDiagrams[diagramIndex];
+          
+          if (patternDiagram && patternDiagram.imagePath) {
+            // Verify file exists
+            if (!fs.existsSync(patternDiagram.imagePath)) {
+              console.error(`❌ Diagram file not found: ${patternDiagram.imagePath} - skipping assignment`);
+              return;
+            }
+            
+            // Ensure question has a diagram object
+            if (!question.diagram) {
+              question.diagram = {
+                description: patternDiagram.description || 'Diagram from pattern',
+                type: patternDiagram.type as 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other',
+                status: 'ready',
+                altText: patternDiagram.description || undefined
+              };
+            }
+            
+            // Assign pattern diagram
+            question.diagram.imagePath = patternDiagram.imagePath;
+            if (patternDiagram.imageBuffer) {
+              question.diagram.imageBuffer = patternDiagram.imageBuffer;
+            }
+            question.diagram.status = 'ready';
+            console.log(`✅ Assigned pattern diagram ${diagramIndex + 1} (${patternDiagram.type}, ${patternDiagram.imagePath}) to question ${item.index + 1} (${question.questionType})`);
+            console.log(`   Diagram file exists: ${fs.existsSync(patternDiagram.imagePath)}, hasBuffer: ${!!patternDiagram.imageBuffer}`);
+          } else {
+            console.warn(`⚠️ Skipping question ${item.index + 1} - no valid diagram available`);
+          }
+        });
+      }
+    }
+    
+    // Generate diagrams for questions that still have status: 'pending'
+    const pendingDiagramQuestions = generatedQuestions.filter(
+      q => q.diagram && q.diagram.status === 'pending'
+    );
+    
+    if (pendingDiagramQuestions.length > 0) {
+      console.log(`🔄 Generating ${pendingDiagramQuestions.length} diagram(s) for pending questions...`);
+      
+      for (let i = 0; i < pendingDiagramQuestions.length; i++) {
+        const question = pendingDiagramQuestions[i];
+        if (!question.diagram) continue;
+        
+        try {
+          // Generate diagram based on description and type
+          const generatedDiagram = await DiagramGenerationService.generateDiagram({
+            description: question.diagram.description,
+            type: question.diagram.type as 'graph' | 'chart' | 'diagram' | 'figure' | 'illustration',
+            context: question.questionText,
+            relatedContent: question.diagram.altText
+          }, question.questionText);
+          
+          if (generatedDiagram) {
+            question.diagram.imagePath = generatedDiagram.imagePath;
+            question.diagram.imageBuffer = generatedDiagram.imageBuffer;
+            question.diagram.status = 'ready';
+            question.diagram.url = generatedDiagram.source;
+            console.log(`✅ Generated diagram for question ${generatedQuestions.indexOf(question) + 1}: ${generatedDiagram.altText}`);
+          } else {
+            console.warn(`⚠️ Failed to generate diagram for question ${generatedQuestions.indexOf(question) + 1}`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error generating diagram for question ${generatedQuestions.indexOf(question) + 1}:`, error);
+          // Keep status as 'pending' - PDF generation will handle gracefully
+        }
+      }
+    }
+    
+    // Also generate diagrams for questions that need them but don't have diagram objects yet
+    const questionsNeedingDiagrams = generatedQuestions.filter(
+      q => !q.diagram && (q.questionType === 'DRAWING_DIAGRAM' || q.questionType === 'MARKING_PARTS' || (q.visualAids && q.visualAids.length > 0))
+    );
+    
+    if (questionsNeedingDiagrams.length > 0) {
+      console.log(`🔄 Generating ${questionsNeedingDiagrams.length} additional diagram(s) for questions without diagram objects...`);
+      
+      for (const question of questionsNeedingDiagrams) {
+        const description = question.visualAids?.[0] || `Diagram for: ${question.questionText.substring(0, 100)}`;
+        const diagramType = description.toLowerCase().includes('graph') ? 'graph' : 
+                           description.toLowerCase().includes('chart') ? 'chart' : 'diagram';
+        
+        try {
+          const generatedDiagram = await DiagramGenerationService.generateDiagram({
+            description: description,
+            type: diagramType,
+            context: question.questionText
+          }, question.questionText);
+          
+          if (generatedDiagram) {
+            // Create diagram object
+            question.diagram = {
+              description: description,
+              type: diagramType,
+              status: 'ready',
+              altText: generatedDiagram.altText,
+              imagePath: generatedDiagram.imagePath,
+              imageBuffer: generatedDiagram.imageBuffer,
+              url: generatedDiagram.source
+            };
+            console.log(`✅ Generated and attached diagram to question ${generatedQuestions.indexOf(question) + 1}`);
+          }
+        } catch (error) {
+          console.warn(`⚠️ Error generating diagram for question ${generatedQuestions.indexOf(question) + 1}:`, error);
+        }
+      }
+    }
 
     // Save questions to database
     const { Question } = await import('../models/Question');
@@ -925,6 +1259,80 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     // Update question paper with question references
     questionPaper.questions = savedQuestions.map(q => q._id);
 
+    // Before PDF generation, ensure all diagram PDFs are converted to PNG
+    // This ensures PDFKit can embed them properly
+    console.log('\n' + '='.repeat(80));
+    console.log('🔄 PRE-PDF GENERATION: Checking and converting diagram PDFs to PNG...');
+    console.log('='.repeat(80));
+    
+    let diagramsToConvert = 0;
+    let diagramsConverted = 0;
+    let diagramsFailed = 0;
+    
+    for (let i = 0; i < generatedQuestions.length; i++) {
+      const question = generatedQuestions[i];
+      
+      // Check new diagram format
+      if (question.diagram && question.diagram.status === 'ready') {
+        if (question.diagram.imagePath) {
+          console.log(`  Question ${i + 1}: diagram.path=${question.diagram.imagePath}, hasBuffer=${!!question.diagram.imageBuffer}`);
+          
+          if (question.diagram.imagePath.endsWith('.pdf')) {
+            diagramsToConvert++;
+            console.log(`  ⚠️ Question ${i + 1} has PDF diagram - converting to PNG...`);
+            const converted = await convertPDFDiagramToPNG(question.diagram.imagePath);
+            if (converted) {
+              question.diagram.imagePath = converted.imagePath;
+              question.diagram.imageBuffer = converted.imageBuffer;
+              diagramsConverted++;
+              console.log(`  ✅ Question ${i + 1}: Converted to PNG: ${converted.imagePath}`);
+            } else {
+              diagramsFailed++;
+              console.error(`  ❌ Question ${i + 1}: FAILED to convert PDF diagram - diagram will not appear in PDF`);
+              // Clear invalid diagram
+              question.diagram.status = 'pending';
+              question.diagram.imagePath = undefined;
+            }
+          } else if (question.diagram.imagePath.endsWith('.png')) {
+            // Verify PNG file exists
+            if (!fs.existsSync(question.diagram.imagePath)) {
+              console.error(`  ❌ Question ${i + 1}: PNG diagram file not found: ${question.diagram.imagePath}`);
+              question.diagram.status = 'pending';
+            } else {
+              console.log(`  ✅ Question ${i + 1}: Has valid PNG diagram`);
+            }
+          }
+        } else if (!question.diagram.imageBuffer) {
+          console.log(`  ⚠️ Question ${i + 1}: Has diagram object but no imagePath or imageBuffer`);
+        }
+      }
+      
+      // Check legacy format
+      if (question.diagramImagePath && question.diagramImagePath.endsWith('.pdf')) {
+        diagramsToConvert++;
+        console.log(`  ⚠️ Question ${i + 1} has legacy PDF diagram - converting to PNG...`);
+        const converted = await convertPDFDiagramToPNG(question.diagramImagePath);
+        if (converted) {
+          question.diagramImagePath = converted.imagePath;
+          question.diagramImageBuffer = converted.imageBuffer;
+          diagramsConverted++;
+          console.log(`  ✅ Question ${i + 1}: Converted legacy to PNG: ${converted.imagePath}`);
+        } else {
+          diagramsFailed++;
+          console.error(`  ❌ Question ${i + 1}: FAILED to convert legacy PDF diagram`);
+          question.diagramImagePath = undefined;
+        }
+      }
+    }
+    
+    console.log('='.repeat(80));
+    console.log(`📊 Diagram Conversion Summary:`);
+    console.log(`   Total questions checked: ${generatedQuestions.length}`);
+    console.log(`   PDFs to convert: ${diagramsToConvert}`);
+    console.log(`   Successfully converted: ${diagramsConverted}`);
+    console.log(`   Failed conversions: ${diagramsFailed}`);
+    console.log('='.repeat(80) + '\n');
+
     // Debug logging for PDF generation
     console.log('PDF Generation Data (Complete):', {
       subjectName: (questionPaper.subjectId as any).name,
@@ -956,6 +1364,11 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       downloadUrl: pdfResult.downloadUrl
     };
     await questionPaper.save();
+
+    // Update exam with question paper reference
+    await Exam.findByIdAndUpdate(questionPaperData.examId, {
+      questionPaperId: questionPaper._id
+    });
 
     res.json({
       success: true,

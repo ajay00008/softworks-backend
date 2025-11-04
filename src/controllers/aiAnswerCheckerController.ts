@@ -344,7 +344,7 @@ export const overrideAIResult = async (req: Request, res: Response) => {
 export const getAnswerSheetsForAIChecking = async (req: Request, res: Response) => {
   try {
     const { examId } = req.params;
-    const { status = 'UPLOADED', page = 1, limit = 20 } = req.query;
+    const { status = 'UPLOADED', page = 1, limit = 20, subjectId } = req.query;
     const userId = (req as any).auth?.sub;
 
     if (!userId) {
@@ -352,7 +352,7 @@ export const getAnswerSheetsForAIChecking = async (req: Request, res: Response) 
     }
 
     // Check access to exam
-    const exam = await Exam.findById(examId).populate('classId');
+    const exam = await Exam.findById(examId).populate('classId').populate('subjectIds');
     if (!exam) {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
@@ -367,24 +367,30 @@ export const getAnswerSheetsForAIChecking = async (req: Request, res: Response) 
       return res.status(403).json({ success: false, error: 'Access denied to this exam' });
     }
 
+    // Build query
+    const query: any = { 
+      examId, 
+      isActive: true 
+    };
+    
+    // Filter by status if provided
+    if (status && status !== 'all') {
+      query.status = status as string;
+    }
+    
+    // Note: Subject filtering would require answer sheets to have subject reference
+    // For now, we filter by exam which already has subjectIds
+
     // Get answer sheets
     const skip = (Number(page) - 1) * Number(limit);
-    const answerSheets = await AnswerSheet.find({ 
-      examId, 
-      status: status as string,
-      isActive: true 
-    })
+    const answerSheets = await AnswerSheet.find(query)
     .populate('studentId', 'name rollNumber')
     .populate('uploadedBy', 'name')
     .sort({ uploadedAt: -1 })
     .skip(skip)
     .limit(Number(limit));
 
-    const total = await AnswerSheet.countDocuments({ 
-      examId, 
-      status: status as string,
-      isActive: true 
-    });
+    const total = await AnswerSheet.countDocuments(query);
 
     res.json({
       success: true,

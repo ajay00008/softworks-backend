@@ -15,14 +15,17 @@ export declare class NotificationService {
     static createNotification(data: NotificationData): Promise<any>;
     /**
      * Create AI correction complete notification
+     * Sends notification to both teacher and their admin
      */
     static createAICorrectionCompleteNotification(recipientId: string, answerSheetId: string, studentName: string, percentage: number, confidence: number): Promise<any>;
     /**
      * Create AI processing started notification
+     * Sends notification to both teacher and their admin
      */
     static createAIProcessingStartedNotification(recipientId: string, answerSheetId: string, studentName: string): Promise<any>;
     /**
      * Create AI processing failed notification
+     * Sends notification to both teacher and their admin
      */
     static createAIProcessingFailedNotification(recipientId: string, answerSheetId: string, studentName: string, errorMessage: string): Promise<any>;
     /**

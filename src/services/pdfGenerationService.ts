@@ -1,6 +1,7 @@
 import PDFDocument from "pdfkit";
 import * as fs from "fs";
 import * as path from "path";
+import { logger } from '../utils/logger';
 
 export interface GeneratedQuestion {
   questionText: string;
@@ -14,6 +15,19 @@ export interface GeneratedQuestion {
   multipleCorrectAnswers?: string[];
   drawingInstructions?: string;
   markingInstructions?: string;
+  visualAids?: string[];
+  diagram?: {
+    description: string;
+    type: 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other';
+    status: 'pending' | 'ready';
+    altText?: string;
+    url?: string;
+    imagePath?: string;
+    imageBuffer?: Buffer;
+  };
+  // Legacy fields for backwards compatibility
+  diagramImagePath?: string;
+  diagramImageBuffer?: Buffer;
 }
 
 export class PDFGenerationService {
@@ -249,6 +263,125 @@ export class PDFGenerationService {
         doc.text(`(${label}) ${opt}`, margin + 18, doc.y, { width });
       });
       doc.moveDown(0.2);
+    }
+
+    // Embed actual diagram image if available (PRIORITY - show image before descriptions)
+    // Check for new diagram object format first, then fall back to legacy format
+    const diagramPath = question.diagram?.imagePath || question.diagramImagePath;
+    const diagramBuffer = question.diagram?.imageBuffer || question.diagramImageBuffer;
+    const hasReadyDiagram = question.diagram && question.diagram.status === 'ready';
+    
+    if ((hasReadyDiagram && (diagramPath || diagramBuffer)) || (!hasReadyDiagram && (diagramPath || diagramBuffer))) {
+      try {
+        doc.moveDown(0.3);
+        let imageBuffer: Buffer;
+        
+        if (diagramBuffer) {
+          imageBuffer = diagramBuffer;
+        } else if (diagramPath && fs.existsSync(diagramPath)) {
+          imageBuffer = fs.readFileSync(diagramPath);
+        } else {
+          throw new Error('Diagram image not found');
+        }
+
+        // Calculate image dimensions to fit within page width
+        const maxWidth = 400;
+        const maxHeight = 300;
+        
+        const imageX = margin + 18;
+        const imageY = doc.y;
+
+        // Embed image - PDFKit supports PNG, JPEG, but NOT PDF files
+        if (imageBuffer) {
+          const isPDF = diagramPath?.endsWith('.pdf') || 
+                       (imageBuffer[0] === 0x25 && imageBuffer[1] === 0x50 && imageBuffer[2] === 0x44 && imageBuffer[3] === 0x46);
+          
+          if (isPDF) {
+            // PDF files cannot be embedded as images in PDFKit
+            // PDFs should have been converted to PNG before PDF generation
+            // If we still have a PDF here, it means conversion failed or wasn't done
+            logger.warn(`Question ${number} has a PDF diagram that should have been converted to PNG. Showing placeholder.`);
+            doc.font('Times-Italic').fontSize(10).fillColor('#666666');
+            doc.text('[Diagram image - PDF format not supported for embedding, should have been converted to PNG]', margin + 18, doc.y, { width });
+            doc.moveDown(0.2);
+            doc.fillColor('black');
+            return; // Exit early - can't embed PDF
+          }
+          
+          // For image files (PNG, JPEG) or converted PDFs, embed directly
+          try {
+            doc.image(imageBuffer, imageX, imageY, {
+              width: maxWidth,
+              height: maxHeight,
+              fit: [maxWidth, maxHeight],
+              align: 'left'
+            });
+            
+            // Move down after image
+            doc.y = imageY + maxHeight + 10;
+            doc.moveDown(0.3);
+            logger.info(`Embedded diagram image for question ${number}`);
+          } catch (imageError) {
+            logger.warn(`Failed to embed image buffer for question ${number}:`, imageError);
+            // Show fallback
+            doc.font('Times-Italic').fontSize(10).fillColor('#666666');
+            doc.text('[Diagram image could not be embedded]', margin + 18, doc.y, { width });
+            doc.moveDown(0.2);
+            doc.fillColor('black');
+          }
+        }
+      } catch (error) {
+        // If image embedding fails, show description as fallback
+        logger.warn(`Failed to embed diagram image for question ${number}:`, error);
+        doc.font('Times-Italic').fontSize(10).fillColor('#666666');
+        doc.text('[Diagram image could not be loaded - see description below]', margin + 18, doc.y, { width });
+        doc.moveDown(0.2);
+        doc.fillColor('black');
+      }
+    }
+
+    // Visual aids (diagrams, figures descriptions) - shown if no image embedded
+    // Also show if diagram is pending (not yet generated)
+    const hasDiagramButPending = question.diagram && question.diagram.status === 'pending';
+    const showVisualAids = question.visualAids && question.visualAids.length > 0 && 
+                          !diagramPath && !diagramBuffer && !hasReadyDiagram;
+    
+    if (showVisualAids || hasDiagramButPending) {
+      doc.font('Times-Italic').fontSize(10).fillColor('#666666');
+      doc.moveDown(0.2);
+      if (hasDiagramButPending && question.diagram) {
+        doc.text(`Note: This question includes a diagram: ${question.diagram.description}`, margin + 18, doc.y, { width });
+      } else {
+        doc.text('Note: This question includes diagrams/figures. Refer to the visual aids described below:', margin + 18, doc.y, { width });
+        doc.moveDown(0.15);
+        question.visualAids.forEach((aid, i) => {
+          doc.text(`• ${aid}`, margin + 30, doc.y, { width });
+        });
+      }
+      doc.moveDown(0.2);
+      doc.fillColor('black'); // Reset color
+    }
+
+    // Drawing instructions for DRAWING_DIAGRAM type
+    if (question.drawingInstructions && question.questionType === 'DRAWING_DIAGRAM') {
+      doc.font('Times-Roman').fontSize(11).fillColor('#333333');
+      doc.moveDown(0.2);
+      doc.text('Drawing Instructions:', margin + 18, doc.y, { width, continued: false });
+      doc.moveDown(0.1);
+      doc.text(question.drawingInstructions, margin + 30, doc.y, { width });
+      doc.moveDown(0.2);
+      doc.fillColor('black'); // Reset color
+    }
+
+    // Marking instructions for MARKING_PARTS type
+    if (question.markingInstructions && question.questionType === 'MARKING_PARTS') {
+      doc.font('Times-Roman').fontSize(11).fillColor('#333333');
+      doc.moveDown(0.2);
+      doc.text('Marking Instructions:', margin + 18, doc.y, { width, continued: false });
+      doc.moveDown(0.1);
+      doc.text(question.markingInstructions, margin + 30, doc.y, { width });
+      doc.moveDown(0.2);
+      doc.fillColor('black'); // Reset color
     }
 
     doc.moveDown(0.4);

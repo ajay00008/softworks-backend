@@ -8,7 +8,7 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   MONGO_URI: z.string().url().or(z.string().startsWith("mongodb")),
   JWT_SECRET: z.string().min(16, "JWT_SECRET must be at least 16 chars"),
-  JWT_EXPIRES_IN: z.string().default("1d"),
+  JWT_EXPIRES_IN: z.string().default("24h"),
   
   // AI Configuration
   AI_PROVIDER: z.enum(["OPENAI", "GEMINI", "ANTHROPIC", "MOCK"]).default("GEMINI"),

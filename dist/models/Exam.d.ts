@@ -1,6 +1,6 @@
 import mongoose, { Document, Model } from "mongoose";
 export type ExamStatus = "DRAFT" | "SCHEDULED" | "ONGOING" | "COMPLETED" | "CANCELLED";
-export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL" | "DAILY" | "WEEKLY" | "MONTHLY" | "UNIT_WISE" | "PAGE_WISE" | "TERM_TEST" | "ANNUAL_EXAM";
+export type ExamType = "UNIT_TEST" | "MID_TERM" | "FINAL" | "QUIZ" | "ASSIGNMENT" | "PRACTICAL" | "DAILY" | "WEEKLY" | "MONTHLY" | "UNIT_WISE" | "PAGE_WISE" | "TERM_TEST" | "ANNUAL_EXAM" | "CUSTOM_EXAM";
 export interface IExam extends Document {
     title: string;
     description?: string;

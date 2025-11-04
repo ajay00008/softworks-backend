@@ -1,4 +1,6 @@
 import type { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { AnswerSheetPrintingService } from '../services/answerSheetPrintingService';
 import { AnswerSheet } from '../models/AnswerSheet';
 import { Exam } from '../models/Exam';
@@ -75,7 +77,7 @@ export const printIndividualAnswerSheet = async (req: Request, res: Response) =>
         fileName: printResult.fileName,
         filePath: printResult.filePath,
         fileSize: printResult.fileSize,
-        downloadUrl: `/api/prints/download/${printResult.fileName}`
+        downloadUrl: `/public/prints/${printResult.fileName}` // Use public static path for direct access
       },
       message: 'Answer sheet printed successfully'
     });
@@ -163,20 +165,21 @@ export const downloadPrintedFile = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const filePath = `/Users/rishabhverma/satnam/softworks-backend/public/prints/${fileName}`;
+    // Use path.join for proper path construction
+    const publicDir = path.join(process.cwd(), 'public', 'prints');
+    const filePath = path.join(publicDir, fileName);
     
     // Check if file exists
-    const fs = require('fs');
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ success: false, error: 'File not found' });
     }
 
-    // Set appropriate headers
+    // Set appropriate headers for PDF viewing in browser
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Disposition', `inline; filename="${fileName}"`); // inline instead of attachment to view in browser
 
-    // Send file
-    res.sendFile(filePath);
+    // Send file using absolute path
+    res.sendFile(path.resolve(filePath));
 
     logger.info(`File downloaded: ${fileName} by ${userId}`);
   } catch (error) {

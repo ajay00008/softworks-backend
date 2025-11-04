@@ -29,6 +29,7 @@ export interface EnhancedQuestionGenerationRequest {
   difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
   twistedQuestionsPercentage: number;
   patternFilePath?: string; // Optional pattern file path
+  patternDiagramInfo?: string; // Diagram information extracted from pattern file
   referenceBookContent?: string; // Reference book content for AI generation
   samplePapers?: Array<{
     _id: string;
@@ -128,6 +129,18 @@ export interface EnhancedGeneratedQuestion {
   markingInstructions?: string;
   visualAids?: string[];
   tags?: string[];
+  diagram?: {
+    description: string; // Description of what should be drawn
+    type: 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other';
+    status: 'pending' | 'ready'; // pending = needs generation, ready = already generated
+    altText?: string; // Accessible description
+    url?: string; // URL to generated diagram (after backend processing)
+    imagePath?: string; // Local path to diagram image (after backend processing)
+    imageBuffer?: Buffer; // Diagram image buffer (after backend processing)
+  };
+  // Legacy fields for backwards compatibility (will be removed)
+  diagramImagePath?: string;
+  diagramImageBuffer?: Buffer;
 }
 
 export interface AIConfig {
@@ -186,16 +199,55 @@ export class EnhancedAIService {
 
       // Handle pattern file if provided
       let patternInfo = '';
+      let hasPatternDiagrams = false;
       if (request.patternFilePath) {
         patternInfo = `\n\nPattern File Information:
 - Pattern file has been uploaded to guide the question paper format
 - Follow the structure and style of the uploaded pattern
 - Use the pattern as a reference for formatting and question arrangement
 - Maintain consistency with the pattern's layout and presentation style`;
+        
+        // Add diagram information if available
+        if (request.patternDiagramInfo) {
+          hasPatternDiagrams = true;
+          patternInfo += request.patternDiagramInfo;
+          // Add strong instructions to include diagram questions
+          patternInfo += `\n\n**CRITICAL: YOU MUST INCLUDE DIAGRAM QUESTIONS IN YOUR GENERATED QUESTION PAPER**
+- Since the pattern contains diagrams, you MUST generate questions that require diagrams
+- Include at least 2-3 questions of type DRAWING_DIAGRAM or MARKING_PARTS
+- These questions should match the style and complexity of diagrams found in the pattern
+- For each diagram question, provide detailed drawingInstructions and visualAids descriptions
+- Ensure the diagram questions are distributed across different mark categories (1, 2, 3, or 5 marks)
+- The diagrams in your questions should be similar in type and complexity to those in the pattern`;
+        }
       }
 
       // Create comprehensive prompt for question paper generation
-      const prompt = this.createQuestionPaperPrompt(request, subjectBookInfo + patternInfo);
+      const prompt = this.createQuestionPaperPrompt(request, subjectBookInfo + patternInfo, hasPatternDiagrams);
+      
+      // Log prompt section related to diagrams for debugging
+      console.log('\n' + '='.repeat(80));
+      console.log('📝 CHECKING PROMPT FOR DIAGRAM INSTRUCTIONS:');
+      console.log('='.repeat(80));
+      if (request.patternDiagramInfo) {
+        console.log('✅ Pattern diagram info is included in prompt');
+        console.log('Pattern diagram info snippet:', request.patternDiagramInfo.substring(0, 500));
+      } else {
+        console.log('❌ NO pattern diagram info in request');
+      }
+      if (hasPatternDiagrams) {
+        console.log('✅ hasPatternDiagrams flag is TRUE');
+      } else {
+        console.log('❌ hasPatternDiagrams flag is FALSE');
+      }
+      console.log('Prompt snippet (checking for DIAGRAM keywords):');
+      const diagramKeywords = prompt.match(/DIAGRAM|visualAids|drawingInstructions|drawing|diagram/gi);
+      if (diagramKeywords) {
+        console.log('✅ Found diagram keywords in prompt:', diagramKeywords.slice(0, 10));
+      } else {
+        console.log('❌ NO diagram keywords found in prompt');
+      }
+      console.log('='.repeat(80) + '\n');
 
       let response: string;
 
@@ -216,8 +268,37 @@ export class EnhancedAIService {
           throw new Error(`Unsupported AI provider: ${this.config.provider}`);
       }
 
+      // Log the raw AI response for debugging (to verify diagram instructions)
+      console.log('\n' + '='.repeat(80));
+      console.log('🔍 FULL RAW AI RESPONSE (to check for diagram instructions):');
+      console.log('='.repeat(80));
+      console.log(response);
+      console.log('='.repeat(80) + '\n');
+      
       // Parse the JSON response
       const generatedQuestions = this.parseGeneratedQuestions(response);
+      
+      // Log parsed questions to check for diagram objects
+      console.log('\n' + '='.repeat(80));
+      console.log('📊 PARSED QUESTIONS (checking for diagram objects):');
+      console.log('='.repeat(80));
+      generatedQuestions.forEach((q, idx) => {
+        const hasDiagram = q.diagram && q.diagram.status === 'pending';
+        const isDiagramQuestion = q.questionType === 'DRAWING_DIAGRAM' || q.questionType === 'MARKING_PARTS';
+        
+        if (hasDiagram || isDiagramQuestion) {
+          console.log(`Question ${idx + 1}:`);
+          console.log(`  Type: ${q.questionType}`);
+          console.log(`  HasDiagram: ${hasDiagram ? 'YES ✅' : 'NO ❌'}`);
+          if (hasDiagram && q.diagram) {
+            console.log(`  Diagram Type: ${q.diagram.type}`);
+            console.log(`  Diagram Description: ${q.diagram.description.substring(0, 100)}${q.diagram.description.length > 100 ? '...' : ''}`);
+            console.log(`  Diagram Status: ${q.diagram.status}`);
+          }
+          console.log('');
+        }
+      });
+      console.log('='.repeat(80) + '\n');
       
       // Post-process to enforce mark-based question types and distribution
       const processedQuestions = this.enforceMarkBasedQuestionTypes(generatedQuestions);
@@ -242,7 +323,8 @@ export class EnhancedAIService {
    */
   private static createQuestionPaperPrompt(
     request: EnhancedQuestionGenerationRequest,
-    subjectBookInfo: string
+    subjectBookInfo: string,
+    hasPatternDiagrams: boolean = false
   ): string {
     const { subjectName, className, examTitle, markDistribution, bloomsDistribution, questionTypeDistribution, customInstructions, difficultyLevel, twistedQuestionsPercentage, referenceBookContent, templates, samplePapers } = request;
     
@@ -291,8 +373,8 @@ ${questionTypesText}
 4. TRUE_FALSE - True or false questions (binary choice)
 5. CHOOSE_MULTIPLE_ANSWERS - Multiple choice with multiple correct answers (provide 4-6 options, 2-3 correct)
 6. MATCHING_PAIRS - Match items from two columns using arrows (provide 3-5 pairs)
-7. DRAWING_DIAGRAM - Draw diagrams, maps, or mark parts (provide clear drawing instructions)
-8. MARKING_PARTS - Mark correct objects or parts (specify what to mark)
+7. DRAWING_DIAGRAM - Draw diagrams, maps, or mark parts (provide clear drawing instructions). **IMPORTANT: For DRAWING_DIAGRAM questions that require a visual diagram, include a "diagram" object with description, type, and status. DO NOT include base64 data.**
+8. MARKING_PARTS - Mark correct objects or parts (specify what to mark, include diagram references if needed). **IMPORTANT: For MARKING_PARTS questions that require a visual diagram, include a "diagram" object with description, type, and status. DO NOT include base64 data.**
 9. SHORT_ANSWER - Brief text responses (2-3 sentences)
 10. LONG_ANSWER - Detailed text responses (paragraph length)
 
@@ -417,14 +499,23 @@ Return a JSON array of questions with the following structure:
     "multipleCorrectAnswers": ["answer1", "answer2"],
     "drawingInstructions": "instructions for drawing",
     "markingInstructions": "instructions for marking",
+    "visualAids": ["diagram description", "figure reference"],
+    "diagram": {
+      "description": "Brief text describing what should be drawn (e.g., 'Graph of y = sin⁻¹(x/2) showing domain and range')",
+      "type": "graph | geometry | circuit | chart | diagram | figure | other",
+      "status": "pending",
+      "altText": "Accessible description of the diagram (e.g., 'A smooth curve passing through the origin, symmetric about y=x')"
+    },
     "tags": ["tag1", "tag2"]
   }
 ]
 
 **FINAL CRITICAL INSTRUCTIONS:**
+${hasPatternDiagrams ? `0. **HIGHEST PRIORITY: The pattern file contains diagrams/graphs. You MUST include diagram-based questions (DRAWING_DIAGRAM or MARKING_PARTS) in your generated question paper. This is MANDATORY, not optional. Replace 2-3 regular questions with diagram questions while maintaining the total question count and mark distribution.**` : ''}
 1. **MUST follow the exact question type distribution specified above**
 2. **QUESTION TYPE DISTRIBUTION RULES (CRITICAL):**
    - **Follow the exact question type distribution specified above**
+   ${hasPatternDiagrams ? `   - **MANDATORY: Include at least 2-3 DRAWING_DIAGRAM or MARKING_PARTS questions to match the pattern's diagram style**` : ''}
    - **If CHOOSE_MULTIPLE_ANSWERS is specified for any mark category, generate it with proper options**
    - **If CHOOSE_BEST_ANSWER is specified for any mark category, generate it with proper options**
    - **For questions without specified types, use mark-appropriate defaults**
@@ -489,10 +580,47 @@ Generate the question paper now:`;
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      return response.text();
-    } catch (error) {
+      const responseText = response.text();
+      
+      // Log raw Gemini response for debugging diagram instructions
+      console.log('📥 GEMINI RAW RESPONSE (check for diagram instructions):');
+      console.log(responseText.substring(0, 2000)); // First 2000 chars to see if diagrams are mentioned
+      
+      return responseText;
+    } catch (error: any) {
       console.error('Error with Gemini API:', error);
-      throw new Error(`Gemini API error: ${(error as Error).message}`);
+      
+      // Handle quota exceeded (429) errors
+      if (error.status === 429 || error.message?.includes('429') || error.message?.includes('quota')) {
+        const errorDetails = error.errorDetails || [];
+        const retryInfo = errorDetails.find((detail: any) => detail['@type']?.includes('RetryInfo'));
+        const quotaInfo = errorDetails.find((detail: any) => detail['@type']?.includes('QuotaFailure'));
+        
+        let retryDelay = 'unknown';
+        let quotaMessage = 'Your daily quota has been exceeded.';
+        
+        if (retryInfo?.retryDelay) {
+          const delaySeconds = parseFloat(retryInfo.retryDelay.replace('s', ''));
+          const delayMinutes = Math.ceil(delaySeconds / 60);
+          retryDelay = `${delayMinutes} minute${delayMinutes > 1 ? 's' : ''}`;
+        }
+        
+        if (quotaInfo?.violations) {
+          const violation = quotaInfo.violations[0];
+          if (violation?.quotaValue) {
+            quotaMessage = `You have exceeded your free tier limit of ${violation.quotaValue} requests per day.`;
+          }
+        }
+        
+        const quotaError = new Error(
+          `Gemini API quota exceeded: ${quotaMessage} Please try again in ${retryDelay}, or upgrade your Google AI plan for higher limits.`
+        );
+        (quotaError as any).status = 429;
+        (quotaError as any).retryAfter = retryDelay;
+        throw quotaError;
+      }
+      
+      throw new Error(`Gemini API error: ${error.message || 'Unknown error occurred'}`);
     }
   }
 
@@ -527,6 +655,11 @@ Generate the question paper now:`;
       if (!response) {
         throw new Error('No response from OpenAI API');
       }
+      
+      // Log raw OpenAI response for debugging diagram instructions
+      console.log('📥 OPENAI RAW RESPONSE (check for diagram instructions):');
+      console.log(response.substring(0, 2000)); // First 2000 chars to see if diagrams are mentioned
+      
       return response;
     } catch (error) {
       console.error('Error with OpenAI API:', error);
@@ -729,7 +862,27 @@ Generate the question paper now:`;
     for (const category of markCategories) {
       if (category.count > 0) {
         // Get questions of this mark value
-        const questionsForThisMark = questions.filter(q => q.marks === category.mark);
+        let questionsForThisMark = questions.filter(q => q.marks === category.mark);
+        
+        console.log(`Mark ${category.mark}: Need ${category.count} questions, have ${questionsForThisMark.length} from AI`);
+        
+        // If we don't have enough questions for this mark, try to use questions from other marks
+        // This can happen if AI mis-assigned marks
+        if (questionsForThisMark.length < category.count) {
+          const shortfall = category.count - questionsForThisMark.length;
+          const questionsWithWrongMarks = questions.filter(q => q.marks !== category.mark && !distributedQuestions.some(dq => dq.questionText === q.questionText && dq.marks === q.marks));
+          
+          // Try to find questions that can be repurposed (only for simple reassignments)
+          for (let i = 0; i < Math.min(shortfall, questionsWithWrongMarks.length); i++) {
+            const q = questionsWithWrongMarks[i];
+            questionsForThisMark.push({
+              ...q,
+              marks: category.mark
+            });
+          }
+          
+          console.log(`Mark ${category.mark}: After supplementing, have ${questionsForThisMark.length} questions`);
+        }
         
         // If we have specific question type distributions for this mark, apply them
         if (category.distributions.length > 0) {
@@ -747,12 +900,15 @@ Generate the question paper now:`;
           // Assign remaining questions to the last type
           if (category.distributions.length > 0) {
             const lastDist = category.distributions[category.distributions.length - 1];
-            typeCounts[lastDist.type] = remainingQuestions;
+            if (lastDist) {
+              typeCounts[lastDist.type] = remainingQuestions;
+            }
           }
           
           // Distribute questions based on type counts
           let questionIndex = 0;
           for (const [type, count] of Object.entries(typeCounts)) {
+            let addedCount = 0;
             for (let i = 0; i < count && questionIndex < questionsForThisMark.length; i++) {
               const question = questionsForThisMark[questionIndex];
               distributedQuestions.push({
@@ -761,15 +917,61 @@ Generate the question paper now:`;
                 marks: category.mark
               });
               questionIndex++;
+              addedCount++;
+            }
+            
+            // If we didn't get enough questions of this type, create placeholders or reuse questions
+            if (addedCount < count && questionIndex >= questionsForThisMark.length) {
+              // Reuse the last question of this mark type, or create a modified version
+              const lastQuestion = questionsForThisMark[questionsForThisMark.length - 1] || questionsForThisMark[0];
+              if (lastQuestion) {
+                for (let j = addedCount; j < count; j++) {
+                  distributedQuestions.push({
+                    ...lastQuestion,
+                    questionText: `${lastQuestion.questionText} (Variation ${j + 1})`,
+                    questionType: type as any,
+                    marks: category.mark,
+                    bloomsLevel: lastQuestion.bloomsLevel || 'UNDERSTAND',
+                    difficulty: lastQuestion.difficulty || 'MODERATE',
+                    correctAnswer: lastQuestion.correctAnswer || '',
+                    explanation: lastQuestion.explanation || ''
+                  });
+                }
+                console.log(`Mark ${category.mark}, Type ${type}: Created ${count - addedCount} additional questions to meet count requirement`);
+              }
             }
           }
         } else {
-          // No specific distribution, just add questions as-is
-          distributedQuestions.push(...questionsForThisMark.slice(0, category.count));
+          // No specific distribution, just add questions as-is (up to the count needed)
+          const questionsToAdd = Math.min(questionsForThisMark.length, category.count);
+          distributedQuestions.push(...questionsForThisMark.slice(0, questionsToAdd));
+          
+          // If we need more questions than we have, duplicate the last one
+          if (questionsToAdd < category.count && questionsForThisMark.length > 0) {
+            const lastQuestion = questionsForThisMark[questionsForThisMark.length - 1] || questionsForThisMark[0];
+            if (lastQuestion) {
+              for (let i = questionsToAdd; i < category.count; i++) {
+                distributedQuestions.push({
+                  ...lastQuestion,
+                  questionText: `${lastQuestion.questionText} (Variation ${i - questionsToAdd + 1})`,
+                  marks: category.mark,
+                  questionType: lastQuestion.questionType,
+                  bloomsLevel: lastQuestion.bloomsLevel || 'UNDERSTAND',
+                  difficulty: lastQuestion.difficulty || 'MODERATE',
+                  correctAnswer: lastQuestion.correctAnswer || '',
+                  explanation: lastQuestion.explanation || ''
+                });
+              }
+              console.log(`Mark ${category.mark}: Created ${category.count - questionsToAdd} additional questions to meet count requirement`);
+            }
+          }
         }
+        
+        console.log(`Mark ${category.mark}: Added ${distributedQuestions.filter(q => q.marks === category.mark && distributedQuestions.indexOf(q) >= distributedQuestions.length - category.count).length} questions`);
       }
     }
     
+    console.log(`Distribution complete: ${distributedQuestions.length} questions distributed (target: ${request.markDistribution.totalQuestions})`);
     return distributedQuestions;
   }
 
@@ -779,14 +981,266 @@ Generate the question paper now:`;
   private static parseGeneratedQuestions(response: string): EnhancedGeneratedQuestion[] {
     try {
       // Clean the response to extract JSON
-      const cleanedResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      let cleanedResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
       
-      const questions = JSON.parse(cleanedResponse);
+      // Try to extract JSON array from the response if it's wrapped in text
+      const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[0];
+      }
+      
+      // No base64 handling needed - we use diagram objects instead
+      console.log(`🔍 Parsing JSON response (length: ${cleanedResponse.length})...`);
+      
+      // Fix common JSON issues: trailing commas, trailing commas before closing brackets
+      // CRITICAL: Remove trailing commas before ] or } - these break JSON parsing
+      // Use more aggressive patterns to catch all cases
+      cleanedResponse = cleanedResponse
+        // Remove trailing commas before closing brackets (with various whitespace patterns)
+        .replace(/,\s*]/g, ']')  // Array: ["a", "b", ] -> ["a", "b"]
+        .replace(/,\s*}/g, '}')  // Object: {"a": 1, } -> {"a": 1}
+        // Remove multiple consecutive commas
+        .replace(/,\s*,\s*/g, ',')  // Fix: ,, -> ,
+        // More aggressive: remove comma before closing if preceded by quote or value
+        .replace(/"\s*,\s*]/g, '"]')  // ["a",] -> ["a"]
+        .replace(/"\s*,\s*}/g, '"}')  // {"a": "b",} -> {"a": "b"}
+        // Remove trailing commas in arrays (more patterns)
+        .replace(/(\w+|"|'|\d+)\s*,\s*]/g, '$1]')  // any value, ] -> value]
+        // Remove trailing commas in objects  
+        .replace(/(\w+|"|'|\d+)\s*,\s*}/g, '$1}')  // any value, } -> value}
+        // Final cleanup: any remaining trailing commas before ] or }
+        .replace(/,\s*([\]}])/g, '$1');
+      
+      // Additional fix: Look for specific patterns like array items with trailing commas
+      // This handles cases like: ["item1", "item2",] or ["item1", "item2", ]
+      // We need to be careful not to break valid JSON inside strings
+      // Use a more sophisticated approach: find arrays and fix them
+      let fixedResponse = '';
+      let inString = false;
+      let stringEscape = false;
+      let depth = 0;
+      let inArray = false;
+      
+      for (let i = 0; i < cleanedResponse.length; i++) {
+        const char = cleanedResponse[i];
+        const nextChar = i + 1 < cleanedResponse.length ? cleanedResponse[i + 1] : '';
+        const nextFew = cleanedResponse.substring(i + 1, i + 5).trim();
+        
+        // Track string state
+        if (char === '\\' && inString) {
+          stringEscape = !stringEscape;
+          fixedResponse += char;
+          continue;
+        }
+        
+        if (char === '"' && !stringEscape) {
+          inString = !inString;
+          fixedResponse += char;
+          continue;
+        }
+        
+        stringEscape = false;
+        
+        // Track array/object depth
+        if (!inString) {
+          if (char === '[') {
+            inArray = true;
+            depth++;
+          } else if (char === ']') {
+            inArray = false;
+            depth--;
+          } else if (char === '{') {
+            depth++;
+          } else if (char === '}') {
+            depth--;
+          }
+          
+          // If we see a comma followed by closing bracket/brace, skip the comma
+          if (char === ',' && (nextFew.startsWith(']') || nextFew.startsWith('}'))) {
+            // Skip this comma - it's a trailing comma
+            continue;
+          }
+        }
+        
+        fixedResponse += char;
+      }
+      
+      cleanedResponse = fixedResponse;
+      
+      // Final cleanup pass
+      cleanedResponse = cleanedResponse
+        .replace(/,\s*]/g, ']')
+        .replace(/,\s*}/g, '}')
+        .replace(/,\s*,\s*/g, ',');
+      
+      // CRITICAL: Check if JSON is properly closed (truncated response detection)
+      // Count opening and closing brackets/braces to see if response is incomplete
+      const openBraces = (cleanedResponse.match(/{/g) || []).length;
+      const closeBraces = (cleanedResponse.match(/}/g) || []).length;
+      const openBrackets = (cleanedResponse.match(/\[/g) || []).length;
+      const closeBrackets = (cleanedResponse.match(/\]/g) || []).length;
+      
+      const missingBraces = openBraces - closeBraces;
+      const missingBrackets = openBrackets - closeBrackets;
+      
+      // Check if response ends mid-string, mid-array, or mid-object
+      let checkInString = false;
+      let checkStringEscape = false;
+      let checkDepth = 0;
+      let checkInArray = false;
+      let lastCompleteObjectEnd = -1;
+      let lastCompleteArrayEnd = -1;
+      
+      for (let i = 0; i < cleanedResponse.length; i++) {
+        const char = cleanedResponse[i];
+        
+        // Track string state
+        if (char === '\\' && checkInString) {
+          checkStringEscape = !checkStringEscape;
+          continue;
+        }
+        
+        if (char === '"' && !checkStringEscape) {
+          checkInString = !checkInString;
+          continue;
+        }
+        
+        checkStringEscape = false;
+        
+        // Track depth when not in string
+        if (!checkInString) {
+          if (char === '[') {
+            checkInArray = true;
+            checkDepth++;
+          } else if (char === ']') {
+            checkDepth--;
+            if (checkDepth === 0 || (checkDepth === 1 && !checkInArray)) {
+              lastCompleteArrayEnd = i;
+            }
+          } else if (char === '{') {
+            checkDepth++;
+          } else if (char === '}') {
+            checkDepth--;
+            // If we've closed a question object (depth goes from 2 to 1, meaning we're back in the array)
+            if (checkDepth === 1 && checkInArray) {
+              lastCompleteObjectEnd = i;
+            }
+          }
+        }
+      }
+      
+      // If response ends in a string or we're still inside structures, it's truncated
+      const endsInString = checkInString;
+      const stillInStructure = checkDepth > 0 || checkInArray;
+      
+      if (endsInString || stillInStructure || missingBraces > 0 || missingBrackets > 0) {
+        console.log(`⚠️ Detected incomplete/truncated JSON response`);
+        console.log(`   Ends in string: ${endsInString}, Still in structure: ${stillInStructure}`);
+        console.log(`   Missing braces: ${missingBraces}, Missing brackets: ${missingBrackets}`);
+        console.log(`   Last complete object ends at: ${lastCompleteObjectEnd}, Last complete array ends at: ${lastCompleteArrayEnd}`);
+        
+        // Find the best truncation point - prefer last complete question object
+        let truncatePos = cleanedResponse.length - 1;
+        if (lastCompleteObjectEnd > 0) {
+          // Use the position right after the last complete question object
+          truncatePos = lastCompleteObjectEnd + 1;
+        } else if (lastCompleteArrayEnd > 0) {
+          truncatePos = lastCompleteArrayEnd + 1;
+        } else {
+          // Fallback: find the last complete closing brace or bracket
+          const lastBrace = cleanedResponse.lastIndexOf('}');
+          const lastBracket = cleanedResponse.lastIndexOf(']');
+          if (lastBrace > lastBracket && lastBrace > 0) {
+            truncatePos = lastBrace + 1;
+          } else if (lastBracket > 0) {
+            truncatePos = lastBracket + 1;
+          }
+        }
+        
+        // Truncate to the last complete structure
+        let fixedResponse = cleanedResponse.substring(0, truncatePos).trim();
+        
+        // Remove any trailing comma
+        if (fixedResponse.endsWith(',')) {
+          fixedResponse = fixedResponse.slice(0, -1).trim();
+        }
+        
+        // Close any open strings (shouldn't happen but just in case)
+        if (endsInString) {
+          fixedResponse += '"';
+        }
+        
+        // Close any open objects first (innermost to outermost)
+        for (let i = 0; i < missingBraces; i++) {
+          fixedResponse += '}';
+        }
+        
+        // Close any open arrays
+        for (let i = 0; i < missingBrackets; i++) {
+          fixedResponse += ']';
+        }
+        
+        // Double-check and close any remaining structures
+        const finalOpenBraces = (fixedResponse.match(/{/g) || []).length;
+        const finalCloseBraces = (fixedResponse.match(/}/g) || []).length;
+        const finalOpenBrackets = (fixedResponse.match(/\[/g) || []).length;
+        const finalCloseBrackets = (fixedResponse.match(/\]/g) || []).length;
+        
+        const stillOpenBraces = finalOpenBraces - finalCloseBraces;
+        const stillOpenBrackets = finalOpenBrackets - finalCloseBrackets;
+        
+        // Close objects first, then arrays
+        for (let i = 0; i < stillOpenBraces; i++) {
+          fixedResponse += '}';
+        }
+        for (let i = 0; i < stillOpenBrackets; i++) {
+          fixedResponse += ']';
+        }
+        
+        cleanedResponse = fixedResponse;
+        console.log(`✅ Fixed truncated JSON - closed ${stillOpenBraces} brace(s) and ${stillOpenBrackets} bracket(s)`);
+        console.log(`   Fixed response ends with: ${cleanedResponse.slice(-80)}`);
+      }
+      
+      // Try parsing with error handling
+      let questions;
+      try {
+        questions = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        // If still fails, try to fix more aggressively
+        console.warn('First JSON parse attempt failed, trying aggressive cleanup:', parseError);
+        
+        // More aggressive fixes (but preserve placeholders)
+        cleanedResponse = cleanedResponse
+          // Fix unquoted keys (common AI mistake)
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, (match, prefix) => {
+            return `${prefix}"${match.split(':')[0].trim().replace(/[{,]\s*/, '')}":`;
+          })
+          // Fix single quotes to double quotes (but not in placeholders)
+          .replace(/'/g, '"')
+          // Remove trailing commas more aggressively
+          .replace(/,\s*([}\]])/g, '$1')
+          // Fix common issues with array values
+          .replace(/\[([^\]]*),\]/g, '[$1]');
+        
+        try {
+          questions = JSON.parse(cleanedResponse);
+        } catch (secondError) {
+          // Log the problematic response for debugging (truncate base64 if present)
+          const debugResponse = cleanedResponse.substring(0, 5000); // Show more context
+          console.error('Failed to parse JSON after cleanup. Response snippet (first 5000 chars):', debugResponse);
+          console.error('Parse error:', secondError);
+          throw new Error(`Failed to parse AI response as JSON. The response may be malformed. Original error: ${(parseError as Error).message}`);
+        }
+      }
+      
+      // No base64 restoration needed - diagram objects are already in the parsed JSON
       
       if (!Array.isArray(questions)) {
         throw new Error('Response is not an array of questions');
       }
 
+      // Map questions and restore base64 strings if needed
       return questions.map((q: any) => {
         // Debug logging for CHOOSE_MULTIPLE_ANSWERS questions
         if (q.questionType === 'CHOOSE_MULTIPLE_ANSWERS') {
@@ -894,7 +1348,16 @@ Generate the question paper now:`;
           multipleCorrectAnswers: q.multipleCorrectAnswers || [],
           drawingInstructions: q.drawingInstructions || '',
           markingInstructions: q.markingInstructions || '',
-          tags: q.tags || []
+          visualAids: q.visualAids || [],
+          tags: q.tags || [],
+          diagramDescription: q.diagramDescription || q.visualAids?.[0] || undefined,
+          // Parse diagram object from AI response
+          diagram: q.diagram ? {
+            description: q.diagram.description || q.diagramDescription || '',
+            type: q.diagram.type || 'diagram',
+            status: (q.diagram.status as 'pending' | 'ready') || 'pending',
+            altText: q.diagram.altText || q.diagram.description || undefined
+          } : undefined
         };
       });
     } catch (error) {

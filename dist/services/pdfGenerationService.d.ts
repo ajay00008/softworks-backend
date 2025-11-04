@@ -13,6 +13,7 @@ export interface GeneratedQuestion {
     multipleCorrectAnswers?: string[];
     drawingInstructions?: string;
     markingInstructions?: string;
+    visualAids?: string[];
 }
 export declare class PDFGenerationService {
     private static readonly PUBLIC_FOLDER;
@@ -23,6 +24,12 @@ export declare class PDFGenerationService {
         filePath: string;
         downloadUrl: string;
     }>;
+    /**
+     * Extract text content from a PDF file
+     * For now, this is a mock implementation that returns sample text
+     * In production, you would use a proper PDF text extraction library
+     */
+    static extractTextFromPDF(filePath: string): Promise<string>;
     private static addHeader;
     private static addInstructions;
     private static addQuestion;

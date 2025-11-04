@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { login } from "../controllers/authController";
-import { requireAuth, requireRoles } from "../middleware/auth";
+import { requireAuth, requireAuthFlexible, requireRoles } from "../middleware/auth";
 import { createAdmin } from "../controllers/adminController";
 import {
   createAdmin as createAdminSuper,
@@ -91,6 +91,9 @@ import {
 import {
   getTeacherAccess,
   createTeacherQuestionPaper,
+  getTeacherQuestionPapers,
+  downloadTeacherQuestionPaper,
+  generateCompleteAITeacherQuestionPaper,
   uploadAnswerSheets,
   markStudentStatus,
   evaluateAnswerSheets,
@@ -100,6 +103,8 @@ import {
   getAssignedStudents,
   downloadResults,
   getAnswerSheets,
+  getTeacherExamResults,
+  getTeacherExamStats,
 } from "../controllers/teacherDashboardController";
 import {
   getExamContext,
@@ -3629,6 +3634,8 @@ import {
   sendMissingAnswerSheetNotification,
   getUserNotifications,
   markNotificationAsRead,
+  deleteNotification,
+  clearAllNotifications,
 } from "../controllers/notificationController";
 import {
   checkAnswerSheetWithAI,
@@ -5996,11 +6003,179 @@ router.get(
  *       403:
  *         description: Access denied
  */
+/**
+ * @openapi
+ * /api/teacher/question-papers:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get question papers for assigned classes and subjects
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [DRAFT, GENERATED, PUBLISHED]
+ *       - in: query
+ *         name: examId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subjectId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: classId
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Question papers retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ */
+router.get(
+  "/teacher/question-papers",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getTeacherQuestionPapers
+);
+
+/**
+ * @openapi
+ * /api/teacher/question-papers:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Create question paper for assigned subject and class
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, examId, subjectId, classId]
+ *             properties:
+ *               title:
+ *                 type: string
+ *               examId:
+ *                 type: string
+ *               subjectId:
+ *                 type: string
+ *               classId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Question paper created successfully
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ */
+router.post(
+  "/teacher/question-papers",
+  requireAuth,
+  requireRoles("TEACHER"),
+  createTeacherQuestionPaper
+);
+
+/**
+ * @openapi
+ * /api/teacher/question-papers/{id}/download:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Download question paper PDF
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: PDF file
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Question paper or PDF not found
+ */
+router.get(
+  "/teacher/question-papers/:id/download",
+  requireAuthFlexible,
+  requireRoles("TEACHER"),
+  downloadTeacherQuestionPaper
+);
+
 router.post(
   "/teacher/questions",
   requireAuth,
   requireRoles("TEACHER"),
   createTeacherQuestionPaper
+);
+
+/**
+ * @openapi
+ * /api/teacher/question-papers/generate-complete-ai:
+ *   post:
+ *     tags: [Teacher Dashboard]
+ *     summary: Generate complete question paper with AI (direct generation)
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [title, examId, markDistribution, bloomsDistribution, questionTypeDistribution]
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               examId:
+ *                 type: string
+ *               markDistribution:
+ *                 type: object
+ *               bloomsDistribution:
+ *                 type: array
+ *               questionTypeDistribution:
+ *                 type: object
+ *               aiSettings:
+ *                 type: object
+ *               patternId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Question paper generated successfully
+ *       400:
+ *         description: Invalid input data
+ *       403:
+ *         description: Access denied
+ */
+router.post(
+  "/teacher/question-papers/generate-complete-ai",
+  requireAuth,
+  requireRoles("TEACHER"),
+  generateCompleteAITeacherQuestionPaper
 );
 
 /**
@@ -6149,9 +6324,129 @@ router.post(
 
 /**
  * @openapi
+ * /api/notifications:
+ *   get:
+ *     summary: Get notifications for authenticated user (works for all roles)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isRead
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Notifications retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get(
+  "/notifications",
+  requireAuth,
+  getUserNotifications
+);
+
+/**
+ * @openapi
+ * /api/notifications/{notificationId}/read:
+ *   post:
+ *     summary: Mark notification as read (works for all roles)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
+ *       404:
+ *         description: Notification not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  "/notifications/:notificationId/read",
+  requireAuth,
+  markNotificationAsRead
+);
+
+/**
+ * @openapi
+ * /api/notifications/{notificationId}:
+ *   delete:
+ *     summary: Delete a notification (hard delete - works for all roles)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification deleted successfully
+ *       404:
+ *         description: Notification not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete(
+  "/notifications/:notificationId",
+  requireAuth,
+  deleteNotification
+);
+
+/**
+ * @openapi
+ * /api/notifications/clear-all:
+ *   post:
+ *     summary: Clear all notifications for the current user (works for all roles)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications cleared successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.post(
+  "/notifications/clear-all",
+  requireAuth,
+  clearAllNotifications
+);
+
+/**
+ * @openapi
  * /api/teacher/notifications:
  *   get:
- *     summary: Get notifications for teacher
+ *     summary: Get notifications for teacher (deprecated - use /api/notifications)
  *     tags: [Teacher]
  *     security:
  *       - bearerAuth: []
@@ -6396,6 +6691,60 @@ router.get(
   requireAuth,
   requireRoles("TEACHER"),
   getResults
+);
+
+/**
+ * @openapi
+ * /api/teacher/results/{examId}:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get exam results from AI-corrected answer sheets
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Results retrieved successfully
+ *       403:
+ *         description: Access denied to this exam
+ */
+router.get(
+  "/teacher/results/:examId",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getTeacherExamResults
+);
+
+/**
+ * @openapi
+ * /api/teacher/results/{examId}/stats:
+ *   get:
+ *     tags: [Teacher Dashboard]
+ *     summary: Get class statistics for exam results
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: examId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *       403:
+ *         description: Access denied to this exam
+ */
+router.get(
+  "/teacher/results/:examId/stats",
+  requireAuth,
+  requireRoles("TEACHER"),
+  getTeacherExamStats
 );
 
 /**

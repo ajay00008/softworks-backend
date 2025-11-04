@@ -72,6 +72,11 @@ async function start() {
     logger.info(`Server listening on port ${env.PORT}`);
   });
 
+  // Initialize Socket.IO
+  const { SocketService } = await import('./services/socketService.js');
+  SocketService.initialize(server);
+  logger.info('Socket.IO server initialized');
+
   const shutdown = (signal: string) => () => {
     logger.info(`Received ${signal}, shutting down gracefully`);
     server.close(async () => {

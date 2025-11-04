@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export type NotificationType = "MISSING_SHEET" | "ABSENT_STUDENT" | "AI_CORRECTION_COMPLETE" | "MANUAL_REVIEW_REQUIRED" | "SYSTEM_ALERT";
+export type NotificationType = "MISSING_ANSWER_SHEET" | "ABSENT_STUDENT" | "AI_CORRECTION_COMPLETE" | "MANUAL_REVIEW_REQUIRED" | "SYSTEM_ALERT";
 export type NotificationPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 export type NotificationStatus = "UNREAD" | "READ" | "ACKNOWLEDGED" | "DISMISSED";
 
@@ -35,7 +35,7 @@ const NotificationSchema = new Schema<INotification>(
   {
     type: { 
       type: String, 
-      enum: ["MISSING_SHEET", "ABSENT_STUDENT", "AI_CORRECTION_COMPLETE", "MANUAL_REVIEW_REQUIRED", "SYSTEM_ALERT"],
+      enum: ["MISSING_ANSWER_SHEET", "ABSENT_STUDENT", "AI_CORRECTION_COMPLETE", "MANUAL_REVIEW_REQUIRED", "SYSTEM_ALERT"],
       required: true,
       index: true
     },

@@ -361,13 +361,14 @@ export const updateAICorrectionResults = async (req: Request, res: Response) => 
 
     await answerSheet.save();
 
-    // Create notification for staff
-    const notification = new Notification({
+    // Create notification for staff (and send via Socket.IO)
+    const { NotificationService } = await import('../services/notificationService');
+    await NotificationService.createNotification({
       type: 'AI_CORRECTION_COMPLETE',
       priority: 'LOW',
       title: 'AI Correction Complete',
       message: `Answer sheet has been processed by AI`,
-      recipientId: answerSheet.uploadedBy,
+      recipientId: answerSheet.uploadedBy.toString(),
       relatedEntityId: answerSheetId,
       relatedEntityType: 'answerSheet',
       metadata: {
@@ -375,8 +376,6 @@ export const updateAICorrectionResults = async (req: Request, res: Response) => 
         totalMarks: aiCorrectionResults.totalMarks
       }
     });
-
-    await notification.save();
 
     logger.info(`AI correction results updated: ${answerSheetId}`);
 
@@ -680,7 +679,7 @@ async function processAnswerSheetWithAI(answerSheetId: string, answerSheet: any)
       confidence: aiResult.confidence
     });
 
-    // Create notification for teacher
+    // Create notification for teacher (and their admin via Socket.IO)
     const { NotificationService } = await import('../services/notificationService');
     await NotificationService.createAICorrectionCompleteNotification(
       answerSheet.uploadedBy.toString(),
@@ -808,7 +807,6 @@ export const getExamStudents = async (req: Request, res: Response) => {
     // Get all students in the exam's class
     const students = await Student.find({ 
       classId: exam.classId,
-      isActive: true 
     })
     .populate('userId', 'name email')
     .sort({ rollNumber: 1 });
@@ -816,7 +814,6 @@ export const getExamStudents = async (req: Request, res: Response) => {
     // Get existing answer sheets for this exam
     const existingAnswerSheets = await AnswerSheet.find({
       examId: exam._id,
-      isActive: true
     }).select('studentId rollNumberDetected');
 
     const existingStudentIds = existingAnswerSheets.map(sheet => sheet.studentId?.toString());
@@ -910,11 +907,9 @@ export const deleteAnswerSheet = async (req: Request, res: Response) => {
       }
     }
 
-    // Soft delete the answer sheet
-    answerSheet.isActive = false;
-    answerSheet.deletedAt = new Date();
-    answerSheet.deletedBy = userId;
-    await answerSheet.save();
+    // Hard delete the answer sheet to allow re-upload
+    // We delete the document completely to avoid unique index conflicts
+    await AnswerSheet.findByIdAndDelete(answerSheetId);
 
     logger.info(`Answer sheet deleted: ${answerSheetId} by ${userId}`);
 

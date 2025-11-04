@@ -44,7 +44,11 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
       isActive: true
     }).distinct('studentId');
 
-    const missingStudentIds = studentIds.filter(id => !submittedStudentIds.includes(id));
+    // Convert both to strings for proper comparison (ObjectId vs string)
+    const submittedStudentIdsStr = submittedStudentIds.map(id => id?.toString()).filter(Boolean);
+    const studentIdsStr = studentIds.map(id => id?.toString()).filter(Boolean);
+    
+    const missingStudentIds = studentIdsStr.filter(id => !submittedStudentIdsStr.includes(id));
 
     if (missingStudentIds.length === 0) {
       return res.json({
@@ -56,44 +60,73 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
 
     // Get student details for notification
     const students = await Student.find({
-      _id: { $in: missingStudentIds },
-      isActive: true
+      userId: { $in: missingStudentIds },
     }).populate('userId', 'name email');
 
-    // Create notifications for each missing student
-    const notifications = students.map(student => ({
-      userId: student.userId._id,
-      type: 'MISSING_ANSWER_SHEET',
-      title: 'Answer Sheet Submission Reminder',
-      message: `Dear ${student.userId.name}, please submit your answer sheet for the exam "${exam.title}" before the deadline.`,
-      data: {
-        examId: exam._id,
-        examTitle: exam.title,
-        examDate: exam.scheduledDate,
-        studentId: student._id,
-        studentName: student.userId.name
-      },
-      priority: 'HIGH',
-      isRead: false,
-      createdBy: userId,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-    }));
+    // Import NotificationService for socket notifications
+    const { NotificationService } = await import('../services/notificationService');
 
-    // Save notifications
-    const savedNotifications = await Notification.insertMany(notifications);
+    // Notify only the specific admin about missing answer sheets (with socket notification)
+    // This notification goes ONLY to the teacher's admin, not all admins
+    let savedNotification = null;
+    if (teacher.adminId) {
+      try {
+        const adminId = teacher.adminId.toString();
+        console.log('[SOCKET] 📤 Sender: Creating missing answer sheet notification', {
+          teacherUserId: userId,
+          teacherId: teacher._id.toString(),
+          adminId: adminId,
+          examId: exam._id.toString(),
+          examTitle: exam.title,
+          missingCount: students.length,
+          timestamp: new Date().toISOString()
+        });
 
-    logger.info(`Missing answer sheet notifications sent for exam: ${examId} to ${students.length} students by teacher: ${userId}`);
+        savedNotification = await NotificationService.createNotification({
+          type: 'MISSING_ANSWER_SHEET',
+          priority: 'HIGH',
+          title: 'Missing Answer Sheets Alert',
+          message: `${students.length} student(s) have not submitted answer sheets for "${exam.title}".`,
+          recipientId: adminId, // Only this specific admin will receive the notification
+          relatedEntityId: exam._id.toString(),
+          relatedEntityType: 'exam',
+          metadata: {
+            examId: exam._id.toString(),
+            examTitle: exam.title,
+            missingCount: students.length,
+            missingStudents: students.map(s => ({
+              studentId: s._id.toString(),
+              studentName: s.userId.name,
+              rollNumber: s.rollNumber
+            })),
+            notifiedBy: userId,
+            teacherId: teacher._id.toString()
+          }
+        });
+        logger.info(`Admin notification sent to ${adminId} (teacher's admin) for ${students.length} missing answer sheets from teacher ${userId}`);
+      } catch (adminError) {
+        logger.warn('Failed to send admin notification for missing answer sheets:', adminError);
+        // Don't fail the whole operation if admin notification fails
+      }
+    } else {
+      logger.warn(`Teacher ${userId} does not have an adminId assigned. Cannot send notification.`);
+    }
+
+    logger.info(`Missing answer sheet notification sent for exam: ${examId} to admin by teacher: ${userId}`);
 
     res.json({
       success: true,
-      message: `Notifications sent to ${students.length} students about missing answer sheets`,
+      message: `Admin has been notified about ${students.length} missing answer sheet(s)`,
       data: {
-        notifiedCount: students.length,
-        notifications: savedNotifications.map(n => ({
-          id: n._id,
-          studentName: students.find(s => s.userId._id.toString() === n.userId.toString())?.userId.name,
-          message: n.message
-        }))
+        missingCount: students.length,
+        adminNotified: !!teacher.adminId && !!savedNotification,
+        missingStudents: students.map(s => ({
+          studentId: s._id.toString(),
+          studentName: s.userId.name,
+          rollNumber: s.rollNumber,
+          email: s.userId.email
+        })),
+        notificationId: savedNotification?._id?.toString() || null
       }
     });
 
@@ -117,14 +150,19 @@ export const getUserNotifications = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const query: any = { userId, isActive: true };
+    const query: any = { recipientId: userId, isActive: true }; // Use recipientId, not userId
     
     if (type) {
       query.type = type;
     }
     
+    // Handle status filter - convert isRead boolean to status
     if (isRead !== undefined) {
-      query.isRead = isRead === 'true';
+      if (isRead === 'true' || isRead === true) {
+        query.status = 'READ';
+      } else {
+        query.status = 'UNREAD';
+      }
     }
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -132,8 +170,7 @@ export const getUserNotifications = async (req: Request, res: Response) => {
     const notifications = await Notification.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(Number(limit))
-      .populate('createdBy', 'name');
+      .limit(Number(limit));
 
     const total = await Notification.countDocuments(query);
 
@@ -170,9 +207,41 @@ export const markNotificationAsRead = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
+    if (!notificationId) {
+      return res.status(400).json({ success: false, error: 'Notification ID is required' });
+    }
+
+    // Convert string to ObjectId if needed - handle both _id and id formats
+    const mongoose = await import('mongoose');
+    let notificationObjectId: any;
+    
+    try {
+      // Check if it's a valid ObjectId string
+      if (mongoose.Types.ObjectId.isValid(notificationId)) {
+        notificationObjectId = new mongoose.Types.ObjectId(notificationId);
+      } else {
+        // If not a valid ObjectId, try using it as-is (fallback)
+        notificationObjectId = notificationId;
+      }
+    } catch (error) {
+      // Fallback to using the notificationId as-is
+      notificationObjectId = notificationId;
+    }
+
+    // Try to find and update the notification - supports both _id and id
+    // Use $or to try both _id (Mongoose internal) and id (virtual/string format) as fallback
+    const query: any = {
+      $or: [
+        { _id: notificationObjectId },
+        { _id: notificationId } // Also try the raw string in case ObjectId conversion failed
+      ],
+      recipientId: userId,
+      isActive: true
+    };
+
     const notification = await Notification.findOneAndUpdate(
-      { _id: notificationId, userId, isActive: true },
-      { isRead: true, readAt: new Date() },
+      query,
+      { status: 'READ', readAt: new Date() }, // Use status field, not isRead
       { new: true }
     );
 
@@ -191,6 +260,99 @@ export const markNotificationAsRead = async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false, 
       error: 'Failed to mark notification as read',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+// Delete notification (hard delete)
+export const deleteNotification = async (req: Request, res: Response) => {
+  try {
+    const { notificationId } = req.params;
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    if (!notificationId) {
+      return res.status(400).json({ success: false, error: 'Notification ID is required' });
+    }
+
+    // Convert string to ObjectId if needed
+    const mongoose = await import('mongoose');
+    let notificationObjectId: any;
+    
+    try {
+      if (mongoose.Types.ObjectId.isValid(notificationId)) {
+        notificationObjectId = new mongoose.Types.ObjectId(notificationId);
+      } else {
+        notificationObjectId = notificationId;
+      }
+    } catch (error) {
+      notificationObjectId = notificationId;
+    }
+
+    // Delete notification - only if it belongs to the user
+    const notification = await Notification.findOneAndDelete({
+      _id: notificationObjectId,
+      recipientId: userId
+    });
+
+    if (!notification) {
+      return res.status(404).json({ success: false, error: 'Notification not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Notification deleted successfully',
+      data: { id: notificationId }
+    });
+
+  } catch (error) {
+    logger.error('Error deleting notification:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to delete notification',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+// Clear all notifications for a user (soft delete - set isActive to false for all)
+export const clearAllNotifications = async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).auth?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Update all active notifications for the user
+    const result = await Notification.updateMany(
+      {
+        recipientId: userId,
+        isActive: true
+      },
+      { 
+        isActive: false,
+        dismissedAt: new Date()
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'All notifications cleared successfully',
+      data: {
+        deletedCount: result.modifiedCount
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error clearing all notifications:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to clear notifications',
       details: error instanceof Error ? error.message : 'Unknown error'
     });
   }

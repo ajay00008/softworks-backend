@@ -334,7 +334,15 @@ export async function getTemplatesForAutoFetch(req: Request, res: Response, next
         totalQuestions: template.analysis.totalQuestions,
         questionTypes: template.analysis.questionTypes,
         sections: template.analysis.sections || [],
-        bloomsDistribution: template.analysis.bloomsDistribution
+        bloomsDistribution: template.analysis.bloomsDistribution,
+        // IMPORTANT: Include templateFile so frontend can extract patternId
+        templateFile: template.templateFile ? {
+          fileName: template.templateFile.fileName,
+          filePath: template.templateFile.filePath,
+          fileSize: template.templateFile.fileSize,
+          uploadedAt: template.templateFile.uploadedAt,
+          downloadUrl: template.templateFile.downloadUrl
+        } : undefined
       }))
     });
   } catch (err) {
