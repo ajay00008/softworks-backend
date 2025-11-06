@@ -89,7 +89,7 @@ async function checkStudentData() {
       console.log("ℹ️  No student data found");
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error checking student data:", error);
     throw error;
   }

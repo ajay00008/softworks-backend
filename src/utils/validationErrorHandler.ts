@@ -37,7 +37,7 @@ export function validateWithCustomMessages<T>(
 ): T {
   try {
     return schema.parse(data);
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError && customMessages) {
       // Override error messages with custom ones
       const updatedErrors = error.errors.map(err => {

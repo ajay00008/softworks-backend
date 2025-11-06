@@ -50,6 +50,9 @@ export const printIndividualAnswerSheet = async (req: Request, res: Response) =>
     }
 
     // Print the answer sheet
+    if (!answerSheetId) {
+      return res.status(400).json({ success: false, error: 'Answer sheet ID is required' });
+    }
     const printResult = await AnswerSheetPrintingService.printIndividualAnswerSheet(
       answerSheetId,
       {
@@ -81,7 +84,7 @@ export const printIndividualAnswerSheet = async (req: Request, res: Response) =>
       },
       message: 'Answer sheet printed successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error printing individual answer sheet:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -117,6 +120,9 @@ export const printBatchAnswerSheets = async (req: Request, res: Response) => {
     }
 
     // Print batch answer sheets
+    if (!examId) {
+      return res.status(400).json({ success: false, error: 'Exam ID is required' });
+    }
     const printResult = await AnswerSheetPrintingService.printBatchAnswerSheets(
       examId,
       studentIds,
@@ -149,7 +155,7 @@ export const printBatchAnswerSheets = async (req: Request, res: Response) => {
       },
       message: 'Batch answer sheets printed successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error printing batch answer sheets:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -165,6 +171,10 @@ export const downloadPrintedFile = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
+    if (!fileName) {
+      return res.status(400).json({ success: false, error: 'File name is required' });
+    }
+    
     // Use path.join for proper path construction
     const publicDir = path.join(process.cwd(), 'public', 'prints');
     const filePath = path.join(publicDir, fileName);
@@ -182,7 +192,7 @@ export const downloadPrintedFile = async (req: Request, res: Response) => {
     res.sendFile(path.resolve(filePath));
 
     logger.info(`File downloaded: ${fileName} by ${userId}`);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error downloading printed file:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -231,7 +241,7 @@ export const getPrintHistory = async (req: Request, res: Response) => {
         pages: Math.ceil(printHistory.length / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching print history:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -283,7 +293,7 @@ export const getPrintOptions = async (req: Request, res: Response) => {
       success: true,
       data: printOptions
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching print options:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }

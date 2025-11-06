@@ -14,7 +14,7 @@ async function migrateAdminIsolation() {
     console.log("🚀 Starting admin isolation migration...");
     
     // Connect to MongoDB
-    await mongoose.connect(env.MONGODB_URI);
+    await mongoose.connect(env.MONGO_URI);
     console.log("✅ Connected to MongoDB");
 
     // Find the first SUPER_ADMIN to assign as the admin for all existing data
@@ -82,7 +82,7 @@ async function migrateAdminIsolation() {
     console.log("📝 All existing data has been assigned to the SUPER_ADMIN");
     console.log("🔒 New data created by different admins will be isolated");
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("❌ Migration failed:", error);
     process.exit(1);
   } finally {

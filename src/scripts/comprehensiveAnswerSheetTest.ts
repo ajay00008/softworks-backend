@@ -72,7 +72,7 @@ async function comprehensiveTest() {
       try {
         const result = await aiService.matchStudentToRollNumber(
           rollNumber,
-          exam._id.toString(),
+          String(exam._id),
           0.9
         );
 
@@ -86,7 +86,7 @@ async function comprehensiveTest() {
           }
         }
       } catch (error: any) {
-        logger.error(`   ❌ ERROR: ${error.message}`);
+        logger.error(`   ❌ ERROR: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
 
@@ -129,7 +129,7 @@ async function comprehensiveTest() {
           try {
             const matchResult = await aiService.matchStudentToRollNumber(
               sheet.rollNumberDetected,
-              exam._id.toString(),
+              String(exam._id),
               (sheet.rollNumberConfidence || 0) / 100
             );
 
@@ -144,7 +144,7 @@ async function comprehensiveTest() {
               }
             }
           } catch (error: any) {
-            logger.error(`      ❌ Error matching: ${error.message}`);
+            logger.error(`      ❌ Error matching: ${error instanceof Error ? error.message : "Unknown error"}`);
           }
         } else {
           logger.warn(`      ⚠️  No roll number detected - manual matching required`);

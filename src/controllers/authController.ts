@@ -34,8 +34,8 @@ export async function login(req: Request, res: Response, next: NextFunction) {
     }
     
     const token = jwt.sign(payload, env.JWT_SECRET, {
-      expiresIn: env.JWT_EXPIRES_IN as string,
-    });
+      expiresIn: env.JWT_EXPIRES_IN,
+    } as jwt.SignOptions);
     res.json({ success: true, token, user: { id: user._id, email: user.email, name: user.name, role: user.role } });
   } catch (err) {
     next(err);

@@ -52,7 +52,7 @@ export const validateAIRequest = (req: Request, res: Response, next: NextFunctio
     }
 
     next();
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('AI validation error:', error);
     res.status(500).json({
       success: false,
@@ -111,7 +111,7 @@ export const validateOverrideRequest = (req: Request, res: Response, next: NextF
     }
 
     next();
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Override validation error:', error);
     res.status(500).json({
       success: false,
@@ -161,7 +161,7 @@ export const validatePagination = (req: Request, res: Response, next: NextFuncti
     }
 
     next();
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Pagination validation error:', error);
     res.status(500).json({
       success: false,
@@ -193,7 +193,7 @@ export const rateLimitAI = (req: Request, res: Response, next: NextFunction) => 
     // This is a simplified rate limiting - in production, use proper rate limiting middleware
     // For now, we'll just pass through
     next();
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Rate limiting error:', error);
     res.status(500).json({
       success: false,
@@ -265,7 +265,7 @@ export const validateAnswerSheetUpload = (req: Request, res: Response, next: Nex
     }
 
     next();
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('File upload validation error:', error);
     res.status(500).json({
       success: false,
@@ -292,7 +292,7 @@ export const handleAIError = (error: any, req: Request, res: Response, next: Nex
     return res.status(400).json({
       success: false,
       error: 'Validation error',
-      details: error.message
+      details: error instanceof Error ? error.message : "Unknown error"
     });
   }
 
@@ -339,6 +339,6 @@ export const handleAIError = (error: any, req: Request, res: Response, next: Nex
   res.status(500).json({
     success: false,
     error: 'Internal server error',
-    details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    details: process.env.NODE_ENV === 'development' ? error instanceof Error ? error.message : "Unknown error" : undefined
   });
 };

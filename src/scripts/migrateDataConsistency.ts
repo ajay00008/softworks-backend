@@ -65,7 +65,7 @@ async function migrateDataConsistency() {
     for (const classItem of classes) {
       const classLevel = classItem.level;
       const availableSubjects = subjects.filter(subject => 
-        subject.level.includes(classLevel)
+        (subject as any).level?.includes(classLevel)
       );
       
       console.log(`Class ${classItem.name} (Level ${classLevel}) can have subjects: ${availableSubjects.map(s => s.name).join(', ')}`);
@@ -112,7 +112,7 @@ async function migrateDataConsistency() {
 
     console.log("\nData consistency migration completed successfully!");
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error during data consistency migration:", error);
     throw error;
   }

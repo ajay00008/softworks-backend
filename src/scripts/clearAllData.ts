@@ -26,7 +26,7 @@ async function clearAllData() {
     ];
 
     for (const collection of collections) {
-      const result = await collection.model.deleteMany({});
+      const result = await (collection.model as any).deleteMany({});
       console.log(`Cleared ${result.deletedCount} documents from ${collection.name}`);
     }
 
@@ -36,7 +36,7 @@ async function clearAllData() {
     await mongoose.disconnect();
     console.log('Disconnected from MongoDB');
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error clearing data:', error);
     await mongoose.disconnect();
   }

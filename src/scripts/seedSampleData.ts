@@ -69,7 +69,7 @@ async function run() {
         email: user.email,
         name: user.name,
         rollNumber: student.rollNumber,
-        className: student.className
+        className: (student as any).className || 'Unknown'
       });
     } else {
       logger.info("Student already exists", { email: studentData.email });
@@ -108,9 +108,9 @@ async function run() {
       logger.info("Teacher already exists", { email: teacherData.email });
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Failed to create sample data", { 
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
   } finally {

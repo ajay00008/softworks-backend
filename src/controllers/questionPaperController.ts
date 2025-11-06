@@ -7,6 +7,45 @@ import { Subject } from '../models/Subject';
 import { Class } from '../models/Class';
 import { EnhancedAIService } from '../services/enhancedAIService';
 import { PDFGenerationService } from '../services/pdfGenerationService';
+
+// Helper function to flatten question type distribution
+function flattenQuestionTypeDistribution(questionTypeDistribution: any): Array<{
+  type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
+  percentage: number;
+  marks: number;
+}> {
+  const result: Array<{
+    type: 'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER';
+    percentage: number;
+    marks: number;
+  }> = [];
+  if (!questionTypeDistribution) return result;
+  
+  const marks = ['oneMark', 'twoMark', 'threeMark', 'fiveMark'] as const;
+  const validTypes: Array<'CHOOSE_BEST_ANSWER' | 'FILL_BLANKS' | 'ONE_WORD_ANSWER' | 'TRUE_FALSE' | 'CHOOSE_MULTIPLE_ANSWERS' | 'MATCHING_PAIRS' | 'DRAWING_DIAGRAM' | 'MARKING_PARTS' | 'SHORT_ANSWER' | 'LONG_ANSWER'> = [
+    'CHOOSE_BEST_ANSWER', 'FILL_BLANKS', 'ONE_WORD_ANSWER', 'TRUE_FALSE', 
+    'CHOOSE_MULTIPLE_ANSWERS', 'MATCHING_PAIRS', 'DRAWING_DIAGRAM', 
+    'MARKING_PARTS', 'SHORT_ANSWER', 'LONG_ANSWER'
+  ];
+  
+  marks.forEach((mark) => {
+    const distributions = questionTypeDistribution[mark];
+    if (Array.isArray(distributions)) {
+      distributions.forEach((dist: any) => {
+        if (dist && dist.type && dist.percentage !== undefined) {
+          const markValue = mark === 'oneMark' ? 1 : mark === 'twoMark' ? 2 : mark === 'threeMark' ? 3 : 5;
+          const typeValue = validTypes.includes(dist.type) ? dist.type : 'SHORT_ANSWER';
+          result.push({
+            type: typeValue,
+            percentage: dist.percentage,
+            marks: markValue
+          });
+        }
+      });
+    }
+  });
+  return result;
+}
 import path from 'path';
 import fs from 'fs';
 
@@ -287,7 +326,7 @@ export async function generateQuestionPaper(req: Request, res: Response, next: N
     console.log('Templates found for AI generation:', templates.length);
 
     // Prepare AI request
-    const aiRequest = {
+    const aiRequest: any = {
       subjectId: questionPaper.subjectId._id.toString(),
       classId: questionPaper.classId._id.toString(),
       subjectName: (questionPaper.subjectId as any).name,
@@ -298,16 +337,20 @@ export async function generateQuestionPaper(req: Request, res: Response, next: N
         totalQuestions: questionPaper.markDistribution.oneMark + questionPaper.markDistribution.twoMark + questionPaper.markDistribution.threeMark + questionPaper.markDistribution.fiveMark
       },
       bloomsDistribution: questionPaper.bloomsDistribution,
-      questionTypeDistribution: questionPaper.questionTypeDistribution,
+      questionTypeDistribution: flattenQuestionTypeDistribution(questionPaper.questionTypeDistribution),
       useSubjectBook: questionPaper.aiSettings?.useSubjectBook || false,
-      customInstructions: questionPaper.aiSettings?.customInstructions,
       difficultyLevel: questionPaper.aiSettings?.difficultyLevel || 'MODERATE',
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
       templates: templates, // Add templates for design guidance
     };
+    
+    // Add optional properties only if they exist
+    if (questionPaper.aiSettings?.customInstructions !== undefined && questionPaper.aiSettings?.customInstructions !== '') {
+      aiRequest.customInstructions = questionPaper.aiSettings.customInstructions;
+    }
 
     // Generate questions using AI
-    const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest);
+    const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest as any);
 
     // Generate PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(

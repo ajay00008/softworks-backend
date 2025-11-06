@@ -78,7 +78,7 @@ export const uploadAnswerSheet = async (req: Request, res: Response) => {
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error uploading answer sheet:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -120,7 +120,7 @@ export const getAnswerSheetsByExam = async (req: Request, res: Response) => {
         pages: Math.ceil(total / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching answer sheets:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -188,7 +188,7 @@ export const markAsMissing = async (req: Request, res: Response) => {
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error marking answer sheet as missing:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -265,7 +265,7 @@ export const markAsAbsent = async (req: Request, res: Response) => {
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error marking student as absent:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -303,7 +303,7 @@ export const acknowledgeNotification = async (req: Request, res: Response) => {
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error acknowledging notification:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -333,7 +333,7 @@ export const getAnswerSheetDetails = async (req: Request, res: Response) => {
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching answer sheet details:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -363,19 +363,31 @@ export const updateAICorrectionResults = async (req: Request, res: Response) => 
 
     // Create notification for staff (and send via Socket.IO)
     const { NotificationService } = await import('../services/notificationService');
-    await NotificationService.createNotification({
+    const notificationData: {
+      type: string;
+      priority: 'LOW';
+      title: string;
+      message: string;
+      recipientId: string;
+      relatedEntityId?: string;
+      relatedEntityType?: string;
+      metadata?: any;
+    } = {
       type: 'AI_CORRECTION_COMPLETE',
       priority: 'LOW',
       title: 'AI Correction Complete',
       message: `Answer sheet has been processed by AI`,
       recipientId: answerSheet.uploadedBy.toString(),
-      relatedEntityId: answerSheetId,
       relatedEntityType: 'answerSheet',
       metadata: {
         confidence: aiCorrectionResults.confidence,
         totalMarks: aiCorrectionResults.totalMarks
       }
-    });
+    };
+    if (answerSheetId) {
+      notificationData.relatedEntityId = answerSheetId;
+    }
+    await NotificationService.createNotification(notificationData);
 
     logger.info(`AI correction results updated: ${answerSheetId}`);
 
@@ -383,7 +395,7 @@ export const updateAICorrectionResults = async (req: Request, res: Response) => 
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error updating AI correction results:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -426,7 +438,7 @@ export const addManualOverride = async (req: Request, res: Response) => {
       success: true,
       data: answerSheet
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error adding manual override:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -520,7 +532,7 @@ export const batchUploadAnswerSheets = async (req: Request, res: Response) => {
         });
 
         logger.info(`Answer sheet processed: ${answerSheet._id}`);
-      } catch (error) {
+      } catch (error: unknown) {
         const errorMsg = `Failed to process ${file.originalname}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         errors.push(errorMsg);
         logger.error(errorMsg);
@@ -561,7 +573,7 @@ export const batchUploadAnswerSheets = async (req: Request, res: Response) => {
         processedAt: new Date()
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error in batch upload:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -577,9 +589,13 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
+    if (!answerSheetId) {
+      return res.status(400).json({ success: false, error: 'Answer sheet ID is required' });
+    }
+
     const answerSheet = await AnswerSheet.findById(answerSheetId)
       .populate('examId')
-      .populate('studentId');
+      .populate({ path: 'studentId', populate: { path: 'userId' } });
     
     if (!answerSheet) {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
@@ -589,23 +605,27 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
     answerSheet.status = 'PROCESSING';
     await answerSheet.save();
 
+    // Get student name from populated data
+    const studentName = (answerSheet.studentId as any)?.userId?.name || 'Unknown Student';
+
     // Create notification for processing started
     const { NotificationService } = await import('../services/notificationService');
     await NotificationService.createAIProcessingStartedNotification(
       answerSheet.uploadedBy.toString(),
       answerSheetId,
-      answerSheet.studentId?.name || 'Unknown Student'
+      studentName
     );
 
     // Start AI processing asynchronously
     processAnswerSheetWithAI(answerSheetId, answerSheet)
-      .catch(async error => {
+      .catch(async (error: unknown) => {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         logger.error(`AI processing failed for answer sheet ${answerSheetId}:`, error);
         
         // Update status to error
         await AnswerSheet.findByIdAndUpdate(answerSheetId, { 
           status: 'ERROR',
-          errorMessage: error.message 
+          errorMessage
         });
 
         // Create error notification
@@ -613,8 +633,8 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
         await NotificationService.createAIProcessingFailedNotification(
           answerSheet.uploadedBy.toString(),
           answerSheetId,
-          answerSheet.studentId?.name || 'Unknown Student',
-          error.message
+          studentName,
+          errorMessage
         );
       });
 
@@ -629,7 +649,7 @@ export const processAnswerSheet = async (req: Request, res: Response) => {
         estimatedCompletionTime: '5-10 minutes'
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error processing answer sheet:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -641,21 +661,31 @@ async function processAnswerSheetWithAI(answerSheetId: string, answerSheet: any)
     const { AICorrectionService } = await import('../services/aiCorrectionService');
     
     // Get exam details and question paper
-    const exam = await Exam.findById(answerSheet.examId).populate('questionPaperId');
+    const examIdStr = typeof answerSheet.examId === 'string' 
+      ? answerSheet.examId 
+      : (answerSheet.examId as any)?._id?.toString() || answerSheet.examId?.toString();
+    if (!examIdStr) {
+      throw new Error('Exam ID is required');
+    }
+
+    const exam = await Exam.findById(examIdStr).populate('questionPaperId');
     if (!exam || !exam.questionPaperId) {
       throw new Error('Exam or question paper not found');
     }
 
+    const questionPaperId = exam.questionPaperId as any;
+    const totalMarks = (exam as any).totalMarks || 0;
+
     // Prepare question paper data
     const questionPaper = {
-      questions: exam.questionPaperId.questions.map((q: any) => ({
+      questions: (questionPaperId.questions || []).map((q: any) => ({
         questionNumber: q.questionNumber,
         questionText: q.questionText,
         correctAnswer: q.correctAnswer,
         maxMarks: q.marks,
         questionType: q.questionType
       })),
-      totalMarks: exam.totalMarks
+      totalMarks
     };
 
     // Prepare AI correction request
@@ -691,7 +721,7 @@ async function processAnswerSheetWithAI(answerSheetId: string, answerSheet: any)
 
     logger.info(`AI correction completed for answer sheet: ${answerSheetId}`);
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error(`AI processing failed for answer sheet ${answerSheetId}:`, error);
     throw error;
   }
@@ -719,18 +749,29 @@ export const matchAnswerSheetToStudent = async (req: Request, res: Response) => 
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
 
+    const examClassId = typeof exam.classId === 'string' 
+      ? exam.classId 
+      : (exam.classId as any)?._id?.toString() || exam.classId?.toString();
+    if (!examClassId) {
+      return res.status(400).json({ success: false, error: 'Exam class ID is required' });
+    }
+
     // Find student by roll number in the exam's class
     const student = await Student.findOne({
       rollNumber: rollNumber,
-      classId: exam.classId
+      classId: examClassId
     }).populate('userId', 'name email');
 
     if (!student) {
+      const className = (exam.classId as any)?.name || 'Unknown Class';
       return res.status(404).json({ 
         success: false, 
-        error: `No student found with roll number ${rollNumber} in ${exam.classId.name}` 
+        error: `No student found with roll number ${rollNumber} in ${className}` 
       });
     }
+
+    const studentUserId = student.userId as any;
+    const studentName = studentUserId?.name || 'Unknown Student';
 
     // Check if answer sheet already exists for this student
     const existingSheet = await AnswerSheet.findOne({
@@ -739,10 +780,10 @@ export const matchAnswerSheetToStudent = async (req: Request, res: Response) => 
       isActive: true
     });
 
-    if (existingSheet && existingSheet._id.toString() !== answerSheetId) {
+    if (existingSheet && String(existingSheet._id) !== answerSheetId) {
       return res.status(400).json({ 
         success: false, 
-        error: `Answer sheet already exists for student ${student.userId.name} (Roll: ${rollNumber})` 
+        error: `Answer sheet already exists for student ${studentName} (Roll: ${rollNumber})` 
       });
     }
 
@@ -753,19 +794,21 @@ export const matchAnswerSheetToStudent = async (req: Request, res: Response) => 
     answerSheet.status = 'UPLOADED';
     await answerSheet.save();
 
-    logger.info(`Answer sheet ${answerSheetId} matched to student ${student.userId.name} (Roll: ${rollNumber})`);
+    logger.info(`Answer sheet ${answerSheetId} matched to student ${studentName} (Roll: ${rollNumber})`);
+
+    const className = (exam.classId as any)?.name || 'Unknown Class';
 
     res.json({
       success: true,
       message: 'Answer sheet matched successfully',
       data: {
-        answerSheetId: answerSheet._id,
-        studentName: student.userId.name,
+        answerSheetId: String(answerSheet._id),
+        studentName,
         rollNumber: rollNumber,
-        className: exam.classId.name
+        className
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error matching answer sheet to student:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -819,16 +862,24 @@ export const getExamStudents = async (req: Request, res: Response) => {
     const existingStudentIds = existingAnswerSheets.map(sheet => sheet.studentId?.toString());
 
     // Transform students data
-    const studentsData = students.map(student => ({
-      id: student.userId._id,
-      name: student.userId.name,
-      rollNumber: student.rollNumber,
-      email: student.userId.email,
-      hasAnswerSheet: existingStudentIds.includes(student.userId._id.toString()),
-      answerSheetId: existingAnswerSheets.find(sheet => 
-        sheet.studentId?.toString() === student.userId._id.toString()
-      )?._id
-    }));
+    const studentsData = students.map(student => {
+      const userId = student.userId as any;
+      const userIdStr = String(userId?._id || userId);
+      return {
+        id: userId?._id || userId,
+        name: userId?.name || 'Unknown',
+        rollNumber: student.rollNumber,
+        email: userId?.email || '',
+        hasAnswerSheet: existingStudentIds.includes(userIdStr),
+        answerSheetId: existingAnswerSheets.find(sheet => 
+          sheet.studentId?.toString() === userIdStr
+        )?._id
+      };
+    });
+
+    const examClassId = exam.classId as any;
+    const className = examClassId?.name || 'Unknown Class';
+    const classDisplayName = examClassId?.displayName || className;
 
     res.json({
       success: true,
@@ -836,15 +887,15 @@ export const getExamStudents = async (req: Request, res: Response) => {
         exam: {
           id: exam._id,
           title: exam.title,
-          className: exam.classId.name,
-          classDisplayName: exam.classId.displayName
+          className,
+          classDisplayName
         },
         students: studentsData,
         totalStudents: students.length,
         uploadedSheets: existingAnswerSheets.length
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting exam students:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -917,7 +968,7 @@ export const deleteAnswerSheet = async (req: Request, res: Response) => {
       success: true,
       message: 'Answer sheet deleted successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error deleting answer sheet:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -965,7 +1016,8 @@ export const updateAnswerSheetMarks = async (req: Request, res: Response) => {
     // Get exam total marks for percentage calculation
     const { QuestionPaper } = await import('../models/QuestionPaper');
     const questionPaper = await QuestionPaper.findById(exam.questionPaperId);
-    const totalMarks = questionPaper?.markDistribution?.totalMarks || exam.totalMarks || 100;
+    const examTotalMarks = (exam as any).totalMarks;
+    const totalMarks = questionPaper?.markDistribution?.totalMarks || examTotalMarks || 100;
     
     const percentage = totalMarks > 0 ? (marks / totalMarks) * 100 : 0;
 
@@ -1004,12 +1056,12 @@ export const updateAnswerSheetMarks = async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error updating answer sheet marks:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to update marks',
-      details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };

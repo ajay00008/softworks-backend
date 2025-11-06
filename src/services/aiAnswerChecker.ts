@@ -106,7 +106,7 @@ export class AIAnswerCheckerService {
       
       return result;
       
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error in AI checking for answer sheet ${answerSheetId}:`, error);
       throw error;
     }
@@ -200,11 +200,11 @@ export class AIAnswerCheckerService {
     
     // Simulate different quality responses
     const quality = Math.random();
-    if (quality > 0.8) return possibleAnswers[0];
-    if (quality > 0.6) return possibleAnswers[1];
-    if (quality > 0.4) return possibleAnswers[2];
-    if (quality > 0.2) return possibleAnswers[3];
-    return possibleAnswers[4];
+    if (quality > 0.8) return possibleAnswers[0] || '';
+    if (quality > 0.6) return possibleAnswers[1] || '';
+    if (quality > 0.4) return possibleAnswers[2] || '';
+    if (quality > 0.2) return possibleAnswers[3] || '';
+    return possibleAnswers[4] || '';
   }
 
   /**
@@ -334,7 +334,8 @@ export class AIAnswerCheckerService {
   private detectLanguage(answer: string): string {
     // Simulate language detection
     const languages = ['English', 'Tamil', 'Hindi', 'Malayalam', 'Telugu', 'Kannada'];
-    return languages[Math.floor(Math.random() * languages.length)];
+    const index = Math.floor(Math.random() * languages.length);
+    return languages[index] || 'English';
   }
 
   /**
@@ -391,15 +392,15 @@ export class AIAnswerCheckerService {
    * Batch process multiple answer sheets
    */
   async batchCheckAnswerSheets(answerSheetIds: string[]): Promise<AICheckingResult[]> {
-    const results = [];
+    const results: AICheckingResult[] = [];
     
     for (const answerSheetId of answerSheetIds) {
       try {
         const result = await this.checkAnswerSheet(answerSheetId);
         results.push(result);
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error(`Error processing answer sheet ${answerSheetId}:`, error);
-        results.push({
+        const errorResult: AICheckingResult = {
           answerSheetId,
           status: 'FAILED',
           confidence: 0,
@@ -412,8 +413,9 @@ export class AIAnswerCheckerService {
           weaknesses: [],
           suggestions: [],
           processingTime: 0,
-          errors: [error.message]
-        });
+          errors: [error instanceof Error ? error.message : "Unknown error"]
+        };
+        results.push(errorResult);
       }
     }
     

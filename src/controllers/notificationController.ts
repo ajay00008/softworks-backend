@@ -72,11 +72,13 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
     if (teacher.adminId) {
       try {
         const adminId = teacher.adminId.toString();
+        const teacherIdStr = String(teacher._id);
+        const examIdStr = String(exam._id);
         console.log('[SOCKET] 📤 Sender: Creating missing answer sheet notification', {
           teacherUserId: userId,
-          teacherId: teacher._id.toString(),
+          teacherId: teacherIdStr,
           adminId: adminId,
-          examId: exam._id.toString(),
+          examId: examIdStr,
           examTitle: exam.title,
           missingCount: students.length,
           timestamp: new Date().toISOString()
@@ -88,19 +90,22 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
           title: 'Missing Answer Sheets Alert',
           message: `${students.length} student(s) have not submitted answer sheets for "${exam.title}".`,
           recipientId: adminId, // Only this specific admin will receive the notification
-          relatedEntityId: exam._id.toString(),
+          relatedEntityId: examIdStr,
           relatedEntityType: 'exam',
           metadata: {
-            examId: exam._id.toString(),
+            examId: examIdStr,
             examTitle: exam.title,
             missingCount: students.length,
-            missingStudents: students.map(s => ({
-              studentId: s._id.toString(),
-              studentName: s.userId.name,
-              rollNumber: s.rollNumber
-            })),
+            missingStudents: students.map(s => {
+              const studentUserId = s.userId as any;
+              return {
+                studentId: String(s._id),
+                studentName: studentUserId?.name || 'Unknown',
+                rollNumber: s.rollNumber
+              };
+            }),
             notifiedBy: userId,
-            teacherId: teacher._id.toString()
+            teacherId: teacherIdStr
           }
         });
         logger.info(`Admin notification sent to ${adminId} (teacher's admin) for ${students.length} missing answer sheets from teacher ${userId}`);
@@ -120,22 +125,25 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
       data: {
         missingCount: students.length,
         adminNotified: !!teacher.adminId && !!savedNotification,
-        missingStudents: students.map(s => ({
-          studentId: s._id.toString(),
-          studentName: s.userId.name,
-          rollNumber: s.rollNumber,
-          email: s.userId.email
-        })),
+        missingStudents: students.map(s => {
+          const studentUserId = s.userId as any;
+          return {
+            studentId: String(s._id),
+            studentName: studentUserId?.name || 'Unknown',
+            rollNumber: s.rollNumber,
+            email: studentUserId?.email || ''
+          };
+        }),
         notificationId: savedNotification?._id?.toString() || null
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error sending missing answer sheet notifications:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to send notifications',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'
     });
   }
 };
@@ -152,13 +160,14 @@ export const getUserNotifications = async (req: Request, res: Response) => {
 
     const query: any = { recipientId: userId, isActive: true }; // Use recipientId, not userId
     
-    if (type) {
+    if (type && typeof type === 'string') {
       query.type = type;
     }
     
     // Handle status filter - convert isRead boolean to status
     if (isRead !== undefined) {
-      if (isRead === 'true' || isRead === true) {
+      const isReadValue = isRead === 'true' || (typeof isRead === 'boolean' && isRead === true);
+      if (isReadValue) {
         query.status = 'READ';
       } else {
         query.status = 'UNREAD';
@@ -187,12 +196,12 @@ export const getUserNotifications = async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching user notifications:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to fetch notifications',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'
     });
   }
 };
@@ -223,7 +232,7 @@ export const markNotificationAsRead = async (req: Request, res: Response) => {
         // If not a valid ObjectId, try using it as-is (fallback)
         notificationObjectId = notificationId;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       // Fallback to using the notificationId as-is
       notificationObjectId = notificationId;
     }
@@ -255,12 +264,12 @@ export const markNotificationAsRead = async (req: Request, res: Response) => {
       data: notification
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error marking notification as read:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to mark notification as read',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'
     });
   }
 };
@@ -289,7 +298,7 @@ export const deleteNotification = async (req: Request, res: Response) => {
       } else {
         notificationObjectId = notificationId;
       }
-    } catch (error) {
+    } catch (error: unknown) {
       notificationObjectId = notificationId;
     }
 
@@ -309,12 +318,12 @@ export const deleteNotification = async (req: Request, res: Response) => {
       data: { id: notificationId }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error deleting notification:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to delete notification',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'
     });
   }
 };
@@ -348,12 +357,12 @@ export const clearAllNotifications = async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error clearing all notifications:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to clear notifications',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'
     });
   }
 };

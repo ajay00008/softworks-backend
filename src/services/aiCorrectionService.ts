@@ -59,7 +59,7 @@ export class AICorrectionService {
         model: env.AI_MODEL || 'gemini-2.0-flash-exp' 
       });
       logger.info('AI Correction Service initialized with Gemini');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to initialize AI Correction Service:', error);
       throw new Error('Failed to initialize AI Correction Service');
     }
@@ -110,7 +110,7 @@ export class AICorrectionService {
         processingTime
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error processing answer sheet with AI:', error);
       throw new Error(`AI correction failed: ${(error as Error).message}`);
     }
@@ -206,7 +206,7 @@ IMPORTANT:
         suggestions: correctionData.suggestions || []
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error parsing AI correction response:', error);
       
       // Return fallback result

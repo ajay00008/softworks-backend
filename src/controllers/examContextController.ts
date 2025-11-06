@@ -25,14 +25,15 @@ export const getExamContext = async (req: Request, res: Response) => {
       data: contextData
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting exam context:', error);
     
-    if (error.message === 'Exam not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Exam not found') {
       return res.status(404).json({ success: false, error: 'Exam not found' });
     }
     
-    if (error.message === 'Access denied to this exam') {
+    if (errorMessage === 'Access denied to this exam') {
       return res.status(403).json({ success: false, error: 'Access denied to this exam' });
     }
 
@@ -61,10 +62,11 @@ export const getTeacherExamsWithContext = async (req: Request, res: Response) =>
       data: examsWithContext
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting teacher exams with context:', error);
     
-    if (error.message === 'Teacher not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Teacher not found') {
       return res.status(404).json({ success: false, error: 'Teacher not found' });
     }
 
@@ -117,7 +119,7 @@ export const validateTeacherAccess = async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error validating teacher access:', error);
     res.status(500).json({ 
       success: false, 
@@ -163,7 +165,7 @@ export const getTeacherExamStatistics = async (req: Request, res: Response) => {
       data: statistics
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting exam statistics:', error);
     res.status(500).json({ 
       success: false, 

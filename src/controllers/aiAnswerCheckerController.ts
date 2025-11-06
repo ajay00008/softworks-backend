@@ -69,12 +69,12 @@ export const checkAnswerSheetWithAI = async (req: Request, res: Response) => {
       message: 'Answer sheet processed successfully with AI'
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error in AI answer sheet checking:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to process answer sheet with AI',
-      details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -139,12 +139,12 @@ export const batchCheckAnswerSheetsWithAI = async (req: Request, res: Response) 
       message: `Successfully processed ${results.length} answer sheets with AI`
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error in batch AI answer sheet checking:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to process answer sheets with AI',
-      details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -207,12 +207,12 @@ export const getAIResults = async (req: Request, res: Response) => {
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting AI results:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to get AI results',
-      details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -246,6 +246,9 @@ export const getAIStats = async (req: Request, res: Response) => {
     }
 
     // Get AI statistics
+    if (!examId) {
+      return res.status(400).json({ success: false, error: 'Exam ID is required' });
+    }
     const aiChecker = AIAnswerCheckerService.getInstance();
     const stats = await aiChecker.getAIStats(examId);
 
@@ -254,12 +257,12 @@ export const getAIStats = async (req: Request, res: Response) => {
       data: stats
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting AI stats:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to get AI statistics',
-      details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -328,12 +331,12 @@ export const overrideAIResult = async (req: Request, res: Response) => {
       message: 'Manual override added successfully'
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error adding manual override:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to add manual override',
-      details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -405,12 +408,12 @@ export const getAnswerSheetsForAIChecking = async (req: Request, res: Response) 
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting answer sheets for AI checking:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to get answer sheets',
-      details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };
@@ -449,6 +452,9 @@ export const recheckAnswerSheetWithAI = async (req: Request, res: Response) => {
     }
 
     // Reset status and recheck
+    if (!answerSheetId) {
+      return res.status(400).json({ success: false, error: 'Answer sheet ID is required' });
+    }
     await AnswerSheet.findByIdAndUpdate(answerSheetId, {
       status: 'UPLOADED',
       $unset: { aiCorrectionResults: 1, processedAt: 1, confidence: 1 }
@@ -465,12 +471,12 @@ export const recheckAnswerSheetWithAI = async (req: Request, res: Response) => {
       message: 'Answer sheet rechecked successfully with AI'
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error rechecking answer sheet with AI:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to recheck answer sheet with AI',
-      details: error instanceof Error ? error.message : 'Unknown error' 
+        details: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 };

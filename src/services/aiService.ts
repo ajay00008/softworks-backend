@@ -106,7 +106,7 @@ export class AIService {
       const generatedQuestions = this.parseGeneratedQuestions(response);
       return generatedQuestions;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error generating questions with AI:', error);
       throw new Error(`Failed to generate questions with AI: ${(error as Error).message}`);
     }
@@ -144,7 +144,7 @@ export class AIService {
 
       const data = await response.json();
       return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Gemini API error:', error);
       throw error;
     }
@@ -185,7 +185,7 @@ export class AIService {
 
       const data = await response.json();
       return data.choices?.[0]?.message?.content || '';
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('OpenAI API error:', error);
       throw error;
     }
@@ -220,7 +220,7 @@ export class AIService {
 
       const data = await response.json();
       return data.content?.[0]?.text || '';
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Anthropic API error:', error);
       throw error;
     }
@@ -377,7 +377,7 @@ Ensure the JSON is valid and properly formatted.`;
         };
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error parsing generated questions:', error);
       throw new Error('Failed to parse AI-generated questions');
     }
@@ -412,7 +412,11 @@ Ensure the JSON is valid and properly formatted.`;
     if (!questions || questions.length === 0) {
       throw new Error('No questions generated');
     }
-    return questions[0];
+    const firstQuestion = questions[0];
+    if (!firstQuestion) {
+      throw new Error('No questions generated');
+    }
+    return firstQuestion;
   }
 
   /**

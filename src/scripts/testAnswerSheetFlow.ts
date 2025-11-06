@@ -64,7 +64,7 @@ async function testAnswerSheetFlow() {
       try {
         const result = await aiService.matchStudentToRollNumber(
           rollNumber,
-          exam._id.toString(),
+          String(exam._id),
           0.9
         );
 
@@ -83,13 +83,17 @@ async function testAnswerSheetFlow() {
           }
         }
       } catch (error: any) {
-        logger.error(`   ❌ ERROR: ${error.message}`);
+        logger.error(`   ❌ ERROR: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
 
     // Test with different roll number formats
     logger.info(`\n🔍 Testing roll number format variations:`);
     const firstStudent = students[0];
+    if (!firstStudent) {
+      logger.error('No students found for testing');
+      return;
+    }
     const testFormats = [
       firstStudent.rollNumber,
       firstStudent.rollNumber.toString().padStart(3, '0'), // Add leading zeros
@@ -104,7 +108,7 @@ async function testAnswerSheetFlow() {
       try {
         const result = await aiService.matchStudentToRollNumber(
           format,
-          exam._id.toString(),
+          String(exam._id),
           0.9
         );
 
@@ -114,7 +118,7 @@ async function testAnswerSheetFlow() {
           logger.warn(`   ⚠️  NOT MATCHED with format variation`);
         }
       } catch (error: any) {
-        logger.error(`   ❌ ERROR: ${error.message}`);
+        logger.error(`   ❌ ERROR: ${error instanceof Error ? error.message : "Unknown error"}`);
       }
     }
 
@@ -150,7 +154,7 @@ async function testAnswerSheetFlow() {
           logger.info(`      Attempting to match...`);
           aiService.matchStudentToRollNumber(
             sheet.rollNumberDetected,
-            exam._id.toString(),
+            String(exam._id),
             (sheet.rollNumberConfidence || 0) / 100
           ).then(result => {
             if (result.matchedStudent) {

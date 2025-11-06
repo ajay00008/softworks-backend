@@ -81,10 +81,10 @@ export class TemplateValidationService {
       );
 
       return validationResult;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Template validation error:', error);
       console.error('Error details:', {
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,
         filePath,
         expectedSubjectId,
@@ -93,7 +93,7 @@ export class TemplateValidationService {
       return {
         isValid: false,
         confidence: 0,
-        validationErrors: [`Failed to process template file: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        validationErrors: [`Failed to process template file: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'}`],
         suggestions: ['Please ensure the PDF is readable and try again']
       };
     }
@@ -244,8 +244,8 @@ export class TemplateValidationService {
       
       for (const pattern of totalPatterns) {
         const match = text.match(pattern);
-        if (match) {
-          const count = parseInt(match[1]);
+        if (match && match[1]) {
+          const count = parseInt(match[1], 10);
           if (!isNaN(count) && count > 0) {
             calculatedTotalQuestions = count;
             break;
@@ -305,9 +305,11 @@ export class TemplateValidationService {
       pattern.lastIndex = 0;
       let match;
       while ((match = pattern.exec(text)) !== null) {
-        const count = parseInt(match[1]);
-        if (!isNaN(count)) {
-          distribution[type as keyof typeof distribution] += count;
+        if (match[1]) {
+          const count = parseInt(match[1], 10);
+          if (!isNaN(count)) {
+            distribution[type as keyof typeof distribution] += count;
+          }
         }
       }
     }
@@ -336,8 +338,8 @@ export class TemplateValidationService {
     // First try explicit total questions patterns
     for (const pattern of patterns) {
       const match = text.match(pattern);
-      if (match) {
-        const count = parseInt(match[1]);
+      if (match && match[1]) {
+        const count = parseInt(match[1], 10);
         if (!isNaN(count) && count > 0) {
           return count;
         }
@@ -454,8 +456,9 @@ export class TemplateValidationService {
     let sectionMatch;
     while ((sectionMatch = sectionWithDetailsPattern.exec(text)) !== null) {
       const sectionName = sectionMatch[1];
-      const markValue = parseInt(sectionMatch[2]);
-      const questionCount = parseInt(sectionMatch[3]);
+      if (!sectionMatch[2] || !sectionMatch[3]) continue;
+      const markValue = parseInt(sectionMatch[2], 10);
+      const questionCount = parseInt(sectionMatch[3], 10);
       
       if (!isNaN(markValue) && !isNaN(questionCount)) {
         sections.push({
@@ -487,8 +490,8 @@ export class TemplateValidationService {
         if (currentSection) {
           // Look for question count in this line
           const questionMatch = line.match(questionPattern);
-          if (questionMatch) {
-            const count = parseInt(questionMatch[1]);
+          if (questionMatch && questionMatch[1]) {
+            const count = parseInt(questionMatch[1], 10);
             if (!isNaN(count)) {
               currentSection.questions = count;
             }
@@ -496,14 +499,14 @@ export class TemplateValidationService {
           
           // Look for marks in this line - try to find both mark value and question count
           const marksMatch = line.match(markPattern);
-          if (marksMatch) {
-            const mark = parseInt(marksMatch[1]);
+          if (marksMatch && marksMatch[1]) {
+            const mark = parseInt(marksMatch[1], 10);
             if (!isNaN(mark)) {
               // If we haven't set questions yet, try to extract from the same line
               if (currentSection.questions === 0) {
                 const questionCountMatch = line.match(/(\d+)\s*(?:questions?|q|Q)/i);
-                if (questionCountMatch) {
-                  currentSection.questions = parseInt(questionCountMatch[1]);
+                if (questionCountMatch && questionCountMatch[1]) {
+                  currentSection.questions = parseInt(questionCountMatch[1], 10);
                 }
               }
               currentSection.marks = mark * currentSection.questions;

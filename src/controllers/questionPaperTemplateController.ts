@@ -545,7 +545,7 @@ export async function deleteTemplate(req: Request, res: Response, next: NextFunc
         if (fs.existsSync(template.templateFile.filePath)) {
           fs.unlinkSync(template.templateFile.filePath);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn('Could not delete template file:', error);
       }
     }

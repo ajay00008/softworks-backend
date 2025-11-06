@@ -30,7 +30,7 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
       return next(new createHttpError.Unauthorized("Token expired. Please log in again."));
     } else if (error.name === 'JsonWebTokenError') {
       console.log('[AUTH] ⚠️ Invalid token:', {
-        error: error.message,
+        error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString()
       });
       return next(new createHttpError.Unauthorized("Invalid token. Please log in again."));
@@ -83,7 +83,7 @@ export function requireAuthFlexible(req: Request, _res: Response, next: NextFunc
       return next(new createHttpError.Unauthorized("Token expired. Please log in again."));
     } else if (error.name === 'JsonWebTokenError') {
       console.log('[AUTH] ⚠️ Invalid token:', {
-        error: error.message,
+        error: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString()
       });
       return next(new createHttpError.Unauthorized("Invalid token. Please log in again."));

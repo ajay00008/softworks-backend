@@ -22,7 +22,7 @@ async function checkSubjects() {
     })));
 
     // Check subjects for specific admin
-    if (users.length > 0) {
+    if (users.length > 0 && users[0]) {
       const adminId = users[0]._id;
       const adminSubjects = await Subject.find({ adminId });
       console.log(`Subjects for admin ${adminId}:`, adminSubjects.map(s => s.name));
@@ -31,7 +31,7 @@ async function checkSubjects() {
     await mongoose.disconnect();
     console.log('Disconnected from MongoDB');
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error:', error);
     await mongoose.disconnect();
   }

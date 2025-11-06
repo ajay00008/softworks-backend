@@ -53,9 +53,9 @@ export class ImageProcessingService {
       });
 
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error processing answer sheet image:', error);
-      throw new Error(`Failed to process image: ${error.message}`);
+      throw new Error(`Failed to process image: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
@@ -77,7 +77,7 @@ export class ImageProcessingService {
       const sharpness = this.calculateSharpness(stats);
       
       // Calculate brightness
-      const brightness = stats.channels[0].mean;
+      const brightness = stats.channels?.[0]?.mean || 128;
       
       // Calculate contrast
       const contrast = this.calculateContrast(stats);
@@ -98,7 +98,7 @@ export class ImageProcessingService {
       }
 
       return { quality, sharpness, brightness, contrast };
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error analyzing image quality:', error);
       return {
         quality: 'UNREADABLE',
@@ -142,7 +142,7 @@ export class ImageProcessingService {
         isAligned: rotationAngle === 0,
         rotationAngle
       };
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error detecting alignment:', error);
       return {
         processedImage: imageBuffer,
@@ -165,14 +165,18 @@ export class ImageProcessingService {
       
       // Mock implementation - in reality, this would use OCR
       const mockRollNumbers = ['001', '002', '003', '004', '005'];
-      const randomRoll = mockRollNumbers[Math.floor(Math.random() * mockRollNumbers.length)];
+      const randomIndex = Math.floor(Math.random() * mockRollNumbers.length);
+      const randomRoll = mockRollNumbers[randomIndex];
+      if (!randomRoll) {
+        throw new Error('Failed to generate mock roll number');
+      }
       const confidence = Math.random() * 30 + 70; // 70-100% confidence
 
       return {
         rollNumber: randomRoll,
         confidence: Math.round(confidence)
       };
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error detecting roll number:', error);
       return {
         rollNumber: '',
@@ -271,7 +275,7 @@ export class ImageProcessingService {
       try {
         const result = await this.processAnswerSheet(image.buffer, image.filename);
         results.push(result);
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error(`Error processing image ${image.filename}:`, error);
         // Add error result
         results.push({
@@ -280,7 +284,7 @@ export class ImageProcessingService {
           rollNumberDetected: '',
           rollNumberConfidence: 0,
           scanQuality: 'UNREADABLE',
-          issues: [`Failed to process image: ${error.message}`],
+          issues: [`Failed to process image: ${error instanceof Error ? error.message : "Unknown error"}`],
           suggestions: ['Please check image format and try again']
         });
       }

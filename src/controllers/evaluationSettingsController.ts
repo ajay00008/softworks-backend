@@ -138,7 +138,7 @@ export const createEvaluationSettings = async (req: Request, res: Response) => {
       data: evaluationSettings,
       message: 'Evaluation settings created successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error creating evaluation settings:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -175,7 +175,7 @@ export const getEvaluationSettings = async (req: Request, res: Response) => {
       success: true,
       data: evaluationSettings
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching evaluation settings:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -203,7 +203,7 @@ export const updateEvaluationSettings = async (req: Request, res: Response) => {
     // Update the settings
     Object.keys(updateData).forEach(key => {
       if (updateData[key] !== undefined) {
-        evaluationSettings[key] = updateData[key];
+        (evaluationSettings as any)[key] = updateData[key];
       }
     });
 
@@ -216,7 +216,7 @@ export const updateEvaluationSettings = async (req: Request, res: Response) => {
       data: evaluationSettings,
       message: 'Evaluation settings updated successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error updating evaluation settings:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -260,7 +260,7 @@ export const getAllEvaluationSettings = async (req: Request, res: Response) => {
         pages: Math.ceil(total / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching all evaluation settings:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -288,7 +288,7 @@ export const getEvaluationSettingsByExam = async (req: Request, res: Response) =
       success: true,
       data: evaluationSettings
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching evaluation settings by exam:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -321,7 +321,7 @@ export const deleteEvaluationSettings = async (req: Request, res: Response) => {
       success: true,
       message: 'Evaluation settings deleted successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error deleting evaluation settings:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -404,7 +404,7 @@ export const getDefaultEvaluationSettings = async (req: Request, res: Response) 
       success: true,
       data: defaultSettings
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching default evaluation settings:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }

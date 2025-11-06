@@ -104,7 +104,7 @@ export async function uploadPatternFileEndpoint(req: Request, res: Response, nex
       }
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error uploading pattern file:', error);
     next(error);
   }
@@ -484,7 +484,7 @@ export async function generateAIQuestionPaper(req: Request, res: Response, next:
     }
 
     // Update question paper with question references
-    questionPaper.questions = savedQuestions.map(q => q._id);
+    questionPaper.questions = savedQuestions.map(q => q._id) as any;
 
     // Debug logging for PDF generation
     console.log('PDF Generation Data:', {
@@ -849,7 +849,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
             fileSize: subject.referenceBook.fileSize
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn('Could not read reference book content:', error);
       }
     }
@@ -937,9 +937,9 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
             console.log('   Reason: analysisComplete = false');
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('❌ Error analyzing pattern for diagrams:', error);
-        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        console.error('Error details:', error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : String(error));
         // Continue without diagram info - not a critical error
       }
     } else {
@@ -949,7 +949,38 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     console.log('='.repeat(80) + '\n');
 
     // Prepare AI request with reference book and template data
-    const aiRequest = {
+    const aiRequest: {
+      subjectId: string;
+      classId: string;
+      subjectName: string;
+      className: string;
+      examTitle: string;
+      markDistribution: {
+        oneMark: number;
+        twoMark: number;
+        threeMark: number;
+        fiveMark: number;
+        totalQuestions: number;
+        totalMarks: number;
+      };
+      bloomsDistribution: Array<{
+        level: 'REMEMBER' | 'UNDERSTAND' | 'APPLY' | 'ANALYZE' | 'EVALUATE' | 'CREATE';
+        percentage: number;
+      }>;
+      questionTypeDistribution: Array<{
+        type: string;
+        percentage: number;
+        marks: number;
+      }>;
+      useSubjectBook: boolean;
+      customInstructions?: string;
+      difficultyLevel: 'EASY' | 'MODERATE' | 'TOUGHEST';
+      twistedQuestionsPercentage: number;
+      patternFilePath?: string;
+      patternDiagramInfo?: string;
+      referenceBookContent?: string;
+      samplePapers?: any[];
+    } = {
       subjectId: finalSubjectId,
       classId: finalClassId,
       subjectName: (questionPaper.subjectId as any).name,
@@ -967,12 +998,18 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       twistedQuestionsPercentage: questionPaper.aiSettings?.twistedQuestionsPercentage || 0,
       referenceBookContent: referenceBookContent,
       samplePapers: samplePapers,
-      ...(patternFilePath && { patternFilePath }), // Add pattern file path to AI request only if it exists
-      ...(patternDiagramInfo && { patternDiagramInfo }) // Add diagram information if available
     };
+    
+    // Add optional properties only if they exist
+    if (patternFilePath) {
+      aiRequest.patternFilePath = patternFilePath;
+    }
+    if (patternDiagramInfo) {
+      aiRequest.patternDiagramInfo = patternDiagramInfo;
+    }
 
     // Generate questions using AI
-    const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest);
+    const generatedQuestions = await EnhancedAIService.generateQuestionPaper(aiRequest as any);
 
     // Process pending diagrams from AI response
     // The AI returns diagram objects with status: 'pending' that need to be generated
@@ -1009,7 +1046,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
         debugger; // Breakpoint: PDF diagram conversion - before import
         
         // Now import pdfjs-dist - Path2D should be available
-        const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs');
+        const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs') as any;
         const pdfjsLib = pdfjsModule.default || pdfjsModule;
         const fs = await import('fs');
         const path = await import('path');
@@ -1046,7 +1083,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
         fs.writeFileSync(pngPath, imageBuffer);
         
         return { imagePath: pngPath, imageBuffer };
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(`Failed to convert PDF diagram to PNG: ${diagramPath}`, error);
         return null;
       }
@@ -1126,23 +1163,32 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
             }
             
             // Ensure question has a diagram object
+            if (!question) {
+              console.warn(`⚠️ Skipping - question is undefined`);
+              return;
+            }
+            
             if (!question.diagram) {
               question.diagram = {
                 description: patternDiagram.description || 'Diagram from pattern',
                 type: patternDiagram.type as 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other',
-                status: 'ready',
-                altText: patternDiagram.description || undefined
+                status: 'ready' as const,
               };
+              if (patternDiagram.description) {
+                question.diagram.altText = patternDiagram.description;
+              }
             }
             
             // Assign pattern diagram
-            question.diagram.imagePath = patternDiagram.imagePath;
-            if (patternDiagram.imageBuffer) {
-              question.diagram.imageBuffer = patternDiagram.imageBuffer;
+            if (question.diagram) {
+              question.diagram.imagePath = patternDiagram.imagePath;
+              if (patternDiagram.imageBuffer) {
+                question.diagram.imageBuffer = patternDiagram.imageBuffer;
+              }
+              question.diagram.status = 'ready';
+              console.log(`✅ Assigned pattern diagram ${diagramIndex + 1} (${patternDiagram.type}, ${patternDiagram.imagePath}) to question ${item.index + 1} (${question.questionType})`);
+              console.log(`   Diagram file exists: ${fs.existsSync(patternDiagram.imagePath)}, hasBuffer: ${!!patternDiagram.imageBuffer}`);
             }
-            question.diagram.status = 'ready';
-            console.log(`✅ Assigned pattern diagram ${diagramIndex + 1} (${patternDiagram.type}, ${patternDiagram.imagePath}) to question ${item.index + 1} (${question.questionType})`);
-            console.log(`   Diagram file exists: ${fs.existsSync(patternDiagram.imagePath)}, hasBuffer: ${!!patternDiagram.imageBuffer}`);
           } else {
             console.warn(`⚠️ Skipping question ${item.index + 1} - no valid diagram available`);
           }
@@ -1160,16 +1206,27 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       
       for (let i = 0; i < pendingDiagramQuestions.length; i++) {
         const question = pendingDiagramQuestions[i];
-        if (!question.diagram) continue;
+        if (!question || !question.diagram) continue;
         
         try {
           // Generate diagram based on description and type
-          const generatedDiagram = await DiagramGenerationService.generateDiagram({
+          const diagramDesc: {
+            description: string;
+            type: 'graph' | 'chart' | 'diagram' | 'figure' | 'illustration';
+            context: string;
+            relatedContent?: string;
+          } = {
             description: question.diagram.description,
             type: question.diagram.type as 'graph' | 'chart' | 'diagram' | 'figure' | 'illustration',
             context: question.questionText,
-            relatedContent: question.diagram.altText
-          }, question.questionText);
+          };
+          if (question.diagram.altText) {
+            diagramDesc.relatedContent = question.diagram.altText;
+          }
+          const generatedDiagram = await DiagramGenerationService.generateDiagram(
+            diagramDesc,
+            question.questionText
+          );
           
           if (generatedDiagram) {
             question.diagram.imagePath = generatedDiagram.imagePath;
@@ -1180,7 +1237,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
           } else {
             console.warn(`⚠️ Failed to generate diagram for question ${generatedQuestions.indexOf(question) + 1}`);
           }
-        } catch (error) {
+        } catch (error: unknown) {
           console.warn(`⚠️ Error generating diagram for question ${generatedQuestions.indexOf(question) + 1}:`, error);
           // Keep status as 'pending' - PDF generation will handle gracefully
         }
@@ -1220,7 +1277,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
             };
             console.log(`✅ Generated and attached diagram to question ${generatedQuestions.indexOf(question) + 1}`);
           }
-        } catch (error) {
+        } catch (error: unknown) {
           console.warn(`⚠️ Error generating diagram for question ${generatedQuestions.indexOf(question) + 1}:`, error);
         }
       }
@@ -1257,7 +1314,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     }
 
     // Update question paper with question references
-    questionPaper.questions = savedQuestions.map(q => q._id);
+    questionPaper.questions = savedQuestions.map(q => q._id) as any;
 
     // Before PDF generation, ensure all diagram PDFs are converted to PNG
     // This ensures PDFKit can embed them properly
@@ -1271,6 +1328,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
     
     for (let i = 0; i < generatedQuestions.length; i++) {
       const question = generatedQuestions[i];
+      if (!question) continue;
       
       // Check new diagram format
       if (question.diagram && question.diagram.status === 'ready') {
@@ -1291,7 +1349,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
               console.error(`  ❌ Question ${i + 1}: FAILED to convert PDF diagram - diagram will not appear in PDF`);
               // Clear invalid diagram
               question.diagram.status = 'pending';
-              question.diagram.imagePath = undefined;
+              delete question.diagram.imagePath;
             }
           } else if (question.diagram.imagePath.endsWith('.png')) {
             // Verify PNG file exists
@@ -1320,7 +1378,7 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
         } else {
           diagramsFailed++;
           console.error(`  ❌ Question ${i + 1}: FAILED to convert legacy PDF diagram`);
-          question.diagramImagePath = undefined;
+          delete question.diagramImagePath;
         }
       }
     }
@@ -1466,7 +1524,7 @@ export async function addQuestionToPaper(req: Request, res: Response, next: Next
     await question.save();
 
     // Add question to question paper
-    questionPaper.questions.push(question._id);
+    questionPaper.questions.push(question._id as any);
     await questionPaper.save();
 
     res.status(201).json({
@@ -1698,7 +1756,7 @@ export async function regenerateQuestionPaperPDF(req: Request, res: Response, ne
         if (fs.existsSync(oldFilePath)) {
           fs.unlinkSync(oldFilePath);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn('Could not delete old PDF file:', error);
       }
     }

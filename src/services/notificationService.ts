@@ -70,7 +70,7 @@ export class NotificationService {
       logger.info(`Notification created: ${notification._id} for ${data.recipientId}`);
       return notification;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error creating notification:', error);
       throw error;
     }
@@ -235,7 +235,7 @@ export class NotificationService {
 
       return notifications;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error fetching notifications:', error);
       throw error;
     }
@@ -262,7 +262,7 @@ export class NotificationService {
       logger.info(`Notification marked as read: ${notificationId} by ${userId}`);
       return notification;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error marking notification as read:', error);
       throw error;
     }
@@ -293,7 +293,7 @@ export class NotificationService {
       logger.info(`Marked ${result.modifiedCount} notifications as read for user ${userId}`);
       return result.modifiedCount;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error marking all notifications as read:', error);
       throw error;
     }
@@ -318,7 +318,7 @@ export class NotificationService {
 
       return count;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error getting unread notification count:', error);
       throw error;
     }

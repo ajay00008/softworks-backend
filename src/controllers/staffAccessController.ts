@@ -61,7 +61,7 @@ export const createStaffAccess = async (req: Request, res: Response) => {
       success: true,
       data: staffAccess
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error creating staff access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -91,7 +91,7 @@ export const getStaffAccess = async (req: Request, res: Response) => {
       success: true,
       data: staffAccess
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching staff access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -136,7 +136,13 @@ export const updateStaffAccess = async (req: Request, res: Response) => {
     if (classAccess) staffAccess.classAccess = classAccess;
     if (subjectAccess) staffAccess.subjectAccess = subjectAccess;
     if (globalPermissions) staffAccess.globalPermissions = globalPermissions;
-    if (expiresAt !== undefined) staffAccess.expiresAt = expiresAt ? new Date(expiresAt) : undefined;
+    if (expiresAt !== undefined) {
+      if (expiresAt) {
+        staffAccess.expiresAt = new Date(expiresAt);
+      } else {
+        delete (staffAccess as any).expiresAt;
+      }
+    }
     if (notes !== undefined) staffAccess.notes = notes;
 
     await staffAccess.save();
@@ -147,7 +153,7 @@ export const updateStaffAccess = async (req: Request, res: Response) => {
       success: true,
       data: staffAccess
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error updating staff access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -193,7 +199,7 @@ export const getAllStaffAccess = async (req: Request, res: Response) => {
         pages: Math.ceil(total / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching all staff access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -223,7 +229,7 @@ export const deactivateStaffAccess = async (req: Request, res: Response) => {
       success: true,
       data: { message: 'Staff access deactivated successfully' }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error deactivating staff access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -265,7 +271,7 @@ export const checkClassAccess = async (req: Request, res: Response) => {
         canOverrideAI: classAccess?.canOverrideAI
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error checking class access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -305,7 +311,7 @@ export const checkSubjectAccess = async (req: Request, res: Response) => {
         canUploadSyllabus: subjectAccess?.canUploadSyllabus
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error checking subject access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -336,7 +342,7 @@ export const getStaffClasses = async (req: Request, res: Response) => {
       success: true,
       data: staffAccess.classAccess
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching staff classes:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -367,7 +373,7 @@ export const getStaffSubjects = async (req: Request, res: Response) => {
       success: true,
       data: staffAccess.subjectAccess
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching staff subjects:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -396,7 +402,7 @@ export const deleteStaffAccess = async (req: Request, res: Response) => {
       success: true,
       message: 'Staff access deleted successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error deleting staff access:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }

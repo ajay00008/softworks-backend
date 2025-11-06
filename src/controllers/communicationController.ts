@@ -66,9 +66,9 @@ export async function sendResultsToParents(req: Request, res: Response, next: Ne
         exam: {
           title: exam.title,
           examType: exam.examType,
-          subject: exam.subjectId,
+          subject: exam.subjectIds && exam.subjectIds.length > 0 ? exam.subjectIds[0] : null,
           class: exam.classId,
-          totalMarks: exam.totalMarks,
+          totalMarks: (exam as any).totalMarks || 0,
           scheduledDate: exam.scheduledDate
         },
         result: {
@@ -274,9 +274,9 @@ export async function sendIndividualResult(req: Request, res: Response, next: Ne
       exam: {
         title: exam.title,
         examType: exam.examType,
-        subject: exam.subjectId,
+        subject: exam.subjectIds && exam.subjectIds.length > 0 ? exam.subjectIds[0] : null,
         class: exam.classId,
-        totalMarks: exam.totalMarks,
+        totalMarks: (exam as any).totalMarks || 0,
         scheduledDate: exam.scheduledDate
       },
       result: {
@@ -362,7 +362,7 @@ async function sendEmailResult(email: string, resultData: any, customMessage?: s
     await new Promise(resolve => setTimeout(resolve, 100));
     
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
   }
 }
@@ -379,7 +379,7 @@ async function sendWhatsAppResult(phoneNumber: string, resultData: any, customMe
     await new Promise(resolve => setTimeout(resolve, 100));
     
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
   }
 }
@@ -394,7 +394,7 @@ async function sendEmailMessage(email: string, subject: string, message: string,
     await new Promise(resolve => setTimeout(resolve, 100));
     
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
   }
 }
@@ -409,7 +409,7 @@ async function sendWhatsAppMessage(phoneNumber: string, message: string, student
     await new Promise(resolve => setTimeout(resolve, 100));
     
     return { success: true };
-  } catch (error) {
+  } catch (error: unknown) {
     return { success: false, error: (error as Error).message };
   }
 }

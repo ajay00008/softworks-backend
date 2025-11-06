@@ -129,7 +129,7 @@ async function createSampleData() {
     await mongoose.disconnect();
     console.log('Disconnected from MongoDB');
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error creating sample data:', error);
     await mongoose.disconnect();
   }

@@ -34,9 +34,9 @@ async function createAdminUser(email: string, password: string, name: string) {
         role: admin.role 
       } 
     };
-  } catch (error) {
-    logger.error("Failed to create admin user", { error: error.message });
-    return { success: false, message: "Failed to create admin user", error: error.message };
+  } catch (error: unknown) {
+    logger.error("Failed to create admin user", { error: error instanceof Error ? error.message : "Unknown error" });
+    return { success: false, message: "Failed to create admin user", error: error instanceof Error ? error.message : "Unknown error" };
   } finally {
     await mongoose.disconnect();
   }

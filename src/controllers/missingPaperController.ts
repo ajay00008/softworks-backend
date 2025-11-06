@@ -82,7 +82,7 @@ export const reportMissingPaper = async (req: Request, res: Response) => {
       answerSheet.status = 'MISSING';
       await answerSheet.save();
       
-      missingPaper.answerSheetId = answerSheet._id;
+      missingPaper.answerSheetId = answerSheet._id as any;
       await missingPaper.save();
     }
 
@@ -97,8 +97,8 @@ export const reportMissingPaper = async (req: Request, res: Response) => {
       relatedEntityType: 'missingPaper',
       metadata: {
         examTitle: exam.title,
-        studentName: student.name,
-        className: exam.classId.name,
+        studentName: (student.userId as any)?.name || 'Unknown',
+        className: (exam.classId as any)?.name || 'Unknown',
         reason: reason,
         reportedBy: userId
       }
@@ -107,7 +107,7 @@ export const reportMissingPaper = async (req: Request, res: Response) => {
     await notification.save();
 
     // Add notification to missing paper record
-    missingPaper.relatedNotificationIds.push(notification._id);
+    missingPaper.relatedNotificationIds.push(notification._id as any);
     await missingPaper.save();
 
     logger.info(`Missing paper reported: ${missingPaper._id} for student ${studentId} in exam ${examId}`);
@@ -117,7 +117,7 @@ export const reportMissingPaper = async (req: Request, res: Response) => {
       data: missingPaper,
       message: 'Missing paper reported successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error reporting missing paper:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -183,7 +183,7 @@ export const getStaffMissingPapers = async (req: Request, res: Response) => {
         pages: Math.ceil(total / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching staff missing papers:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -235,7 +235,7 @@ export const getAdminMissingPapers = async (req: Request, res: Response) => {
         pages: Math.ceil(total / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching admin missing papers:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -291,7 +291,7 @@ export const acknowledgeMissingPaper = async (req: Request, res: Response) => {
       data: missingPaper,
       message: 'Missing paper acknowledged successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error acknowledging missing paper:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -349,7 +349,7 @@ export const resolveMissingPaper = async (req: Request, res: Response) => {
       data: missingPaper,
       message: 'Missing paper resolved successfully'
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error resolving missing paper:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -397,12 +397,12 @@ export const getExamCompletionStatus = async (req: Request, res: Response) => {
       redFlags: missingPapers.filter(mp => mp.isRedFlag).length,
       isComplete: missingPapers.every(mp => mp.status === 'RESOLVED'),
       students: students.map(student => {
-        const answerSheet = answerSheets.find(as => as.studentId._id.toString() === student._id.toString());
-        const missingPaper = missingPapers.find(mp => mp.studentId._id.toString() === student._id.toString());
+        const answerSheet = answerSheets.find(as => String((as.studentId as any)?._id) === String(student._id));
+        const missingPaper = missingPapers.find(mp => String((mp.studentId as any)?._id) === String(student._id));
         
         return {
           studentId: student._id,
-          studentName: student.name,
+          studentName: (student.userId as any)?.name || 'Unknown',
           rollNumber: student.rollNumber,
           hasAnswerSheet: !!answerSheet,
           answerSheetStatus: answerSheet?.status || 'NOT_UPLOADED',
@@ -418,7 +418,7 @@ export const getExamCompletionStatus = async (req: Request, res: Response) => {
       success: true,
       data: completionStatus
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching exam completion status:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
@@ -473,7 +473,7 @@ export const getRedFlagSummary = async (req: Request, res: Response) => {
       success: true,
       data: summary
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fetching red flag summary:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }

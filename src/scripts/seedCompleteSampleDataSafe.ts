@@ -150,7 +150,7 @@ async function run() {
         email: "jane.smith@teacher.local",
         password: "Teacher123!",
         name: "Jane Smith",
-        subjectIds: [subjects[0]._id, subjects[1]._id], // Math and Physics
+        subjectIds: [subjects[0]?._id, subjects[1]?._id].filter(Boolean) as any[], // Math and Physics
         phone: "9876543210",
         address: "456 Oak Avenue, City, State 12345",
         qualification: "M.Sc. Mathematics, B.Ed.",
@@ -161,7 +161,7 @@ async function run() {
         email: "mike.johnson@teacher.local",
         password: "Teacher123!",
         name: "Mike Johnson",
-        subjectIds: [subjects[2]._id, subjects[3]._id], // Chemistry and Biology
+        subjectIds: [subjects[2]?._id, subjects[3]?._id].filter(Boolean) as any[], // Chemistry and Biology
         phone: "9876543211",
         address: "789 Pine Street, City, State 12345",
         qualification: "M.Sc. Chemistry, B.Ed.",
@@ -172,7 +172,7 @@ async function run() {
         email: "sarah.wilson@teacher.local",
         password: "Teacher123!",
         name: "Sarah Wilson",
-        subjectIds: [subjects[4]._id, subjects[5]._id], // English and History
+        subjectIds: [subjects[4]?._id, subjects[5]?._id].filter(Boolean) as any[], // English and History
         phone: "9876543212",
         address: "321 Elm Street, City, State 12345",
         qualification: "M.A. English Literature, B.Ed.",
@@ -214,7 +214,7 @@ async function run() {
         password: "Student123!",
         name: "John Doe",
         rollNumber: "10A001",
-        classId: classes[0]._id, // 10A
+        classId: classes[0]?._id || classes[0], // 10A
         fatherName: "Robert Doe",
         motherName: "Jane Doe",
         dateOfBirth: "2005-03-15",
@@ -228,7 +228,7 @@ async function run() {
         password: "Student123!",
         name: "Alice Brown",
         rollNumber: "10A002",
-        classId: classes[0]._id, // 10A
+        classId: classes[0]?._id || classes[0], // 10A
         fatherName: "David Brown",
         motherName: "Mary Brown",
         dateOfBirth: "2005-07-22",
@@ -242,7 +242,7 @@ async function run() {
         password: "Student123!",
         name: "Bob Green",
         rollNumber: "11A001",
-        classId: classes[2]._id, // 11A
+        classId: classes[2]?._id || classes[2], // 11A
         fatherName: "Tom Green",
         motherName: "Lisa Green",
         dateOfBirth: "2004-11-08",
@@ -256,7 +256,7 @@ async function run() {
         password: "Student123!",
         name: "Carol White",
         rollNumber: "12A001",
-        classId: classes[3]._id, // 12A
+        classId: classes[3]?._id || classes[3], // 12A
         fatherName: "Mark White",
         motherName: "Susan White",
         dateOfBirth: "2003-05-12",
@@ -304,22 +304,22 @@ async function run() {
 
     console.log("\n=== CLASS-SUBJECT MAPPING ===");
     for (const cls of classes) {
-      const availableSubjects = subjects.filter(subj => subj.level.includes(cls.level));
+      const availableSubjects = subjects.filter(subj => (subj as any).level?.includes(cls.level));
       console.log(`${cls.name} (Level ${cls.level}): ${availableSubjects.map(s => s.shortName).join(', ')}`);
     }
 
     console.log("\n=== TEACHER-SUBJECT MAPPING ===");
     for (const teacher of createdTeachers) {
-      const teacherSubjects = subjects.filter(subj => teacher.subjectIds.includes(subj._id));
+      const teacherSubjects = subjects.filter(subj => teacher.subjectIds.includes(subj._id as any));
       console.log(`${(teacher as any).name}: ${teacherSubjects.map(s => s.shortName).join(', ')}`);
     }
 
     console.log("\n✅ Sample data created successfully!");
     console.log("You can now test the API endpoints with this data.");
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Failed to create sample data", { 
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error.message : "Unknown error",
       stack: error instanceof Error ? error.stack : undefined
     });
     throw error;
@@ -328,8 +328,11 @@ async function run() {
   }
 }
 
-run().catch(async (err) => {
-  logger.error("Sample data seeding failed", { error: err.message, stack: err.stack });
+run().catch(async (err: unknown) => {
+  logger.error("Sample data seeding failed", { 
+    error: err instanceof Error ? err.message : "Unknown error",
+    stack: err instanceof Error ? err.stack : undefined
+  });
   await mongoose.disconnect();
   process.exit(1);
 });

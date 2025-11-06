@@ -6489,7 +6489,7 @@ router.get(
         success: true,
         data: notifications,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       res.status(500).json({ success: false, error: "Internal server error" });
     }
   }
@@ -6536,7 +6536,7 @@ router.post(
         success: true,
         data: notification,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       res.status(500).json({ success: false, error: "Internal server error" });
     }
   }
@@ -6571,7 +6571,7 @@ router.post(
         success: true,
         data: { markedCount: count },
       });
-    } catch (error) {
+    } catch (error: unknown) {
       res.status(500).json({ success: false, error: "Internal server error" });
     }
   }

@@ -124,9 +124,9 @@ async function run() {
     logger.info(`- Migrated ${migratedStudents} students`);
     logger.info(`- Migrated ${migratedTeachers} teachers`);
     
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Migration failed", { 
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
   } finally {

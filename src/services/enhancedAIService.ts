@@ -312,7 +312,7 @@ export class EnhancedAIService {
       console.log(`Generated ${generatedQuestions.length} questions, processed to ${distributedQuestions.length}, returning ${finalQuestions.length} questions`);
       return finalQuestions;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error generating question paper with AI:', error);
       throw new Error(`Failed to generate question paper with AI: ${(error as Error).message}`);
     }
@@ -591,7 +591,7 @@ Generate the question paper now:`;
       console.error('Error with Gemini API:', error);
       
       // Handle quota exceeded (429) errors
-      if (error.status === 429 || error.message?.includes('429') || error.message?.includes('quota')) {
+      if (error.status === 429 || error instanceof Error ? error.message : "Unknown error"?.includes('429') || error instanceof Error ? error.message : "Unknown error"?.includes('quota')) {
         const errorDetails = error.errorDetails || [];
         const retryInfo = errorDetails.find((detail: any) => detail['@type']?.includes('RetryInfo'));
         const quotaInfo = errorDetails.find((detail: any) => detail['@type']?.includes('QuotaFailure'));
@@ -620,7 +620,7 @@ Generate the question paper now:`;
         throw quotaError;
       }
       
-      throw new Error(`Gemini API error: ${error.message || 'Unknown error occurred'}`);
+      throw new Error(`Gemini API error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
     }
   }
 
@@ -630,12 +630,18 @@ Generate the question paper now:`;
   private static async generateWithOpenAI(prompt: string): Promise<string> {
     try {
       const { OpenAI } = await import('openai');
-      const openai = new OpenAI({
+      const openaiConfig: {
+        apiKey: string;
+        baseURL?: string;
+      } = {
         apiKey: this.config.apiKey,
-        baseURL: this.config.baseUrl
-      });
+      };
+      if (this.config.baseUrl) {
+        openaiConfig.baseURL = this.config.baseUrl;
+      }
+      const openai = new OpenAI(openaiConfig);
 
-      const completion = await openai.chat.completions.create({
+      const openaiParams: any = {
         model: this.config.model,
         messages: [
           {
@@ -647,9 +653,14 @@ Generate the question paper now:`;
             content: prompt
           }
         ],
-        temperature: this.config.temperature,
-        max_tokens: this.config.maxTokens,
-      });
+      };
+      if (this.config.temperature !== undefined) {
+        openaiParams.temperature = this.config.temperature;
+      }
+      if (this.config.maxTokens !== undefined) {
+        openaiParams.max_tokens = this.config.maxTokens;
+      }
+      const completion = await openai.chat.completions.create(openaiParams);
 
       const response = completion.choices[0]?.message?.content;
       if (!response) {
@@ -661,7 +672,7 @@ Generate the question paper now:`;
       console.log(response.substring(0, 2000)); // First 2000 chars to see if diagrams are mentioned
       
       return response;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error with OpenAI API:', error);
       throw new Error(`OpenAI API error: ${(error as Error).message}`);
     }
@@ -673,15 +684,24 @@ Generate the question paper now:`;
   private static async generateWithAnthropic(prompt: string): Promise<string> {
     try {
       const { Anthropic } = await import('@anthropic-ai/sdk');
-      const anthropic = new Anthropic({
+      const anthropicConfig: {
+        apiKey: string;
+        baseURL?: string;
+      } = {
         apiKey: this.config.apiKey,
-        baseURL: this.config.baseUrl
-      });
+      };
+      if (this.config.baseUrl) {
+        anthropicConfig.baseURL = this.config.baseUrl;
+      }
+      const anthropic = new Anthropic(anthropicConfig);
 
+      if (this.config.maxTokens === undefined) {
+        throw new Error('maxTokens is required for Anthropic API');
+      }
       const message = await anthropic.messages.create({
         model: this.config.model,
         max_tokens: this.config.maxTokens,
-        temperature: this.config.temperature,
+        temperature: this.config.temperature || 0.7,
         messages: [
           {
             role: "user",
@@ -691,11 +711,14 @@ Generate the question paper now:`;
       });
 
       const response = message.content[0];
-      if (response.type !== 'text') {
+      if (!response || response.type !== 'text') {
         throw new Error('Unexpected response type from Anthropic API');
       }
-      return response.text;
-    } catch (error) {
+      if ('text' in response && typeof response.text === 'string') {
+        return response.text;
+      }
+      throw new Error('Invalid response format from Anthropic API');
+    } catch (error: unknown) {
       console.error('Error with Anthropic API:', error);
       throw new Error(`Anthropic API error: ${(error as Error).message}`);
     }
@@ -718,7 +741,8 @@ Generate the question paper now:`;
       );
       
       for (let i = 0; i < markDistribution.oneMark; i++) {
-        const questionType = oneMarkTypes.length > 0 ? oneMarkTypes[0].type : 'TRUE_FALSE';
+        const firstType = oneMarkTypes.length > 0 ? oneMarkTypes[0] : undefined;
+        const questionType = firstType?.type || 'TRUE_FALSE';
         questions.push(this.createMockQuestion(1, questionType, 'REMEMBER', request));
         questionCount++;
       }
@@ -731,7 +755,8 @@ Generate the question paper now:`;
       );
       
       for (let i = 0; i < markDistribution.twoMark; i++) {
-        const questionType = twoMarkTypes.length > 0 ? twoMarkTypes[0].type : 'SHORT_ANSWER';
+        const firstType = twoMarkTypes.length > 0 ? twoMarkTypes[0] : undefined;
+        const questionType = firstType?.type || 'SHORT_ANSWER';
         questions.push(this.createMockQuestion(2, questionType, 'UNDERSTAND', request));
         questionCount++;
       }
@@ -792,18 +817,33 @@ Generate the question paper now:`;
       'ONE_WORD_ANSWER': undefined
     };
 
-    return {
+    const questionOptions = options[questionType as keyof typeof options];
+    const result: {
+      questionText: string;
+      questionType: any;
+      marks: number;
+      bloomsLevel: any;
+      difficulty: 'EASY' | 'MODERATE' | 'TOUGHEST';
+      isTwisted: boolean;
+      options?: string[];
+      correctAnswer: string;
+      explanation: string;
+      tags: string[];
+    } = {
       questionText: questionTexts[questionType as keyof typeof questionTexts] || 'Sample question text',
       questionType: questionType as any,
       marks,
       bloomsLevel: bloomsLevel as any,
       difficulty: request.difficultyLevel,
       isTwisted: Math.random() < (request.twistedQuestionsPercentage / 100),
-      options: options[questionType as keyof typeof options],
       correctAnswer: correctAnswers[questionType as keyof typeof correctAnswers] || 'Sample correct answer',
       explanation: 'This is a sample explanation for the answer.',
       tags: ['sample', 'test']
     };
+    if (questionOptions) {
+      result.options = questionOptions;
+    }
+    return result;
   }
 
   /**
@@ -830,7 +870,7 @@ Generate the question paper now:`;
         
         // Remove options for 5-mark questions (they should be long answers)
         if (correctedQuestionType !== 'CHOOSE_BEST_ANSWER' && correctedQuestionType !== 'CHOOSE_MULTIPLE_ANSWERS') {
-          question.options = undefined;
+          delete question.options;
         }
       }
       
@@ -875,8 +915,10 @@ Generate the question paper now:`;
           // Try to find questions that can be repurposed (only for simple reassignments)
           for (let i = 0; i < Math.min(shortfall, questionsWithWrongMarks.length); i++) {
             const q = questionsWithWrongMarks[i];
+            if (!q || !q.questionText) continue;
             questionsForThisMark.push({
               ...q,
+              questionText: q.questionText,
               marks: category.mark
             });
           }
@@ -892,6 +934,7 @@ Generate the question paper now:`;
           
           for (let i = 0; i < category.distributions.length - 1; i++) {
             const dist = category.distributions[i];
+            if (!dist) continue;
             const count = Math.floor((dist.percentage / 100) * category.count);
             typeCounts[dist.type] = count;
             remainingQuestions -= count;
@@ -911,8 +954,13 @@ Generate the question paper now:`;
             let addedCount = 0;
             for (let i = 0; i < count && questionIndex < questionsForThisMark.length; i++) {
               const question = questionsForThisMark[questionIndex];
+              if (!question || !question.questionText) {
+                questionIndex++;
+                continue;
+              }
               distributedQuestions.push({
                 ...question,
+                questionText: question.questionText,
                 questionType: type as any,
                 marks: category.mark
               });
@@ -1214,7 +1262,9 @@ Generate the question paper now:`;
         cleanedResponse = cleanedResponse
           // Fix unquoted keys (common AI mistake)
           .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, (match, prefix) => {
-            return `${prefix}"${match.split(':')[0].trim().replace(/[{,]\s*/, '')}":`;
+            const keyPart = match.split(':')[0];
+            if (!keyPart) return match;
+            return `${prefix}"${keyPart.trim().replace(/[{,]\s*/, '')}":`;
           })
           // Fix single quotes to double quotes (but not in placeholders)
           .replace(/'/g, '"')
@@ -1352,15 +1402,17 @@ Generate the question paper now:`;
           tags: q.tags || [],
           diagramDescription: q.diagramDescription || q.visualAids?.[0] || undefined,
           // Parse diagram object from AI response
-          diagram: q.diagram ? {
-            description: q.diagram.description || q.diagramDescription || '',
-            type: q.diagram.type || 'diagram',
-            status: (q.diagram.status as 'pending' | 'ready') || 'pending',
-            altText: q.diagram.altText || q.diagram.description || undefined
-          } : undefined
+          ...(q.diagram ? {
+            diagram: {
+              description: q.diagram.description || q.diagramDescription || '',
+              type: (q.diagram.type || 'diagram') as 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other',
+              status: ((q.diagram.status as 'pending' | 'ready') || 'pending') as 'pending' | 'ready',
+              ...(q.diagram.altText || q.diagram.description ? { altText: q.diagram.altText || q.diagram.description } : {})
+            }
+          } : {})
         };
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error parsing AI response:', error);
       throw new Error(`Failed to parse AI response: ${(error as Error).message}`);
     }

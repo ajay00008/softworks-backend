@@ -56,7 +56,7 @@ export class FlagManagementService {
       logger.info(`Flag added successfully to answer sheet: ${answerSheetId}`);
       return newFlag;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error adding flag to answer sheet ${answerSheetId}:`, error);
       throw error;
     }
@@ -79,6 +79,9 @@ export class FlagManagementService {
       }
 
       const flag = answerSheet.flags[flagIndex];
+      if (!flag) {
+        throw new Error('Flag not found');
+      }
       if (flag.resolved) {
         throw new Error('Flag is already resolved');
       }
@@ -86,14 +89,18 @@ export class FlagManagementService {
       flag.resolved = true;
       flag.resolvedBy = resolutionData.resolvedBy as any;
       flag.resolvedAt = new Date();
-      flag.resolutionNotes = resolutionData.resolutionNotes;
+      if (resolutionData.resolutionNotes) {
+        if (resolutionData.resolutionNotes !== undefined) {
+          flag.resolutionNotes = resolutionData.resolutionNotes;
+        }
+      }
       flag.autoResolved = resolutionData.autoResolved || false;
 
       await answerSheet.save();
 
       logger.info(`Flag ${flagIndex} resolved successfully for answer sheet: ${answerSheetId}`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error resolving flag ${flagIndex} for answer sheet ${answerSheetId}:`, error);
       throw error;
     }
@@ -117,7 +124,9 @@ export class FlagManagementService {
         flag.resolved = true;
         flag.resolvedBy = resolutionData.resolvedBy as any;
         flag.resolvedAt = new Date();
-        flag.resolutionNotes = resolutionData.resolutionNotes;
+        if (resolutionData.resolutionNotes !== undefined) {
+          flag.resolutionNotes = resolutionData.resolutionNotes;
+        }
         flag.autoResolved = resolutionData.autoResolved || false;
       }
 
@@ -125,7 +134,7 @@ export class FlagManagementService {
 
       logger.info(`All flags resolved successfully for answer sheet: ${answerSheetId}`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error resolving all flags for answer sheet ${answerSheetId}:`, error);
       throw error;
     }
@@ -143,7 +152,7 @@ export class FlagManagementService {
 
       return answerSheet.flags;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error getting flags for answer sheet ${answerSheetId}:`, error);
       throw error;
     }
@@ -184,7 +193,7 @@ export class FlagManagementService {
 
       return answerSheets;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error getting flagged answer sheets for exam ${examId}:`, error);
       throw error;
     }
@@ -264,7 +273,7 @@ export class FlagManagementService {
         resolutionRate
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error getting flag statistics for exam ${examId}:`, error);
       throw error;
     }
@@ -346,7 +355,7 @@ export class FlagManagementService {
       logger.info(`Auto-detected ${addedFlags.length} flags for answer sheet: ${answerSheetId}`);
       return addedFlags;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error auto-detecting flags for answer sheet ${answerSheetId}:`, error);
       throw error;
     }
@@ -368,7 +377,9 @@ export class FlagManagementService {
           flag.resolved = true;
           flag.resolvedBy = resolutionData.resolvedBy as any;
           flag.resolvedAt = new Date();
+          if (resolutionData.resolutionNotes !== undefined) {
           flag.resolutionNotes = resolutionData.resolutionNotes;
+        }
           flag.autoResolved = resolutionData.autoResolved || false;
         }
       }
@@ -384,7 +395,7 @@ export class FlagManagementService {
 
       logger.info(`Bulk resolved flags for ${answerSheetIds.length} answer sheets`);
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error bulk resolving flags:`, error);
       throw error;
     }

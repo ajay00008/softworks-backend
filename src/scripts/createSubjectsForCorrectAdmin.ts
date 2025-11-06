@@ -97,7 +97,7 @@ async function createSubjectsForCorrectAdmin() {
     await mongoose.disconnect();
     console.log('Disconnected from MongoDB');
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error:', error);
     await mongoose.disconnect();
   }

@@ -95,7 +95,7 @@ async function migrateTeachersWithClasses(options: MigrationOptions = {}) {
           skippedCount++;
         }
 
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`   ❌ Error updating teacher ${teacher._id}:`, error);
       }
     }
@@ -142,7 +142,7 @@ async function migrateTeachersWithClasses(options: MigrationOptions = {}) {
       console.log("\n🧪 Dry run completed. Use dryRun: false to apply changes.");
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("❌ Migration failed:", error);
     throw error;
   } finally {

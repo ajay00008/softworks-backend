@@ -33,7 +33,7 @@ export async function getAIConfig(req: Request, res: Response, next: NextFunctio
         apiKey: config.apiKey ? `${config.apiKey.substring(0, 8)}...` : undefined // Mask API key
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 }
@@ -43,7 +43,16 @@ export async function updateAIConfig(req: Request, res: Response, next: NextFunc
   try {
     const updateData = UpdateAIConfigSchema.parse(req.body);
     
-    AIService.updateConfig(updateData);
+    // Construct config object with only defined properties
+    const configUpdate: any = {};
+    if (updateData.provider !== undefined) configUpdate.provider = updateData.provider;
+    if (updateData.apiKey !== undefined) configUpdate.apiKey = updateData.apiKey;
+    if (updateData.model !== undefined) configUpdate.model = updateData.model;
+    if (updateData.baseUrl !== undefined) configUpdate.baseUrl = updateData.baseUrl;
+    if (updateData.temperature !== undefined) configUpdate.temperature = updateData.temperature;
+    if (updateData.maxTokens !== undefined) configUpdate.maxTokens = updateData.maxTokens;
+    
+    AIService.updateConfig(configUpdate);
     
     res.json({
       success: true,
@@ -53,7 +62,7 @@ export async function updateAIConfig(req: Request, res: Response, next: NextFunc
         apiKey: AIService.getConfig().apiKey ? `${AIService.getConfig().apiKey.substring(0, 8)}...` : undefined
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 }
@@ -65,7 +74,17 @@ export async function testAIConfig(req: Request, res: Response, next: NextFuncti
     
     // Temporarily update the AI service configuration
     const originalConfig = AIService.getConfig();
-    AIService.updateConfig(testConfig);
+    const configUpdate: any = {
+      provider: testConfig.provider,
+      apiKey: testConfig.apiKey,
+      model: testConfig.model,
+      temperature: testConfig.temperature,
+      maxTokens: testConfig.maxTokens,
+    };
+    if (testConfig.baseUrl !== undefined) {
+      configUpdate.baseUrl = testConfig.baseUrl;
+    }
+    AIService.updateConfig(configUpdate);
     
     try {
       // Test with a simple question generation
@@ -91,13 +110,14 @@ export async function testAIConfig(req: Request, res: Response, next: NextFuncti
           }
         }
       });
-    } catch (testError) {
+      } catch (testError: unknown) {
       // Restore original configuration
       AIService.updateConfig(originalConfig);
       
-      throw new createHttpError.BadRequest(`AI configuration test failed: ${testError.message}`);
+      const errorMessage = testError instanceof Error ? testError.message : 'Unknown error';
+      throw new createHttpError.BadRequest(`AI configuration test failed: ${errorMessage}`);
     }
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 }
@@ -151,7 +171,7 @@ export async function getAIProviders(req: Request, res: Response, next: NextFunc
       success: true,
       data: providers
     });
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 }
@@ -166,7 +186,17 @@ export async function generateQuestionsWithConfig(req: Request, res: Response, n
     
     // Update AI service with the provided configuration
     const originalConfig = AIService.getConfig();
-    AIService.updateConfig(validatedConfig);
+    const configUpdate: any = {
+      provider: validatedConfig.provider,
+      apiKey: validatedConfig.apiKey,
+      model: validatedConfig.model,
+      temperature: validatedConfig.temperature,
+      maxTokens: validatedConfig.maxTokens,
+    };
+    if (validatedConfig.baseUrl !== undefined) {
+      configUpdate.baseUrl = validatedConfig.baseUrl;
+    }
+    AIService.updateConfig(configUpdate);
     
     try {
       // Generate questions with the specified configuration
@@ -190,7 +220,7 @@ export async function generateQuestionsWithConfig(req: Request, res: Response, n
       AIService.updateConfig(originalConfig);
       throw generateError;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     next(error);
   }
 }

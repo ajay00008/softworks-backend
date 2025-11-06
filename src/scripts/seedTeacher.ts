@@ -59,9 +59,9 @@ async function run() {
       role: user.role
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Failed to create sample teacher", { 
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
   } finally {

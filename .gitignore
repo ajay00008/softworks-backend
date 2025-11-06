@@ -1,2 +1,10 @@
 node_modules
 logs
+dist
+temp
+public
+uploads
+.DS_Store
+*.log
+*.log.gz
+.env

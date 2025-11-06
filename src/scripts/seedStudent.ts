@@ -74,13 +74,13 @@ async function run() {
       email: user.email,
       name: user.name,
       rollNumber: student.rollNumber,
-      className: student.className,
+      className: (student as any).className || 'Unknown',
       role: user.role
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Failed to create sample student", { 
-      error: error instanceof Error ? error.message : String(error),
+      error: error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : String(error),
       stack: error instanceof Error ? error.stack : undefined
     });
   } finally {

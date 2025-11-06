@@ -22,8 +22,8 @@ async function fixAnswerSheetDuplicates() {
     if (duplicates.length > 0) {
       // Delete all except the most recent one (or delete all if you want)
       const sorted = duplicates.sort((a, b) => {
-        const aDate = a.uploadedAt || a.createdAt;
-        const bDate = b.uploadedAt || b.createdAt;
+        const aDate = a.uploadedAt || (a as any).createdAt || new Date();
+        const bDate = b.uploadedAt || (b as any).createdAt || new Date();
         return bDate.getTime() - aDate.getTime();
       });
 
@@ -57,7 +57,7 @@ async function fixAnswerSheetDuplicates() {
 
     logger.info('Fix completed successfully');
     process.exit(0);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error fixing duplicates:', error);
     process.exit(1);
   }

@@ -50,7 +50,7 @@ async function migrateTeachers() {
           skippedCount++;
         }
 
-      } catch (error) {
+      } catch (error: unknown) {
         console.error(`❌ Error updating teacher ${teacher._id}:`, error);
       }
     }
@@ -88,7 +88,7 @@ async function migrateTeachers() {
 
     console.log("\n🎉 Teacher migration completed successfully!");
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("❌ Migration failed:", error);
     throw error;
   } finally {

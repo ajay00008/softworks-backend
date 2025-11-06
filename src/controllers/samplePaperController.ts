@@ -266,7 +266,7 @@ export async function deleteSamplePaper(req: Request, res: Response, next: NextF
         if (fs.existsSync(samplePaper.sampleFile.filePath)) {
           fs.unlinkSync(samplePaper.sampleFile.filePath);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn('Could not delete sample paper file:', error);
       }
     }

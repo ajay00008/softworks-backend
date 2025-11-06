@@ -179,7 +179,11 @@ export async function getClassesByLevel(req: Request, res: Response, next: NextF
   try {
     const { level } = req.params;
     
-    const query: any = { level: parseInt(level) };
+    if (!level) {
+      return res.status(400).json({ success: false, error: 'Level parameter is required' });
+    }
+    
+    const query: any = { level: parseInt(level, 10) };
     
     const classes = await Class.find(query)
       .sort({ section: 1 })

@@ -43,7 +43,7 @@ export class PatternAnalysisService {
       });
       
       logger.info('PatternAnalysisService initialized successfully');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to initialize PatternAnalysisService:', error);
     }
   }
@@ -217,7 +217,7 @@ If no diagrams are found, return:
         analysisComplete: true
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error analyzing pattern for diagrams:', error);
       // Return default result on error
       return {
@@ -260,7 +260,7 @@ If no diagrams are found, return:
         diagramCount: parsed.diagramCount || (parsed.diagrams?.length || 0),
         analysisComplete: true
       };
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error parsing analysis response:', error);
       return {
         hasDiagrams: false,
@@ -314,7 +314,7 @@ If no diagrams are found, return:
           debugger; // Breakpoint: PDF to PNG conversion attempt
           
           // Now import pdfjs-dist - Path2D should be available
-          const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs');
+          const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs') as any;
           const pdfjsLib = pdfjsModule.default || pdfjsModule;
           
           // Load the pattern PDF
@@ -367,7 +367,7 @@ If no diagrams are found, return:
               
               // Render PDF page to canvas
               // DEBUGGER BREAKPOINT: Before rendering page to canvas
-              wdebugger; // Breakpoint: About to render page to canvas
+              debugger; // Breakpoint: About to render page to canvas
               
               await page.render({
                 canvasContext: context,
@@ -440,7 +440,7 @@ If no diagrams are found, return:
           logger.info(`Extracted diagram ${i + 1} to ${diagramPath}`);
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error extracting diagram images:', error);
       throw error;
     }

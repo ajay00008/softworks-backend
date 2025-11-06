@@ -249,7 +249,7 @@ export async function updateQuestion(req: Request, res: Response, next: NextFunc
     }
     
     // Validate options for multiple choice questions
-    if (updateData.questionType === "MULTIPLE_CHOICE" && (!updateData.options || updateData.options.length < 2)) {
+    if (updateData.questionType === "CHOOSE_BEST_ANSWER" && (!updateData.options || updateData.options.length < 2)) {
       throw new createHttpError.BadRequest("Multiple choice questions must have at least 2 options");
     }
     
@@ -325,7 +325,10 @@ export async function generateQuestions(req: Request, res: Response, next: NextF
       subjectId,
       classId,
       unit,
-      questionDistribution,
+      questionDistribution: questionDistribution.map(qd => ({
+        ...qd,
+        twistedPercentage: qd.twistedPercentage || 0
+      })),
       totalQuestions,
       language,
       subjectName: subject.name,

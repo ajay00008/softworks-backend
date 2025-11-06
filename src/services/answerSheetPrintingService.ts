@@ -90,7 +90,7 @@ export class AnswerSheetPrintingService {
         return await this.generateDOCX(answerSheet, exam, student, evaluationSettings, options);
       }
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error printing individual answer sheet:', error);
       return {
         success: false,
@@ -158,7 +158,7 @@ export class AnswerSheetPrintingService {
         return await this.generateBatchDOCX(answerSheets, exam, evaluationSettings, options);
       }
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error printing batch answer sheets:', error);
       return {
         success: false,
@@ -382,7 +382,7 @@ export class AnswerSheetPrintingService {
           });
           yPosition -= lineHeight;
 
-          aiResults.strengths.forEach(strength => {
+          aiResults.strengths.forEach((strength: string) => {
             page.drawText(`• ${strength}`, {
               x: margin + 20,
               y: yPosition,
@@ -406,7 +406,7 @@ export class AnswerSheetPrintingService {
           });
           yPosition -= lineHeight;
 
-          aiResults.suggestions.forEach(suggestion => {
+          aiResults.suggestions.forEach((suggestion: string) => {
             page.drawText(`• ${suggestion}`, {
               x: margin + 20,
               y: yPosition,
@@ -441,7 +441,7 @@ export class AnswerSheetPrintingService {
         fileSize: pdfBytes.length
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating PDF:', error);
       return {
         success: false,
@@ -575,7 +575,7 @@ export class AnswerSheetPrintingService {
 
         const student = await Student.findOne({ userId: answerSheet.studentId });
         const rollNumber = student?.rollNumber || 'N/A';
-        const studentName = student?.name || 'Unknown';
+        const studentName = (student?.userId as any)?.name || 'Unknown';
 
         page.drawText(rollNumber, {
           x: margin,
@@ -635,7 +635,7 @@ export class AnswerSheetPrintingService {
         fileSize: pdfBytes.length
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating batch PDF:', error);
       return {
         success: false,

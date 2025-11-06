@@ -164,9 +164,9 @@ export class PDFGenerationService {
       
       console.log('Sample text generated, length:', sampleText.length);
       return sampleText;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error extracting text from PDF:', error);
-      throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'}`);
     }
   }
 
@@ -330,7 +330,7 @@ export class PDFGenerationService {
             doc.fillColor('black');
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         // If image embedding fails, show description as fallback
         logger.warn(`Failed to embed diagram image for question ${number}:`, error);
         doc.font('Times-Italic').fontSize(10).fillColor('#666666');
@@ -354,7 +354,7 @@ export class PDFGenerationService {
       } else {
         doc.text('Note: This question includes diagrams/figures. Refer to the visual aids described below:', margin + 18, doc.y, { width });
         doc.moveDown(0.15);
-        question.visualAids.forEach((aid, i) => {
+        question.visualAids?.forEach((aid, i) => {
           doc.text(`• ${aid}`, margin + 30, doc.y, { width });
         });
       }
@@ -410,7 +410,7 @@ export class PDFGenerationService {
         doc.font('Times-Roman').fontSize(9).fillColor('#000000')
           .text(pageText, pageWidth - margin - 80, footerY, { align: 'right' });
            
-      } catch (error) {
+      } catch (error: unknown) {
         console.warn(`Could not switch to page ${i}:`, error);
         // Continue with other pages
       }
@@ -423,7 +423,7 @@ export class PDFGenerationService {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting PDF file:', error);
       throw error;
     }

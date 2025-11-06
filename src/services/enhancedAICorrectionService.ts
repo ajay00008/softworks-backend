@@ -150,7 +150,7 @@ export class EnhancedAICorrectionService {
         model: env.AI_MODEL || 'gemini-2.0-flash-exp' 
       });
       logger.info('Enhanced AI Correction Service initialized with Gemini');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to initialize Enhanced AI Correction Service:', error);
       throw new Error('Failed to initialize Enhanced AI Correction Service');
     }
@@ -201,7 +201,7 @@ export class EnhancedAICorrectionService {
         processingTime
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error processing answer sheet with enhanced AI:', error);
       throw new Error(`Enhanced AI correction failed: ${(error as Error).message}`);
     }
@@ -229,7 +229,7 @@ Requires Steps: ${q.requiresSteps ? 'YES' : 'NO'}
 TOTAL MARKS: ${questionPaper.totalMarks}
 SUBJECT: ${questionPaper.subjectName || 'General'}
 LANGUAGE: ${language}
-SCRIPT TYPE: ${langConfig?.scriptType || 'LATIN'}
+SCRIPT TYPE: ${(langConfig as any)?.scriptType || 'LATIN'}
 
 EVALUATION SETTINGS:
 - Spelling Mistakes Penalty: ${evaluationSettings?.spellingMistakesPenalty || 5}%
@@ -387,7 +387,7 @@ IMPORTANT GUIDELINES:
         }
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error parsing enhanced AI correction response:', error);
       
       // Return fallback result
@@ -435,7 +435,7 @@ IMPORTANT GUIDELINES:
       // Store the learning data for future reference
       // This could be implemented with a learning database or ML model
       
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error learning from manual correction:', error);
     }
   }
@@ -503,7 +503,10 @@ IMPORTANT GUIDELINES:
       totalMarks: questionPaper.totalMarks,
       obtainedMarks: totalObtained,
       percentage: Math.round(percentage * 100) / 100,
-      questionWiseResults,
+      questionWiseResults: questionWiseResults.map(qwr => ({
+        ...qwr,
+        stepMarks: qwr.stepMarks || []
+      })),
       overallFeedback: `Enhanced mock AI correction completed in ${language}. This is a test result with advanced features.`,
       strengths: ['Good understanding of basic concepts', 'Clear handwriting', 'Good problem-solving approach'],
       weaknesses: ['Needs improvement in complex problems', 'Minor calculation errors', 'Could improve presentation'],

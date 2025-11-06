@@ -85,7 +85,7 @@ async function migrateStudentClassData() {
         successCount++;
         console.log(`Updated student ${student.userId}: "${className}" -> ${classId}`);
 
-      } catch (error) {
+      } catch (error: unknown) {
         errorCount++;
         const errorMsg = `Error updating student ${student.userId}: ${error}`;
         errors.push(errorMsg);
@@ -123,7 +123,7 @@ async function migrateStudentClassData() {
       console.log("⚠️  Some students still have className field. Manual review needed.");
     }
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Error during student class data migration:", error);
     throw error;
   }
@@ -167,7 +167,7 @@ async function createMissingClasses() {
           
           console.log("Created class:", newClass.name, "(" + newClass.displayName + ")");
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error creating class " + className + ":", error);
       }
     }

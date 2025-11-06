@@ -57,7 +57,7 @@ export class SocketService {
         }
 
         next();
-      } catch (error) {
+      } catch (error: unknown) {
         logger.error('Socket authentication error:', error);
         next(new Error('Authentication failed'));
       }
@@ -191,7 +191,7 @@ export class SocketService {
       this.io.to(`user:${userId}`).emit('notification', notification);
       
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error sending notification to user:', error);
       return false;
     }
@@ -224,7 +224,7 @@ export class SocketService {
 
       this.io.to(`admin:${adminId}`).emit('notification', notification);
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error sending notification to admin:', error);
       return false;
     }
@@ -264,7 +264,7 @@ export class SocketService {
       }
 
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error sending notification to teacher and admin:', error);
       return false;
     }
@@ -283,7 +283,7 @@ export class SocketService {
       this.io.emit('notification', notification);
       logger.info(`Broadcast notification: ${notification.type}`);
       return true;
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error broadcasting notification:', error);
       return false;
     }

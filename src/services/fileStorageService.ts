@@ -74,7 +74,7 @@ export class FileStorageService {
         if (allowedTypes.includes(file.mimetype)) {
           cb(null, true);
         } else {
-          cb(new Error('Only PDF, DOC, DOCX, and TXT files are allowed for books'), false);
+          cb(new Error('Only PDF, DOC, DOCX, and TXT files are allowed for books') as any, false);
         }
       }
     });
@@ -106,7 +106,7 @@ export class FileStorageService {
         if (file.mimetype === 'application/pdf') {
           cb(null, true);
         } else {
-          cb(new Error('Only PDF files are allowed for question papers'), false);
+          cb(new Error('Only PDF files are allowed for question papers') as any, false);
         }
       }
     });
@@ -193,7 +193,7 @@ export class FileStorageService {
         return true;
       }
       return false;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting file:', error);
       return false;
     }
@@ -217,7 +217,7 @@ export class FileStorageService {
         };
       }
       return null;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error getting file info:', error);
       return null;
     }
@@ -233,7 +233,7 @@ export class FileStorageService {
         return fs.readdirSync(folderPath);
       }
       return [];
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error listing files:', error);
       return [];
     }
@@ -261,7 +261,7 @@ export class FileStorageService {
       }
       
       return totalSize;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error getting folder size:', error);
       return 0;
     }
@@ -294,7 +294,7 @@ export class FileStorageService {
       }
       
       return deletedCount;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error cleaning up old files:', error);
       return 0;
     }

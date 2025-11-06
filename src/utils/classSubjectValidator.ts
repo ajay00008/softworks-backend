@@ -22,7 +22,7 @@ export interface ClassSubjectMapping {
 /**
  * Get all subjects available for a specific class level
  */
-export async function getSubjectsForClassLevel(level: number, adminId: string): Promise<Array<{
+export async function getSubjectsForClassLevel(level: number, adminId?: string): Promise<Array<{
   id: string;
   code: string;
   name: string;
@@ -30,11 +30,14 @@ export async function getSubjectsForClassLevel(level: number, adminId: string): 
   category: string;
   level: number[];
 }>> {
-  const subjects = await Subject.find({
+  const query: any = {
     level: { $in: [level] },
     isActive: true,
-    adminId
-  }).select('code name shortName category level');
+  };
+  if (adminId) {
+    query.adminId = adminId;
+  }
+  const subjects = await Subject.find(query).select('code name shortName category level');
 
   return subjects.map(subject => ({
     id: (subject._id as any).toString(),
@@ -42,7 +45,7 @@ export async function getSubjectsForClassLevel(level: number, adminId: string): 
     name: subject.name,
     shortName: subject.shortName,
     category: subject.category,
-    level: subject.level
+    level: (subject as any).level || []
   }));
 }
 
@@ -94,7 +97,7 @@ export async function canTeacherTeachClass(teacherId: string, classId: string): 
   const teacherSubjects = teacher.subjectIds.map((subject: any) => ({
     id: subject._id.toString(),
     code: subject.code,
-    level: subject.level
+    level: (subject as any).level || []
   }));
 
   const classLevelSubjects = await getSubjectsForClassLevel(classItem.level);
@@ -177,7 +180,7 @@ export async function getClassesForTeacher(teacherId: string): Promise<Array<{
   const teacherSubjects = teacher.subjectIds.map((subject: any) => ({
     id: subject._id.toString(),
     code: subject.code,
-    level: subject.level
+    level: (subject as any).level || []
   }));
 
   // Get assigned classes
@@ -262,7 +265,7 @@ export async function getAssignedClassesForTeacher(teacherId: string): Promise<A
   const teacherSubjects = teacher.subjectIds.map((subject: any) => ({
     id: subject._id.toString(),
     code: subject.code,
-    level: subject.level
+    level: (subject as any).level || []
   }));
 
   const result = [];

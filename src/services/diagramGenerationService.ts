@@ -41,7 +41,7 @@ export class DiagramGenerationService {
       });
       
       logger.info('DiagramGenerationService initialized successfully');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to initialize DiagramGenerationService:', error);
     }
   }
@@ -109,7 +109,7 @@ export class DiagramGenerationService {
         altText: altText
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating diagram:', error);
       return null;
     }
@@ -258,7 +258,7 @@ export class DiagramGenerationService {
       }
 
       return canvas.toBuffer('image/png');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating graph:', error);
       return null;
     }
@@ -323,7 +323,7 @@ export class DiagramGenerationService {
             (i + 1) * sliceAngle
           );
           ctx.closePath();
-          ctx.fillStyle = colors[i];
+          ctx.fillStyle = colors[i] || '#0066cc';
           ctx.fill();
         }
       } else {
@@ -350,7 +350,7 @@ export class DiagramGenerationService {
       }
 
       return canvas.toBuffer('image/png');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Error generating chart:', error);
       return null;
     }
@@ -463,15 +463,21 @@ export class DiagramGenerationService {
 
     for (let i = 1; i < words.length; i++) {
       const word = words[i];
-      const width = ctx.measureText(currentLine + ' ' + word).width;
+      if (!word) continue;
+      const currentLineSafe = currentLine || '';
+      const width = ctx.measureText(currentLineSafe + ' ' + word).width;
       if (width < maxWidth) {
-        currentLine += ' ' + word;
+        currentLine = currentLineSafe + ' ' + word;
       } else {
-        lines.push(currentLine);
+        if (currentLineSafe) {
+          lines.push(currentLineSafe);
+        }
         currentLine = word;
       }
     }
-    lines.push(currentLine);
+    if (currentLine) {
+      lines.push(currentLine);
+    }
     return lines;
   }
 
@@ -485,6 +491,7 @@ export class DiagramGenerationService {
 
     for (let i = 0; i < questions.length; i++) {
       const question = questions[i];
+      if (!question) continue;
       
       // Check if question needs a diagram
       const needsDiagram = 
@@ -497,10 +504,14 @@ export class DiagramGenerationService {
         // Extract diagram description
         let description = question.diagramDescription || '';
         if (!description && question.visualAids && question.visualAids.length > 0) {
-          description = question.visualAids[0]; // Use first visual aid as description
+          const firstAid = question.visualAids[0];
+          if (firstAid) {
+            description = firstAid; // Use first visual aid as description
+          }
         }
         if (!description) {
-          description = `Diagram for question: ${question.questionText?.substring(0, 50)}...`;
+          const questionText = question.questionText || 'Question';
+          description = `Diagram for question: ${questionText.substring(0, 50)}...`;
         }
 
         // Determine diagram type
@@ -511,11 +522,19 @@ export class DiagramGenerationService {
         else if (desc.includes('figure')) diagramType = 'figure';
 
         // Generate diagram
-        const diagram = await this.generateDiagram({
+        const questionText = question.questionText || '';
+        const diagramDesc: {
+          description: string;
+          type: 'graph' | 'chart' | 'diagram' | 'figure' | 'illustration';
+          context?: string;
+        } = {
           description: description,
           type: diagramType,
-          context: question.questionText
-        }, question.questionText);
+        };
+        if (questionText) {
+          diagramDesc.context = questionText;
+        }
+        const diagram = await this.generateDiagram(diagramDesc, questionText);
 
         if (diagram) {
           generatedDiagrams.set(i, diagram);

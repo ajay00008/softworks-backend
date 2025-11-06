@@ -76,15 +76,16 @@ export class OpenAIService {
       const generatedQuestions = this.parseGeneratedQuestions(response);
       return generatedQuestions;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error generating questions with OpenAI:', error);
+      const errorObj = error as any;
       console.error('Error details:', {
-        message: error.message,
-        status: error.status,
-        code: error.code,
-        type: error.type
+        message: error instanceof Error ? error.message : "Unknown error",
+        status: errorObj?.status,
+        code: errorObj?.code,
+        type: errorObj?.type
       });
-      throw new Error(`Failed to generate questions with AI: ${error.message}`);
+      throw new Error(`Failed to generate questions with AI: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
@@ -192,7 +193,7 @@ Ensure the JSON is valid and properly formatted.`;
         };
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error parsing generated questions:', error);
       throw new Error('Failed to parse AI-generated questions');
     }
@@ -223,7 +224,11 @@ Ensure the JSON is valid and properly formatted.`;
       className: 'Test Class'
     });
 
-    return questions[0];
+    const firstQuestion = questions[0];
+    if (!firstQuestion) {
+      throw new Error('No questions generated');
+    }
+    return firstQuestion;
   }
 }
 

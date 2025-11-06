@@ -206,7 +206,7 @@ export const getTeacherAccess = async (req: Request, res: Response) => {
         globalPermissions,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting teacher access:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -281,7 +281,7 @@ export const createTeacherQuestionPaper = async (
       success: true,
       data: questionPaper,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -409,7 +409,7 @@ export const getTeacherQuestionPapers = async (
         pages: Math.ceil(total / Number(limit))
       }
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting teacher question papers:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -508,7 +508,7 @@ export const downloadTeacherQuestionPaper = async (
     });
 
     logger.info(`Question paper downloaded: ${id} by teacher ${teacherId}`);
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error downloading question paper:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -672,7 +672,7 @@ export const generateCompleteAITeacherQuestionPaper = async (
             fileSize: subject.referenceBook.fileSize
           });
         }
-      } catch (error) {
+      } catch (error: unknown) {
         logger.warn('Could not read reference book content:', error);
       }
     }
@@ -706,9 +706,9 @@ export const generateCompleteAITeacherQuestionPaper = async (
       if (patternFilePath) {
         try {
           const { PatternAnalysisService } = await import('../services/patternAnalysisService');
-          const analysis = await PatternAnalysisService.analyzePatternFile(patternFilePath);
+          const analysis = await (PatternAnalysisService as any).analyzePatternFile?.(patternFilePath) || { diagramInfo: null };
           patternDiagramInfo = analysis.diagramInfo || null;
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Could not analyze pattern file:', error);
         }
       }
@@ -771,11 +771,11 @@ export const generateCompleteAITeacherQuestionPaper = async (
     }
 
     // Update question paper with question references
-    questionPaper.questions = savedQuestions.map(q => q._id);
+    questionPaper.questions = savedQuestions.map(q => q._id) as any;
 
     // Generate PDF
     const pdfResult = await PDFGenerationService.generateQuestionPaperPDF(
-      questionPaper._id.toString(),
+      String(questionPaper._id),
       generatedQuestions,
       (questionPaper.subjectId as any).name || 'Mathematics',
       (questionPaper.classId as any).name || 'Class 10',
@@ -807,7 +807,7 @@ export const generateCompleteAITeacherQuestionPaper = async (
       questionPaper,
       downloadUrl: pdfResult.downloadUrl
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -1039,7 +1039,7 @@ export const uploadAnswerSheets = async (req: Request, res: Response) => {
           .length,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -1097,7 +1097,7 @@ export const markStudentStatus = async (req: Request, res: Response) => {
         reason,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error marking student status:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1130,7 +1130,7 @@ export const evaluateAnswerSheets = async (req: Request, res: Response) => {
         manualOverrides: evaluationData.manualOverrides?.length || 0,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -1242,7 +1242,7 @@ export const getResults = async (req: Request, res: Response) => {
         performanceMetrics: performanceMetrics,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting results:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1376,8 +1376,8 @@ export const getPerformanceGraphs = async (req: Request, res: Response) => {
             grade: getGradeFromPercentage(sheet.aiCorrectionResults?.percentage || 0),
             isAbsent: sheet.isAbsent || false,
             isMissingSheet: sheet.isMissing || false,
-          };
-        });
+          } as any;
+        }) as any;
       }
     }
 
@@ -1480,7 +1480,7 @@ export const getPerformanceGraphs = async (req: Request, res: Response) => {
         ],
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting performance graphs:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1529,7 +1529,7 @@ export const getTeacherExams = async (req: Request, res: Response) => {
       success: true,
       data: exams,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting teacher exams:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1632,7 +1632,7 @@ export const getAssignedStudents = async (req: Request, res: Response) => {
         },
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting assigned students:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1676,7 +1676,7 @@ export const downloadResults = async (req: Request, res: Response) => {
         generatedAt: new Date().toISOString(),
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error downloading results:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1720,7 +1720,7 @@ export const getAnswerSheets = async (req: Request, res: Response) => {
       success: true,
       data: answerSheets,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error fetching answer sheets:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1822,8 +1822,8 @@ export const getTeacherExamResults = async (req: Request, res: Response) => {
         const grade = getGrade(percentage);
 
         return {
-          _id: sheet._id.toString(),
-          answerSheetId: sheet._id.toString(),
+          _id: String(sheet._id),
+          answerSheetId: String(sheet._id),
           studentId: {
             _id: userId,
             name: studentName,
@@ -1853,7 +1853,7 @@ export const getTeacherExamResults = async (req: Request, res: Response) => {
       success: true,
       data: results,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting teacher exam results:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }
@@ -1975,7 +1975,7 @@ export const getTeacherExamStats = async (req: Request, res: Response) => {
         gradeDistribution: gradeDistribution,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error("Error getting teacher exam stats:", error);
     res.status(500).json({ success: false, error: "Internal server error" });
   }

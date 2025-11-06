@@ -185,6 +185,9 @@ export async function createExam(req: Request, res: Response, next: NextFunction
       .populate('questions');
     
     // Add subject data with reference books and templates to the response
+    if (!populatedExam) {
+      throw new createHttpError.NotFound("Exam not found");
+    }
     const examWithSubjectData = {
       ...populatedExam.toObject(),
       subjectData: subjectsWithTemplates

@@ -111,7 +111,7 @@ export class ExamContextService {
       logger.info(`Exam context retrieved successfully for exam: ${examId}`);
       return contextData;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error getting exam context for exam ${examId}:`, error);
       throw error;
     }
@@ -171,7 +171,7 @@ export class ExamContextService {
           hasMatchingSubject,
           matchingSubjects: exam.subjectIds.filter(subjectId => 
             teacherSubjectIds.includes(subjectId._id ? subjectId._id.toString() : subjectId.toString())
-          ).map(s => s.name || s.toString())
+          ).map(s => (s as any)?.name || s.toString())
         });
       });
       
@@ -215,7 +215,7 @@ export class ExamContextService {
       logger.info(`Retrieved ${examsWithContext.length} exams with context for teacher: ${teacherId}`);
       return examsWithContext;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error getting teacher exams with context for teacher ${teacherId}:`, error);
       throw error;
     }
@@ -254,7 +254,7 @@ export class ExamContextService {
 
       return hasSubjectAccess;
 
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error validating teacher access:`, error);
       return false;
     }

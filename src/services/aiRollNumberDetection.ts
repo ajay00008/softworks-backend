@@ -116,7 +116,7 @@ export class AIRollNumberDetectionService {
         model: env.AI_MODEL || 'gemini-2.0-flash-exp' 
       });
       logger.info('AIRollNumberDetectionService initialized with Gemini');
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error('Failed to initialize Gemini for roll number detection:', error);
     }
   }
@@ -310,8 +310,8 @@ export class AIRollNumberDetectionService {
       
       return imageBuffer;
       
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : '';
       logger.error(`Error converting PDF to image for ${fileName}: ${errorMsg}`, {
         message: errorMsg,
@@ -368,8 +368,8 @@ export class AIRollNumberDetectionService {
       
       logger.info(`Image processing successful, output size: ${processed.length} bytes`);
       return processed;
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Unknown processing error';
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown processing error';
       logger.error(`Failed to process image with sharp: ${errorMsg}`, error);
       
       // If original buffer is valid, return it; otherwise throw
@@ -492,9 +492,9 @@ If no roll number is found, return "NOT_FOUND".`;
       
       return detectionResult;
       
-    } catch (error) {
+    } catch (error: unknown) {
       const processingTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorMessage = error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error occurred';
       logger.error(`Error in AI roll number detection for ${fileName}: ${errorMessage}`, error);
       
       // Return error result instead of mock - rollNumber is optional in interface
@@ -614,7 +614,7 @@ If no roll number is found, return "NOT_FOUND".`;
       }
       
       return 'POOR';
-    } catch (error) {
+    } catch (error: unknown) {
       logger.warn('Failed to analyze image quality:', error);
       return 'FAIR';
     }
@@ -742,7 +742,7 @@ If no roll number is found, return "NOT_FOUND".`;
         processingTime
       };
       
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error matching roll number ${rollNumber} to students:`, error);
       throw error;
     }
@@ -799,7 +799,7 @@ If no roll number is found, return "NOT_FOUND".`;
         try {
           const processedImageBuffer = await this.processImageBuffer(imageBuffer);
           imageQuality = await this.analyzeImageQualityReal(processedImageBuffer);
-        } catch (error) {
+        } catch (error: unknown) {
           logger.warn('Failed to analyze image quality:', error);
           imageQuality = 'GOOD'; // Default to GOOD if analysis fails
         }
@@ -833,7 +833,7 @@ If no roll number is found, return "NOT_FOUND".`;
         processingTime
       };
       
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error(`Error processing answer sheet upload ${fileName}:`, error);
       throw error;
     }

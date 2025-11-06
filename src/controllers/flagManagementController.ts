@@ -39,10 +39,11 @@ export const addFlag = async (req: Request, res: Response) => {
       message: 'Flag added successfully'
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error adding flag:', error);
     
-    if (error.message === 'Answer sheet not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Answer sheet not found') {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
     }
 
@@ -86,18 +87,19 @@ export const resolveFlag = async (req: Request, res: Response) => {
       message: 'Flag resolved successfully'
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error resolving flag:', error);
     
-    if (error.message === 'Answer sheet not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Answer sheet not found') {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
     }
     
-    if (error.message === 'Invalid flag index') {
+    if (errorMessage === 'Invalid flag index') {
       return res.status(400).json({ success: false, error: 'Invalid flag index' });
     }
     
-    if (error.message === 'Flag is already resolved') {
+    if (errorMessage === 'Flag is already resolved') {
       return res.status(400).json({ success: false, error: 'Flag is already resolved' });
     }
 
@@ -141,10 +143,11 @@ export const resolveAllFlags = async (req: Request, res: Response) => {
       message: 'All flags resolved successfully'
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error resolving all flags:', error);
     
-    if (error.message === 'Answer sheet not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Answer sheet not found') {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
     }
 
@@ -176,10 +179,11 @@ export const getAnswerSheetFlags = async (req: Request, res: Response) => {
       data: flags
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting answer sheet flags:', error);
     
-    if (error.message === 'Answer sheet not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Answer sheet not found') {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
     }
 
@@ -217,7 +221,7 @@ export const getFlaggedAnswerSheets = async (req: Request, res: Response) => {
       data: flaggedSheets
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting flagged answer sheets:', error);
     res.status(500).json({ 
       success: false, 
@@ -247,7 +251,7 @@ export const getFlagStatistics = async (req: Request, res: Response) => {
       data: statistics
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error getting flag statistics:', error);
     res.status(500).json({ 
       success: false, 
@@ -279,10 +283,11 @@ export const autoDetectFlags = async (req: Request, res: Response) => {
       message: `${flags.length} flags auto-detected`
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error auto-detecting flags:', error);
     
-    if (error.message === 'Answer sheet not found') {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (errorMessage === 'Answer sheet not found') {
       return res.status(404).json({ success: false, error: 'Answer sheet not found' });
     }
 
@@ -325,7 +330,7 @@ export const bulkResolveFlags = async (req: Request, res: Response) => {
       message: `Flags resolved for ${answerSheetIds.length} answer sheets`
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
     logger.error('Error bulk resolving flags:', error);
     res.status(500).json({ 
       success: false, 

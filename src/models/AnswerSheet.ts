@@ -56,6 +56,14 @@ export interface IAnswerSheet extends Document {
     processingTime: number;
     errors?: string[];
   };
+  aiProcessingResults?: {
+    rollNumberDetection?: any;
+    studentMatching?: any;
+    imageAnalysis?: any;
+    issues?: string[];
+    suggestions?: string[];
+    processingTime?: number;
+  };
   manualOverrides?: {
     questionId: mongoose.Types.ObjectId;
     correctedAnswer: string;
@@ -368,32 +376,33 @@ AnswerSheetSchema.index({ "flags.resolved": 1, "flags.resolvedAt": 1 });
 
 // Middleware to update computed fields
 AnswerSheetSchema.pre('save', function(next) {
+  const doc = this as any;
   // Update flag count
-  this.flagCount = this.flags.length;
+  doc.flagCount = doc.flags?.length || 0;
   
   // Update hasCriticalFlags
-  this.hasCriticalFlags = this.flags.some(flag => flag.severity === 'CRITICAL' && !flag.resolved);
+  doc.hasCriticalFlags = doc.flags?.some((flag: IAnswerSheetFlag) => flag.severity === 'CRITICAL' && !flag.resolved) || false;
   
   // Update lastFlaggedAt
-  if (this.flags.length > 0) {
-    const unresolvedFlags = this.flags.filter(flag => !flag.resolved);
+  if (doc.flags && doc.flags.length > 0) {
+    const unresolvedFlags = doc.flags.filter((flag: IAnswerSheetFlag) => !flag.resolved);
     if (unresolvedFlags.length > 0) {
-      this.lastFlaggedAt = new Date(Math.max(...unresolvedFlags.map(flag => flag.detectedAt.getTime())));
+      doc.lastFlaggedAt = new Date(Math.max(...unresolvedFlags.map((flag: IAnswerSheetFlag) => new Date(flag.detectedAt).getTime())));
     }
   }
   
   // Update flag resolution rate
-  if (this.flags.length > 0) {
-    const resolvedFlags = this.flags.filter(flag => flag.resolved).length;
-    this.flagResolutionRate = Math.round((resolvedFlags / this.flags.length) * 100);
+  if (doc.flags && doc.flags.length > 0) {
+    const resolvedFlags = doc.flags.filter((flag: IAnswerSheetFlag) => flag.resolved).length;
+    doc.flagResolutionRate = Math.round((resolvedFlags / doc.flags.length) * 100);
   }
   
   // Update processing status based on flags
-  if (this.flags.some(flag => flag.severity === 'CRITICAL' && !flag.resolved)) {
-    this.processingStatus = 'FLAGGED';
-    this.status = 'FLAGGED';
-  } else if (this.processingStatus === 'FLAGGED' && !this.flags.some(flag => flag.severity === 'CRITICAL' && !flag.resolved)) {
-    this.processingStatus = 'COMPLETED';
+  if (doc.flags?.some((flag: IAnswerSheetFlag) => flag.severity === 'CRITICAL' && !flag.resolved)) {
+    doc.processingStatus = 'FLAGGED';
+    doc.status = 'FLAGGED';
+  } else if (doc.processingStatus === 'FLAGGED' && !doc.flags?.some((flag: IAnswerSheetFlag) => flag.severity === 'CRITICAL' && !flag.resolved)) {
+    doc.processingStatus = 'COMPLETED';
   }
   
   next();

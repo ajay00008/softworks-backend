@@ -48,7 +48,7 @@ export async function createAdmin(req: Request, res: Response, next: NextFunctio
         name: admin.name, 
         role: admin.role,
         isActive: admin.isActive,
-        createdAt: admin.createdAt
+        createdAt: (admin as any).createdAt
       } 
     });
   } catch (err) {
