@@ -5,6 +5,8 @@ import { Absenteeism } from "../models/Absenteeism";
 import { Exam } from "../models/Exam";
 import { Student } from "../models/Student";
 import { Result } from "../models/Result";
+import { Teacher } from "../models/Teacher";
+import { logger } from "../utils/logger";
 
 const CreateAbsenteeismSchema = z.object({
   examId: z.string().min(1),
@@ -88,8 +90,21 @@ export async function reportAbsenteeism(req: Request, res: Response, next: NextF
     }
     
     const populatedAbsenteeism = await Absenteeism.findById(absenteeism._id)
-      .populate('examId', 'title examType scheduledDate')
-      .populate('studentId', 'name email')
+      .populate({
+        path: 'examId',
+        select: 'title examType scheduledDate classId subjectIds',
+        populate: [
+          {
+            path: 'classId',
+            select: 'name displayName'
+          },
+          {
+            path: 'subjectIds',
+            select: 'name code'
+          }
+        ]
+      })
+      .populate('studentId', 'name email rollNumber')
       .populate('reportedBy', 'name email')
       .populate('acknowledgedBy', 'name email')
       .populate('escalatedTo', 'name email');
@@ -132,7 +147,20 @@ export async function getAbsenteeismReports(req: Request, res: Response, next: N
     
     const [absenteeismReports, total] = await Promise.all([
       Absenteeism.find(query)
-        .populate('examId', 'title examType scheduledDate')
+        .populate({
+          path: 'examId',
+          select: 'title examType scheduledDate classId subjectIds',
+          populate: [
+            {
+              path: 'classId',
+              select: 'name displayName'
+            },
+            {
+              path: 'subjectIds',
+              select: 'name code'
+            }
+          ]
+        })
         .populate('studentId', 'name email')
         .populate('reportedBy', 'name email')
         .populate('acknowledgedBy', 'name email')
@@ -143,9 +171,51 @@ export async function getAbsenteeismReports(req: Request, res: Response, next: N
       Absenteeism.countDocuments(query)
     ]);
     
+    // Enrich reports with Student data (rollNumber, etc.)
+    const enrichedReports = await Promise.all(
+      absenteeismReports.map(async (report) => {
+        const reportObj = report.toObject({ flattenMaps: true });
+        
+        // Get Student record to get rollNumber
+        // report.studentId is populated User data, we need to preserve it and add Student data
+        if (report.studentId) {
+          // Extract User data from populated studentId (handle Mongoose document structure)
+          let userData: any = {};
+          if (typeof report.studentId === 'object' && report.studentId !== null) {
+            // Handle Mongoose document - extract from _doc if present, otherwise use directly
+            if ((report.studentId as any)._doc) {
+              userData = { ...(report.studentId as any)._doc };
+            } else if ((report.studentId as any).toObject) {
+              userData = (report.studentId as any).toObject();
+            } else {
+              userData = { ...(report.studentId as any) };
+            }
+          }
+          
+          const studentUserId = userData._id || (typeof report.studentId === 'object' && report.studentId !== null
+            ? (report.studentId as any)._id
+            : report.studentId);
+          
+          const student = await Student.findOne({ userId: studentUserId });
+          if (student) {
+            // Preserve User data (name, email) and add Student data (rollNumber)
+            reportObj.studentId = {
+              ...userData,
+              rollNumber: student.rollNumber,
+              studentId: student._id // Add Student model _id
+            };
+          } else {
+            // If Student record not found, at least preserve User data
+            reportObj.studentId = userData;
+          }
+        }
+        return reportObj;
+      })
+    );
+    
     res.json({
       success: true,
-      data: absenteeismReports,
+      data: enrichedReports,
       pagination: {
         page,
         limit,
@@ -164,7 +234,20 @@ export async function getAbsenteeismReport(req: Request, res: Response, next: Ne
     const { id } = req.params;
     
     const absenteeism = await Absenteeism.findById(id)
-      .populate('examId', 'title examType scheduledDate')
+      .populate({
+        path: 'examId',
+        select: 'title examType scheduledDate classId subjectIds',
+        populate: [
+          {
+            path: 'classId',
+            select: 'name displayName'
+          },
+          {
+            path: 'subjectIds',
+            select: 'name code'
+          }
+        ]
+      })
       .populate('studentId', 'name email')
       .populate('reportedBy', 'name email')
       .populate('acknowledgedBy', 'name email')
@@ -204,11 +287,65 @@ export async function acknowledgeAbsenteeism(req: Request, res: Response, next: 
         adminRemarks
       },
       { new: true }
-    ).populate('examId', 'title examType scheduledDate')
+    ).populate({
+        path: 'examId',
+        select: 'title examType scheduledDate classId subjectIds',
+        populate: [
+          {
+            path: 'classId',
+            select: 'name displayName'
+          },
+          {
+            path: 'subjectIds',
+            select: 'name code'
+          }
+        ]
+      })
      .populate('studentId', 'name email')
      .populate('reportedBy', 'name email')
      .populate('acknowledgedBy', 'name email')
      .populate('escalatedTo', 'name email');
+    
+    // Send notification to teacher who reported this absenteeism
+    if (updatedAbsenteeism.reportedBy) {
+      try {
+        const { NotificationService } = await import('../services/notificationService');
+        // Handle both populated and non-populated reportedBy
+        const reportedByUserId = typeof updatedAbsenteeism.reportedBy === 'object' && updatedAbsenteeism.reportedBy !== null
+          ? String((updatedAbsenteeism.reportedBy as any)._id)
+          : String(updatedAbsenteeism.reportedBy);
+        
+        // Get student info for notification
+        const student = await Student.findOne({ userId: updatedAbsenteeism.studentId });
+        const exam = updatedAbsenteeism.examId as any;
+        const studentRollNumber = student?.rollNumber || 'student';
+        
+        await NotificationService.createNotification({
+          type: 'ABSENTEEISM_ACKNOWLEDGED',
+          priority: 'MEDIUM',
+          title: 'Absenteeism Report Acknowledged',
+          message: `Your absenteeism report for student ${studentRollNumber} (${exam?.title || 'exam'}) has been acknowledged by admin.`,
+          recipientId: reportedByUserId,
+          relatedEntityId: String(updatedAbsenteeism._id),
+          relatedEntityType: 'absenteeism',
+          metadata: {
+            absenteeismId: String(updatedAbsenteeism._id),
+            studentName: studentRollNumber,
+            examTitle: exam?.title || 'Unknown',
+            examId: String(exam?._id || ''),
+            status: 'ACKNOWLEDGED',
+            adminRemarks: adminRemarks || '',
+            acknowledgedAt: new Date().toISOString(),
+            acknowledgedBy: userId
+          }
+        });
+        
+        logger.info(`✅ Notification sent to teacher ${reportedByUserId} about acknowledged absenteeism ${id}`);
+      } catch (notifError) {
+        logger.warn('⚠️ Failed to send notification to teacher about acknowledged absenteeism:', notifError);
+        // Don't fail the operation if notification fails
+      }
+    }
     
     res.json({
       success: true,
@@ -242,11 +379,65 @@ export async function resolveAbsenteeism(req: Request, res: Response, next: Next
         adminRemarks: adminRemarks || absenteeism.adminRemarks
       },
       { new: true }
-    ).populate('examId', 'title examType scheduledDate')
+    ).populate({
+        path: 'examId',
+        select: 'title examType scheduledDate classId subjectIds',
+        populate: [
+          {
+            path: 'classId',
+            select: 'name displayName'
+          },
+          {
+            path: 'subjectIds',
+            select: 'name code'
+          }
+        ]
+      })
      .populate('studentId', 'name email')
      .populate('reportedBy', 'name email')
      .populate('acknowledgedBy', 'name email')
      .populate('escalatedTo', 'name email');
+    
+    // Send notification to teacher who reported this absenteeism
+    if (updatedAbsenteeism.reportedBy) {
+      try {
+        const { NotificationService } = await import('../services/notificationService');
+        // Handle both populated and non-populated reportedBy
+        const reportedByUserId = typeof updatedAbsenteeism.reportedBy === 'object' && updatedAbsenteeism.reportedBy !== null
+          ? String((updatedAbsenteeism.reportedBy as any)._id)
+          : String(updatedAbsenteeism.reportedBy);
+        
+        // Get student info for notification
+        const student = await Student.findOne({ userId: updatedAbsenteeism.studentId });
+        const exam = updatedAbsenteeism.examId as any;
+        const studentRollNumber = student?.rollNumber || 'student';
+        
+        await NotificationService.createNotification({
+          type: 'ABSENTEEISM_RESOLVED',
+          priority: 'MEDIUM',
+          title: 'Absenteeism Report Resolved',
+          message: `Your absenteeism report for student ${studentRollNumber} (${exam?.title || 'exam'}) has been resolved by admin.`,
+          recipientId: reportedByUserId,
+          relatedEntityId: String(updatedAbsenteeism._id),
+          relatedEntityType: 'absenteeism',
+          metadata: {
+            absenteeismId: String(updatedAbsenteeism._id),
+            studentName: studentRollNumber,
+            examTitle: exam?.title || 'Unknown',
+            examId: String(exam?._id || ''),
+            status: 'RESOLVED',
+            adminRemarks: adminRemarks || absenteeism.adminRemarks || '',
+            resolvedAt: new Date().toISOString(),
+            resolvedBy: userId
+          }
+        });
+        
+        logger.info(`✅ Notification sent to teacher ${reportedByUserId} about resolved absenteeism ${id}`);
+      } catch (notifError) {
+        logger.warn('⚠️ Failed to send notification to teacher about resolved absenteeism:', notifError);
+        // Don't fail the operation if notification fails
+      }
+    }
     
     res.json({
       success: true,
@@ -281,7 +472,20 @@ export async function escalateAbsenteeism(req: Request, res: Response, next: Nex
         adminRemarks: adminRemarks || absenteeism.adminRemarks
       },
       { new: true }
-    ).populate('examId', 'title examType scheduledDate')
+    ).populate({
+        path: 'examId',
+        select: 'title examType scheduledDate classId subjectIds',
+        populate: [
+          {
+            path: 'classId',
+            select: 'name displayName'
+          },
+          {
+            path: 'subjectIds',
+            select: 'name code'
+          }
+        ]
+      })
      .populate('studentId', 'name email')
      .populate('reportedBy', 'name email')
      .populate('acknowledgedBy', 'name email')
@@ -310,7 +514,20 @@ export async function updateAbsenteeism(req: Request, res: Response, next: NextF
       id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('examId', 'title examType scheduledDate')
+    ).populate({
+        path: 'examId',
+        select: 'title examType scheduledDate classId subjectIds',
+        populate: [
+          {
+            path: 'classId',
+            select: 'name displayName'
+          },
+          {
+            path: 'subjectIds',
+            select: 'name code'
+          }
+        ]
+      })
      .populate('studentId', 'name email')
      .populate('reportedBy', 'name email')
      .populate('acknowledgedBy', 'name email')

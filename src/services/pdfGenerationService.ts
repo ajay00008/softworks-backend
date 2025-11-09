@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import * as fs from "fs";
 import * as path from "path";
 import { logger } from '../utils/logger';
+import sharp from 'sharp';
 
 export interface GeneratedQuestion {
   questionText: string;
@@ -59,7 +60,7 @@ export class PDFGenerationService {
     const filePath = path.join(this.QUESTION_PAPERS_FOLDER, fileName);
     const downloadUrl = `/public/question-papers/${fileName}`;
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({
           size: "A4",
@@ -79,10 +80,10 @@ export class PDFGenerationService {
         // Instructions
         this.addInstructions(doc);
 
-        // Questions
+        // Questions (async)
         let q = 1;
         for (const question of questions) {
-          this.addQuestion(doc, question, q);
+          await this.addQuestion(doc, question, q);
           q++;
         }
 
@@ -97,9 +98,7 @@ export class PDFGenerationService {
   }
 
   /**
-   * Extract text content from a PDF file
-   * For now, this is a mock implementation that returns sample text
-   * In production, you would use a proper PDF text extraction library
+   * Extract text content from a PDF file using pdfjs-dist
    */
   static async extractTextFromPDF(filePath: string): Promise<string> {
     try {
@@ -110,63 +109,49 @@ export class PDFGenerationService {
         throw new Error(`PDF file not found: ${filePath}`);
       }
 
-      console.log('PDF file exists, returning sample text');
+      // Use pdfjs-dist to extract text from PDF
+      const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs');
+      const pdfjsLib = pdfjsModule.default || pdfjsModule;
       
-      // For now, return sample text that matches common question paper patterns
-      // This allows us to test the pattern extraction logic
-      const sampleText = `
-        MATHEMATICS QUESTION PAPER
-        Class: 10
-        Unit Test - Chapter 1: Real Numbers
-        Time: 90 minutes
-        Total Marks: 50
-        
-        INSTRUCTIONS:
-        1. All questions are compulsory
-        2. Section A contains 10 questions of 1 mark each
-        3. Section B contains 8 questions of 2 marks each  
-        4. Section C contains 5 questions of 3 marks each
-        5. Section D contains 2 questions of 5 marks each
-        
-        SECTION A (1 mark each) - 10 questions
-        Q1. What is the HCF of 12 and 18?
-        Q2. Find the LCM of 6 and 8
-        Q3. Is √2 a rational number?
-        Q4. Express 0.375 as a fraction
-        Q5. Find the decimal expansion of 1/7
-        Q6. What is the fundamental theorem of arithmetic?
-        Q7. Find the HCF of 24 and 36
-        Q8. Is 0.101101110... rational?
-        Q9. Find the LCM of 15 and 20
-        Q10. Express 2.5 as a fraction
-        
-        SECTION B (2 marks each) - 8 questions
-        Q11. Prove that √3 is irrational
-        Q12. Find the HCF and LCM of 12, 15 and 21
-        Q13. Show that any positive odd integer is of the form 6q+1, 6q+3 or 6q+5
-        Q14. Find the decimal expansion of 3/8
-        Q15. Prove that 3+2√5 is irrational
-        Q16. Find the HCF of 96 and 404
-        Q17. Show that every positive integer is either even or odd
-        Q18. Find the LCM of 8, 9 and 25
-        
-        SECTION C (3 marks each) - 5 questions
-        Q19. Prove that √5 is irrational
-        Q20. Find the HCF and LCM of 6, 72 and 120
-        Q21. Show that the square of any positive integer is of the form 3m or 3m+1
-        Q22. Find the decimal expansion of 1/13
-        Q23. Prove that 2+3√7 is irrational
-        
-        SECTION D (5 marks each) - 2 questions
-        Q24. Prove that √2 is irrational
-        Q25. Find the HCF and LCM of 6, 72 and 120 using prime factorization
-      `;
+      // Read PDF file
+      const pdfBuffer = fs.readFileSync(filePath);
       
-      console.log('Sample text generated, length:', sampleText.length);
-      return sampleText;
+      // Load PDF document
+      const loadingTask = pdfjsLib.getDocument({ 
+        data: new Uint8Array(pdfBuffer),
+        useSystemFonts: true,
+        verbosity: 0
+      });
+      
+      const pdfDocument = await loadingTask.promise;
+      const numPages = pdfDocument.numPages;
+      
+      // Extract text from all pages
+      let fullText = '';
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdfDocument.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        // Combine all text items from the page
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        
+        fullText += pageText + '\n';
+      }
+      
+      console.log(`Extracted text from PDF: ${numPages} pages, ${fullText.length} characters`);
+      
+      if (!fullText || fullText.trim().length === 0) {
+        console.warn('No text extracted from PDF, PDF might be image-based or scanned');
+        throw new Error('No text content found in PDF. The PDF might be image-based or scanned.');
+      }
+      
+      return fullText;
     } catch (error: unknown) {
       console.error('Error extracting text from PDF:', error);
-      throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error instanceof Error ? error.message : "Unknown error" : 'Unknown error'}`);
+      // If PDF extraction fails, throw error instead of returning mock data
+      throw new Error(`Failed to extract text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -235,7 +220,7 @@ export class PDFGenerationService {
   }
 
   // ---------------- QUESTION ----------------
-  private static addQuestion(doc: any, question: GeneratedQuestion, number: number) {
+  private static async addQuestion(doc: any, question: GeneratedQuestion, number: number) {
     // New page if near bottom
     if (doc.y > 720) {
       doc.addPage();
@@ -271,7 +256,9 @@ export class PDFGenerationService {
     const diagramBuffer = question.diagram?.imageBuffer || question.diagramImageBuffer;
     const hasReadyDiagram = question.diagram && question.diagram.status === 'ready';
     
-    if ((hasReadyDiagram && (diagramPath || diagramBuffer)) || (!hasReadyDiagram && (diagramPath || diagramBuffer))) {
+    // Embed diagram if we have a diagram image path or buffer available
+    // This will embed diagrams with status 'ready' or any diagram with a valid path/buffer
+    if (diagramPath || diagramBuffer) {
       try {
         doc.moveDown(0.3);
         let imageBuffer: Buffer;
@@ -284,9 +271,9 @@ export class PDFGenerationService {
           throw new Error('Diagram image not found');
         }
 
-        // Calculate image dimensions to fit within page width
-        const maxWidth = 400;
-        const maxHeight = 300;
+        // Calculate image dimensions to fit within page width while preserving aspect ratio
+        const maxWidth = width - 36; // Leave some margin
+        const maxHeight = 400; // Increased max height for better visibility
         
         const imageX = margin + 18;
         const imageY = doc.y;
@@ -310,17 +297,56 @@ export class PDFGenerationService {
           
           // For image files (PNG, JPEG) or converted PDFs, embed directly
           try {
+            // Get actual image dimensions using sharp to preserve aspect ratio
+            let actualWidth = maxWidth;
+            let actualHeight = maxHeight;
+            
+            try {
+              const metadata = await sharp(imageBuffer).metadata();
+              if (metadata.width && metadata.height) {
+                const aspectRatio = metadata.width / metadata.height;
+                
+                // Calculate dimensions that fit within maxWidth x maxHeight while preserving aspect ratio
+                if (metadata.width > metadata.height) {
+                  // Landscape or square: fit to width
+                  actualWidth = Math.min(maxWidth, metadata.width);
+                  actualHeight = actualWidth / aspectRatio;
+                  
+                  // If height exceeds max, scale down
+                  if (actualHeight > maxHeight) {
+                    actualHeight = maxHeight;
+                    actualWidth = actualHeight * aspectRatio;
+                  }
+                } else {
+                  // Portrait: fit to height
+                  actualHeight = Math.min(maxHeight, metadata.height);
+                  actualWidth = actualHeight * aspectRatio;
+                  
+                  // If width exceeds max, scale down
+                  if (actualWidth > maxWidth) {
+                    actualWidth = maxWidth;
+                    actualHeight = actualWidth / aspectRatio;
+                  }
+                }
+                
+                logger.info(`Question ${number} diagram: original=${metadata.width}x${metadata.height}, scaled=${Math.round(actualWidth)}x${Math.round(actualHeight)}`);
+              }
+            } catch (sharpError) {
+              logger.warn(`Could not get image metadata for question ${number}, using default dimensions:`, sharpError);
+              // Fall back to default dimensions
+            }
+            
+            // Embed image with calculated dimensions
             doc.image(imageBuffer, imageX, imageY, {
-              width: maxWidth,
-              height: maxHeight,
-              fit: [maxWidth, maxHeight],
+              width: actualWidth,
+              height: actualHeight,
               align: 'left'
             });
             
             // Move down after image
-            doc.y = imageY + maxHeight + 10;
+            doc.y = imageY + actualHeight + 10;
             doc.moveDown(0.3);
-            logger.info(`Embedded diagram image for question ${number}`);
+            logger.info(`Embedded diagram image for question ${number} (${Math.round(actualWidth)}x${Math.round(actualHeight)})`);
           } catch (imageError) {
             logger.warn(`Failed to embed image buffer for question ${number}:`, imageError);
             // Show fallback

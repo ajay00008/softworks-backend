@@ -4,6 +4,7 @@ import { Exam } from '../models/Exam';
 import { Student } from '../models/Student';
 import { Teacher } from '../models/Teacher';
 import { AnswerSheet } from '../models/AnswerSheet';
+import { Absenteeism } from '../models/Absenteeism';
 import { logger } from '../utils/logger';
 
 // Send notification for missing answer sheets
@@ -66,6 +67,41 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
     // Import NotificationService for socket notifications
     const { NotificationService } = await import('../services/notificationService');
 
+    // Create Absenteeism records for each missing student
+    const absenteeismRecords = [];
+    for (const student of students) {
+      try {
+        // Check if absenteeism already exists for this exam and student
+        const existingAbsenteeism = await Absenteeism.findOne({
+          examId: exam._id,
+          studentId: student.userId,
+          type: 'MISSING_SHEET',
+          isActive: true
+        });
+
+        if (!existingAbsenteeism) {
+          const absenteeism = await Absenteeism.create({
+            examId: exam._id,
+            studentId: student.userId, // Absenteeism model expects User ID (student.userId)
+            type: 'MISSING_SHEET',
+            status: 'PENDING',
+            reportedBy: userId,
+            reason: `Answer sheet not submitted for ${exam.title}`,
+            priority: 'HIGH',
+            isActive: true
+          });
+          absenteeismRecords.push(absenteeism);
+          logger.info(`Created absenteeism record for student ${student._id} in exam ${exam._id}`);
+        } else {
+          logger.info(`Absenteeism record already exists for student ${student._id} in exam ${exam._id}`);
+          absenteeismRecords.push(existingAbsenteeism);
+        }
+      } catch (absError) {
+        logger.error(`Failed to create absenteeism record for student ${student._id}:`, absError);
+        // Continue with other students even if one fails
+      }
+    }
+
     // Notify only the specific admin about missing answer sheets (with socket notification)
     // This notification goes ONLY to the teacher's admin, not all admins
     let savedNotification = null;
@@ -74,6 +110,8 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
         const adminId = teacher.adminId.toString();
         const teacherIdStr = String(teacher._id);
         const examIdStr = String(exam._id);
+        const populatedExam = await Exam.findById(exam._id).populate('classId subjectIds');
+        
         console.log('[SOCKET] 📤 Sender: Creating missing answer sheet notification', {
           teacherUserId: userId,
           teacherId: teacherIdStr,
@@ -82,6 +120,28 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
           examTitle: exam.title,
           missingCount: students.length,
           timestamp: new Date().toISOString()
+        });
+
+        // Prepare student information for socket event
+        const studentInfo = students.map(s => {
+          const studentUserId = s.userId as any;
+          const classInfo = populatedExam?.classId as any;
+          const subjectInfo = Array.isArray(populatedExam?.subjectIds) 
+            ? populatedExam.subjectIds[0] 
+            : populatedExam?.subjectIds;
+          
+          return {
+            studentId: String(s._id),
+            userId: String(s.userId),
+            studentName: studentUserId?.name || 'Unknown',
+            rollNumber: s.rollNumber || '',
+            email: studentUserId?.email || '',
+            className: classInfo?.displayName || classInfo?.name || 'Unknown',
+            subjectName: subjectInfo?.name || 'Unknown',
+            examTitle: exam.title,
+            examType: exam.examType,
+            examDate: exam.scheduledDate
+          };
         });
 
         savedNotification = await NotificationService.createNotification({
@@ -96,14 +156,8 @@ export const sendMissingAnswerSheetNotification = async (req: Request, res: Resp
             examId: examIdStr,
             examTitle: exam.title,
             missingCount: students.length,
-            missingStudents: students.map(s => {
-              const studentUserId = s.userId as any;
-              return {
-                studentId: String(s._id),
-                studentName: studentUserId?.name || 'Unknown',
-                rollNumber: s.rollNumber
-              };
-            }),
+            missingStudents: studentInfo,
+            absenteeismIds: absenteeismRecords.map(a => String(a._id)),
             notifiedBy: userId,
             teacherId: teacherIdStr
           }
