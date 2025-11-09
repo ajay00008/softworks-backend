@@ -125,15 +125,17 @@ export async function createExam(req: Request, res: Response, next: NextFunction
       throw new createHttpError.BadRequest(`Subjects ${invalidSubjectIds.join(', ')} are not available for the selected class`);
     }
 
-    // Check if reference books are uploaded for all subjects
+    // Check if reference book (syllabus) exists for all subjects
+    // We check the referenceBook field in the subject - if it exists, syllabus is uploaded
     const subjectsWithoutReferenceBooks = subjectsWithTemplates.filter(subject => 
       !subject.referenceBook || !subject.referenceBook.fileName
     );
-    
+
     if (subjectsWithoutReferenceBooks.length > 0) {
       const subjectNames = subjectsWithoutReferenceBooks.map(s => s.name).join(', ');
-      throw new createHttpError.BadRequest(`Reference books are not uploaded for subjects: ${subjectNames}. Please upload reference books first.`);
+      throw new createHttpError.BadRequest(`Syllabus (reference book) is not uploaded for subjects: ${subjectNames}. Please upload syllabus first.`);
     }
+
 
     // Check if templates are available for all subjects
     const subjectsWithoutTemplates = subjectsWithTemplates.filter(subject => 
