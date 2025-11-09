@@ -171,32 +171,59 @@ export const getTeacherAccess = async (req: Request, res: Response) => {
       });
     }
 
+    // Check if teacher has StaffAccess record (for granular permissions)
+    const staffAccess = await StaffAccess.findOne({
+      staffId: teacherId,
+      isActive: true,
+    });
+
     // Convert to the expected format - show all classes and subjects from the school
-    const classAccess = teacher.classIds.map((classId: any) => ({
-      classId: classId._id,
-      className: classId.name,
-      accessLevel: "READ_WRITE",
-      canUploadSheets: true,
-      canMarkAbsent: true,
-      canMarkMissing: true,
-      canOverrideAI: false,
-    }));
+    const classAccess = teacher.classIds.map((classId: any) => {
+      // If StaffAccess exists, use its permissions, otherwise use defaults
+      const accessItem = staffAccess?.classAccess.find(
+        (ca) => ca.classId.toString() === classId._id.toString()
+      );
+      
+      return {
+        classId: classId._id,
+        className: classId.name,
+        accessLevel: accessItem?.accessLevel || "READ_WRITE",
+        canUploadSheets: accessItem?.canUploadSheets ?? true,
+        canMarkAbsent: accessItem?.canMarkAbsent ?? true,
+        canMarkMissing: accessItem?.canMarkMissing ?? true,
+        canOverrideAI: accessItem?.canOverrideAI ?? false,
+      };
+    });
 
-    const subjectAccess = teacher.subjectIds.map((subjectId: any) => ({
-      subjectId: subjectId._id,
-      subjectName: subjectId.name,
-      accessLevel: "READ_WRITE",
-      canCreateQuestions: true,
-      canUploadSyllabus: true,
-    }));
+    const subjectAccess = teacher.subjectIds.map((subjectId: any) => {
+      // If StaffAccess exists, use its permissions, otherwise use defaults
+      const accessItem = staffAccess?.subjectAccess.find(
+        (sa) => sa.subjectId.toString() === subjectId._id.toString()
+      );
+      
+      return {
+        subjectId: subjectId._id,
+        subjectName: subjectId.name,
+        accessLevel: accessItem?.accessLevel || "READ_WRITE",
+        canCreateQuestions: accessItem?.canCreateQuestions ?? true,
+        canUploadSyllabus: accessItem?.canUploadSyllabus ?? true,
+      };
+    });
 
-    const globalPermissions = {
-      canViewAllClasses: true, // Teachers can now see all school exams
-      canViewAllSubjects: true, // Teachers can see all school subjects
+    // Use StaffAccess globalPermissions if available, otherwise use defaults
+    const globalPermissions = staffAccess?.globalPermissions || {
+      canViewAllClasses: true,
+      canViewAllSubjects: true,
       canAccessAnalytics: true,
       canPrintReports: true,
       canSendNotifications: false,
+      canAccessQuestionPapers: false, // Default to false - must be explicitly granted
     };
+
+    // Ensure canAccessQuestionPapers is included even if StaffAccess doesn't have it
+    if (!globalPermissions.hasOwnProperty('canAccessQuestionPapers')) {
+      globalPermissions.canAccessQuestionPapers = staffAccess?.globalPermissions?.canAccessQuestionPapers ?? false;
+    }
 
     res.json({
       success: true,
@@ -1251,49 +1278,59 @@ export const getResults = async (req: Request, res: Response) => {
 // Get performance graphs and analytics
 export const getPerformanceGraphs = async (req: Request, res: Response) => {
   try {
-    const teacherId = (req as any).auth?.sub;
+    const userId = (req as any).auth?.sub;
+    const userRole = (req as any).auth?.role;
     const { classId, subjectId, examId } = req.query;
 
-    if (!teacherId) {
+    if (!userId) {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    // Verify teacher has access
-    const staffAccess = await StaffAccess.findOne({
-      staffId: teacherId,
-      isActive: true,
-    });
-
-    if (!staffAccess) {
-      return res.status(403).json({
-        success: false,
-        error: "No access permissions found",
-      });
-    }
-
-    // Build query based on teacher's access
+    // Build query based on user role
     const query: any = {};
 
-    // Filter by teacher's accessible classes
-    if (staffAccess.classAccess && staffAccess.classAccess.length > 0) {
-      const accessibleClassIds = staffAccess.classAccess.map(
-        (ca) => ca.classId
-      );
-      query.classId = { $in: accessibleClassIds };
-    }
+    // For admins, allow access to all data (no filtering by staff access)
+    // For teachers, filter by their assigned classes and subjects
+    if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+      // Admin can see all data - apply only the requested filters
+      if (classId) query.classId = classId;
+      if (subjectId) query.subjectId = subjectId;
+      if (examId) query.examId = examId;
+    } else {
+      // For teachers, verify they have access and filter by their assignments
+      const staffAccess = await StaffAccess.findOne({
+        staffId: userId,
+        isActive: true,
+      });
 
-    // Filter by teacher's accessible subjects
-    if (staffAccess.subjectAccess && staffAccess.subjectAccess.length > 0) {
-      const accessibleSubjectIds = staffAccess.subjectAccess.map(
-        (sa) => sa.subjectId
-      );
-      query.subjectId = { $in: accessibleSubjectIds };
-    }
+      if (!staffAccess) {
+        return res.status(403).json({
+          success: false,
+          error: "No access permissions found",
+        });
+      }
 
-    // Apply additional filters
-    if (classId) query.classId = classId;
-    if (subjectId) query.subjectId = subjectId;
-    if (examId) query.examId = examId;
+      // Filter by teacher's accessible classes
+      if (staffAccess.classAccess && staffAccess.classAccess.length > 0) {
+        const accessibleClassIds = staffAccess.classAccess.map(
+          (ca) => ca.classId
+        );
+        query.classId = { $in: accessibleClassIds };
+      }
+
+      // Filter by teacher's accessible subjects
+      if (staffAccess.subjectAccess && staffAccess.subjectAccess.length > 0) {
+        const accessibleSubjectIds = staffAccess.subjectAccess.map(
+          (sa) => sa.subjectId
+        );
+        query.subjectId = { $in: accessibleSubjectIds };
+      }
+
+      // Apply additional filters (override if provided)
+      if (classId) query.classId = classId;
+      if (subjectId) query.subjectId = subjectId;
+      if (examId) query.examId = examId;
+    }
 
     // First try to get data from Result model
     let results = await Result.find(query)
@@ -1315,22 +1352,35 @@ export const getPerformanceGraphs = async (req: Request, res: Response) => {
 
     // If no results from Result model, try to get from AnswerSheet with AI corrections
     if (results.length === 0) {
-      // Build AnswerSheet query based on exam IDs from teacher's accessible exams
+      // Build AnswerSheet query based on exam IDs
       const answerSheetQuery: any = {
         aiCorrectionResults: { $exists: true, $ne: null },
         studentId: { $exists: true, $ne: null },
         status: { $in: ["AI_CORRECTED", "MANUALLY_REVIEWED", "COMPLETED"] }
       };
 
-      // Get exams that match teacher's access
+      // Get exams that match user's access (admin sees all, teacher sees assigned)
       const examQuery: any = {};
-      if (staffAccess.classAccess && staffAccess.classAccess.length > 0) {
-        const accessibleClassIds = staffAccess.classAccess.map((ca) => ca.classId);
-        examQuery.classId = { $in: accessibleClassIds };
-      }
-      if (staffAccess.subjectAccess && staffAccess.subjectAccess.length > 0) {
-        const accessibleSubjectIds = staffAccess.subjectAccess.map((sa) => sa.subjectId);
-        examQuery.subjectIds = { $in: accessibleSubjectIds };
+      if (userRole === "ADMIN" || userRole === "SUPER_ADMIN") {
+        // Admin can see all exams - apply only requested filters
+        if (classId) examQuery.classId = classId;
+        if (subjectId) examQuery.subjectIds = subjectId;
+      } else {
+        // For teachers, filter by their assigned classes and subjects
+        const staffAccess = await StaffAccess.findOne({
+          staffId: userId,
+          isActive: true,
+        });
+        if (staffAccess) {
+          if (staffAccess.classAccess && staffAccess.classAccess.length > 0) {
+            const accessibleClassIds = staffAccess.classAccess.map((ca) => ca.classId);
+            examQuery.classId = { $in: accessibleClassIds };
+          }
+          if (staffAccess.subjectAccess && staffAccess.subjectAccess.length > 0) {
+            const accessibleSubjectIds = staffAccess.subjectAccess.map((sa) => sa.subjectId);
+            examQuery.subjectIds = { $in: accessibleSubjectIds };
+          }
+        }
       }
 
       const accessibleExams = await Exam.find(examQuery)

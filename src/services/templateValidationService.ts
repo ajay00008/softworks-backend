@@ -1,6 +1,9 @@
 import { PDFGenerationService } from './pdfGenerationService';
 import { Subject } from '../models/Subject';
 import { Class } from '../models/Class';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { env } from '../config/env';
+import logger from '../utils/logger';
 
 export interface TemplateValidationResult {
   isValid: boolean;
@@ -38,8 +41,39 @@ export interface TemplateValidationResult {
 }
 
 export class TemplateValidationService {
+  private static genAI: GoogleGenerativeAI | null = null;
+  private static model: any = null;
+
   constructor() {
     // PDFGenerationService methods are static, no need to instantiate
+    this.initializeGemini();
+  }
+
+  /**
+   * Initialize Gemini AI for template analysis
+   */
+  private initializeGemini(): void {
+    try {
+      if (!env.GEMINI_API_KEY && !env.AI_API_KEY) {
+        logger.warn('Gemini API key not found. Template analysis will use pattern matching only.');
+        return;
+      }
+
+      const apiKey = env.GEMINI_API_KEY || env.AI_API_KEY || '';
+      if (!apiKey) {
+        logger.warn('Gemini API key is empty. Template analysis will use pattern matching only.');
+        return;
+      }
+
+      TemplateValidationService.genAI = new GoogleGenerativeAI(apiKey);
+      TemplateValidationService.model = TemplateValidationService.genAI.getGenerativeModel({ 
+        model: env.AI_MODEL || 'gemini-2.0-flash-exp' 
+      });
+      
+      logger.info('TemplateValidationService initialized with Gemini AI');
+    } catch (error: unknown) {
+      logger.error('Failed to initialize Gemini for template validation:', error);
+    }
   }
 
   /**
@@ -100,16 +134,147 @@ export class TemplateValidationService {
   }
 
   /**
-   * Analyzes the PDF content to extract pattern information
+   * Analyzes the PDF content to extract pattern information using AI
    */
   private async analyzeTemplateContent(
     pdfText: string,
     subject: any,
     examType: string
   ): Promise<any> {
-    // This would integrate with an AI service (OpenAI, Claude, etc.)
-    // For now, we'll implement a basic pattern analysis
+    // Try to use AI first, fallback to pattern matching if AI is not available
+    if (TemplateValidationService.model) {
+      try {
+        return await this.analyzeWithAI(pdfText, subject, examType);
+      } catch (error: unknown) {
+        logger.warn('AI analysis failed, falling back to pattern matching:', error);
+        // Fall through to pattern matching
+      }
+    }
     
+    // Fallback to pattern-based analysis
+    return this.analyzeWithPatternMatching(pdfText, subject, examType);
+  }
+
+  /**
+   * Analyzes template using Gemini AI
+   */
+  private async analyzeWithAI(
+    pdfText: string,
+    subject: any,
+    examType: string
+  ): Promise<any> {
+    if (!TemplateValidationService.model) {
+      throw new Error('Gemini model not initialized');
+    }
+
+    const prompt = `Analyze this question paper template and extract the following information in JSON format:
+
+Expected Subject: ${subject.name} (Code: ${subject.code})
+Expected Exam Type: ${examType}
+
+Please extract and return a JSON object with the following structure:
+{
+  "detectedSubject": "subject name detected from the paper",
+  "detectedExamType": "exam type detected (UNIT_TEST, MID_TERM, FINAL, etc.)",
+  "totalQuestions": number,
+  "markDistribution": {
+    "oneMark": number of 1-mark questions,
+    "twoMark": number of 2-mark questions,
+    "threeMark": number of 3-mark questions,
+    "fiveMark": number of 5-mark questions,
+    "totalMarks": total marks for the entire paper
+  },
+  "questionTypes": ["CHOOSE_BEST_ANSWER", "SHORT_ANSWER", etc.],
+  "difficultyLevels": ["EASY", "MODERATE", "TOUGHEST"],
+  "sections": [
+    {
+      "name": "Section A",
+      "questions": number of questions,
+      "marks": total marks for this section
+    }
+  ]
+}
+
+Important:
+- Extract the EXACT total marks from the paper (look for "Total Marks: X" or similar)
+- Count questions by their mark values (1 mark, 2 marks, 3 marks, 5 marks)
+- Include all sections with their question counts and marks
+- Return ONLY valid JSON, no additional text
+
+Template Content:
+${pdfText.substring(0, 30000)}`; // Limit text to avoid token limits
+
+    try {
+      const result = await TemplateValidationService.model.generateContent(prompt);
+      const response = await result.response;
+      const aiText = response.text().trim();
+      
+      // Try to extract JSON from the response
+      let aiAnalysis;
+      try {
+        // Remove markdown code blocks if present
+        const jsonMatch = aiText.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || aiText.match(/(\{[\s\S]*\})/);
+        const jsonText = jsonMatch ? jsonMatch[1] : aiText;
+        aiAnalysis = JSON.parse(jsonText);
+      } catch (parseError) {
+        logger.warn('Failed to parse AI response as JSON, using pattern matching fallback');
+        throw new Error('Invalid JSON response from AI');
+      }
+
+      // Merge AI results with pattern matching for validation
+      const patternAnalysis = this.extractPatternFromText(pdfText);
+      
+      // Use AI results, but validate with pattern matching
+      const extractedPattern = {
+        totalQuestions: aiAnalysis.totalQuestions || patternAnalysis.totalQuestions,
+        markDistribution: {
+          oneMark: aiAnalysis.markDistribution?.oneMark || patternAnalysis.markDistribution.oneMark,
+          twoMark: aiAnalysis.markDistribution?.twoMark || patternAnalysis.markDistribution.twoMark,
+          threeMark: aiAnalysis.markDistribution?.threeMark || patternAnalysis.markDistribution.threeMark,
+          fiveMark: aiAnalysis.markDistribution?.fiveMark || patternAnalysis.markDistribution.fiveMark,
+          totalMarks: aiAnalysis.markDistribution?.totalMarks || patternAnalysis.markDistribution.totalMarks
+        },
+        questionTypes: aiAnalysis.questionTypes || patternAnalysis.questionTypes,
+        difficultyLevels: aiAnalysis.difficultyLevels || patternAnalysis.difficultyLevels,
+        bloomsDistribution: patternAnalysis.bloomsDistribution,
+        sections: aiAnalysis.sections || patternAnalysis.sections
+      };
+
+      // Normalize detected exam type - map descriptive text to enum values
+      const detectedExamTypeRaw = aiAnalysis.detectedExamType || this.detectExamTypeFromText(pdfText, examType);
+      const normalizedExamType = this.normalizeExamType(detectedExamTypeRaw, examType);
+
+      const analysis = {
+        detectedSubject: aiAnalysis.detectedSubject || this.detectSubjectFromText(pdfText, subject),
+        detectedExamType: normalizedExamType,
+        extractedPattern,
+        confidence: 0
+      };
+
+      // Calculate confidence
+      let confidence = 0;
+      if (analysis.detectedSubject === subject.name) confidence += 30;
+      if (analysis.detectedExamType === examType) confidence += 30;
+      if (extractedPattern.totalQuestions > 0) confidence += 20;
+      if (extractedPattern.markDistribution.totalMarks > 0) confidence += 20;
+
+      analysis.confidence = confidence;
+      logger.info('AI analysis completed successfully', { confidence, totalMarks: extractedPattern.markDistribution.totalMarks });
+      return analysis;
+    } catch (error: unknown) {
+      logger.error('Error in AI analysis:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Fallback pattern-based analysis
+   */
+  private analyzeWithPatternMatching(
+    pdfText: string,
+    subject: any,
+    examType: string
+  ): any {
     const extractedPattern = this.extractPatternFromText(pdfText);
     
     const analysis = {
@@ -198,6 +363,67 @@ export class TemplateValidationService {
   }
 
   /**
+   * Normalizes detected exam type from AI response to match enum values
+   * Maps descriptive text like "SAMPLE QUESTION PAPER" to proper enum values
+   */
+  private normalizeExamType(detectedType: string, expectedType: string): string {
+    if (!detectedType) {
+      return expectedType;
+    }
+
+    const detectedLower = detectedType.toLowerCase().trim();
+    
+    // If it's already a valid enum value, return it
+    const validExamTypes = [
+      'UNIT_TEST', 'MID_TERM', 'FINAL', 'QUIZ', 'ASSIGNMENT', 
+      'PRACTICAL', 'TERM_TEST', 'ANNUAL_EXAM', 'CUSTOM_EXAM'
+    ];
+    
+    if (validExamTypes.includes(detectedType.toUpperCase())) {
+      return detectedType.toUpperCase();
+    }
+
+    // Map descriptive text to enum values
+    const examTypeMappings: Record<string, string> = {
+      'sample question paper': 'UNIT_TEST',
+      'sample paper': 'UNIT_TEST',
+      'question paper': 'UNIT_TEST',
+      'test paper': 'UNIT_TEST',
+      'exam paper': 'UNIT_TEST',
+      'unit test': 'UNIT_TEST',
+      'unit exam': 'UNIT_TEST',
+      'mid term': 'MID_TERM',
+      'midterm': 'MID_TERM',
+      'mid term exam': 'MID_TERM',
+      'final exam': 'FINAL',
+      'final test': 'FINAL',
+      'annual exam': 'ANNUAL_EXAM',
+      'quiz': 'QUIZ',
+      'assignment': 'ASSIGNMENT',
+      'practical': 'PRACTICAL',
+      'practical exam': 'PRACTICAL',
+      'lab exam': 'PRACTICAL',
+      'term test': 'TERM_TEST',
+      'term exam': 'TERM_TEST'
+    };
+
+    // Check for exact matches first
+    if (examTypeMappings[detectedLower]) {
+      return examTypeMappings[detectedLower];
+    }
+
+    // Check for partial matches
+    for (const [key, value] of Object.entries(examTypeMappings)) {
+      if (detectedLower.includes(key) || key.includes(detectedLower)) {
+        return value;
+      }
+    }
+
+    // If no match found, return expected type (be more lenient)
+    return expectedType;
+  }
+
+  /**
    * Extracts pattern information from PDF text
    */
   private extractPatternFromText(text: string): any {
@@ -218,6 +444,14 @@ export class TemplateValidationService {
     
     // Extract sections
     const sections = this.extractSections(text);
+    
+    // If total marks wasn't extracted directly, try calculating from sections
+    if (markDistribution.totalMarks === 0 && sections.length > 0) {
+      const totalFromSections = sections.reduce((sum, section) => sum + section.marks, 0);
+      if (totalFromSections > 0) {
+        markDistribution.totalMarks = totalFromSections;
+      }
+    }
     
     // If totalQuestions is 0 but we have mark distribution, calculate from marks
     let calculatedTotalQuestions = totalQuestions;
@@ -276,6 +510,26 @@ export class TemplateValidationService {
       totalMarks: 0
     };
 
+    // First, try to extract total marks directly from text (e.g., "Total Marks: 80", "Total: 80 marks")
+    const totalMarksPatterns = [
+      /total\s*marks?\s*:?\s*(\d+)/i,
+      /total\s*:?\s*(\d+)\s*marks?/i,
+      /marks?\s*total\s*:?\s*(\d+)/i,
+      /(\d+)\s*marks?\s*total/i
+    ];
+
+    let extractedTotalMarks = 0;
+    for (const pattern of totalMarksPatterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) {
+        const total = parseInt(match[1], 10);
+        if (!isNaN(total) && total > 0) {
+          extractedTotalMarks = total;
+          break;
+        }
+      }
+    }
+
     // Look for mark patterns with more variations
     const markPatterns = [
       // Patterns like "10 × 1 mark" or "10x1 mark" or "10 X 1 mark"
@@ -314,12 +568,20 @@ export class TemplateValidationService {
       }
     }
 
-    // Calculate total marks
-    distribution.totalMarks = 
+    // Calculate total marks from standard mark distribution
+    const calculatedTotalMarks = 
       distribution.oneMark * 1 +
       distribution.twoMark * 2 +
       distribution.threeMark * 3 +
       distribution.fiveMark * 5;
+
+    // Use extracted total marks if found, otherwise use calculated total
+    // If extracted total is significantly different from calculated, prefer extracted (it's more accurate)
+    if (extractedTotalMarks > 0) {
+      distribution.totalMarks = extractedTotalMarks;
+    } else {
+      distribution.totalMarks = calculatedTotalMarks;
+    }
 
     return distribution;
   }
@@ -535,16 +797,26 @@ export class TemplateValidationService {
     const errors: string[] = [];
     const suggestions: string[] = [];
 
-    // Validate subject match
-    if (analysis.detectedSubject !== subject.name) {
+    // Validate subject match (case-insensitive comparison)
+    const detectedSubjectLower = analysis.detectedSubject?.toLowerCase().trim();
+    const expectedSubjectLower = subject.name.toLowerCase().trim();
+    if (detectedSubjectLower !== expectedSubjectLower && 
+        !detectedSubjectLower?.includes(expectedSubjectLower) && 
+        !expectedSubjectLower.includes(detectedSubjectLower || '')) {
       errors.push(`Subject mismatch: Expected ${subject.name}, detected ${analysis.detectedSubject}`);
       suggestions.push('Please verify the template is for the correct subject');
     }
 
-    // Validate exam type match
+    // Validate exam type match (more lenient - allow normalized matches)
+    // If normalized exam type matches expected, don't add error
     if (analysis.detectedExamType !== examType) {
-      errors.push(`Exam type mismatch: Expected ${examType}, detected ${analysis.detectedExamType}`);
-      suggestions.push('Please verify the template matches the selected exam type');
+      // Check if it's a close match (e.g., both are UNIT_TEST variants)
+      const normalizedDetected = this.normalizeExamType(analysis.detectedExamType, examType);
+      if (normalizedDetected !== examType) {
+        // Only add error if it's significantly different
+        errors.push(`Exam type mismatch: Expected ${examType}, detected ${analysis.detectedExamType}`);
+        suggestions.push('Please verify the template matches the selected exam type');
+      }
     }
 
     // Validate pattern completeness
