@@ -6,6 +6,8 @@ import QuestionPaperTemplate from '../models/QuestionPaperTemplate';
 import { Exam } from '../models/Exam';
 import { Subject } from '../models/Subject';
 import { Class } from '../models/Class';
+import { Teacher } from '../models/Teacher';
+import { StaffAccess } from '../models/StaffAccess';
 import { EnhancedAIService } from '../services/enhancedAIService';
 import { PDFGenerationService } from '../services/pdfGenerationService';
 import { PatternAnalysisService } from '../services/patternAnalysisService';
@@ -208,13 +210,11 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
   try {
     const questionPaperData = CreateQuestionPaperSchema.parse(req.body);
     const auth = (req as any).auth;
-    const adminId = auth?.adminId;
+    const userId = auth?.sub;
+    const userRole = auth?.role;
+    let adminId = auth?.adminId;
     
-    if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
-    }
-
-    // Validate exam exists and belongs to admin, and get subject/class IDs from exam
+    // Validate exam exists and get subject/class IDs from exam
     const exam = await Exam.findOne({ 
       _id: questionPaperData.examId, 
       isActive: true 
@@ -225,6 +225,50 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
     
     if (!exam) {
       throw new createHttpError.NotFound("Exam not found or not accessible");
+    }
+    
+    // Handle teacher access - get adminId from Teacher model and check permissions
+    if (userRole === 'TEACHER' && !adminId) {
+      const teacher = await Teacher.findOne({ userId });
+      if (!teacher) {
+        throw new createHttpError.Unauthorized("Teacher record not found");
+      }
+      adminId = teacher.adminId;
+      
+      // Check if teacher has canCreateQuestions permission for the subject
+      if (!exam.subjectIds || exam.subjectIds.length === 0) {
+        throw new createHttpError.BadRequest("Exam has no subjects assigned");
+      }
+      
+      const examSubjectId = (exam.subjectIds[0] as any)._id?.toString() || exam.subjectIds[0]?.toString();
+      
+      // Check StaffAccess for canCreateQuestions permission
+      const staffAccess = await StaffAccess.findOne({
+        staffId: userId,
+        isActive: true,
+      });
+      
+      const hasPermission = staffAccess?.subjectAccess?.some(
+        (sa) => sa.subjectId.toString() === examSubjectId && sa.canCreateQuestions === true
+      );
+      
+      // Also check if teacher is assigned to this subject (fallback if no StaffAccess)
+      const isAssignedToSubject = teacher.subjectIds.some(
+        (id) => id.toString() === examSubjectId
+      );
+      
+      if (!hasPermission && !isAssignedToSubject) {
+        throw new createHttpError.Forbidden("You do not have permission to create question papers for this subject");
+      }
+    }
+    
+    if (!adminId) {
+      throw new createHttpError.Unauthorized("Admin ID not found");
+    }
+    
+    // Verify exam belongs to the same admin
+    if (exam.adminId && exam.adminId.toString() !== adminId.toString()) {
+      throw new createHttpError.Forbidden("Exam does not belong to your school");
     }
 
     // Check if question paper already exists for this exam
@@ -321,10 +365,24 @@ export async function createQuestionPaper(req: Request, res: Response, next: Nex
 export async function getQuestionPapers(req: Request, res: Response, next: NextFunction) {
   try {
     const auth = (req as any).auth;
-    const adminId = auth?.adminId;
+    const userId = auth?.sub;
+    const userRole = auth?.role;
+    let adminId = auth?.adminId;
+    
+    // Handle teacher access - get adminId from Teacher model
+    if (userRole === 'TEACHER' && !adminId) {
+      const teacher = await Teacher.findOne({ userId });
+      if (!teacher) {
+        throw new createHttpError.Unauthorized("Teacher record not found");
+      }
+      adminId = teacher.adminId;
+      
+      // For teachers, filter by their assigned subjects and classes
+      // This will be handled in the filter below
+    }
     
     if (!adminId) {
-      throw new createHttpError.Unauthorized("Admin ID not found in token");
+      throw new createHttpError.Unauthorized("Admin ID not found");
     }
 
     const { page = 1, limit = 10, status, examId, subjectId, classId } = req.query;
@@ -332,10 +390,52 @@ export async function getQuestionPapers(req: Request, res: Response, next: NextF
 
     // Build filter
     const filter: any = { adminId, isActive: true };
+    
+    // For teachers, get their assigned subjects and classes once
+    let teacherSubjectIds: string[] = [];
+    let teacherClassIds: string[] = [];
+    
+    if (userRole === 'TEACHER') {
+      const teacher = await Teacher.findOne({ userId })
+        .populate('subjectIds', '_id')
+        .populate('classIds', '_id');
+      
+      if (teacher) {
+        teacherSubjectIds = teacher.subjectIds.map((s: any) => s._id?.toString() || s.toString());
+        teacherClassIds = teacher.classIds.map((c: any) => c._id?.toString() || c.toString());
+        
+        // Filter by teacher's assigned subjects and classes
+        filter.subjectId = { $in: teacherSubjectIds };
+        filter.classId = { $in: teacherClassIds };
+      }
+    }
+    
     if (status) filter.status = status;
     if (examId) filter.examId = examId;
-    if (subjectId) filter.subjectId = subjectId;
-    if (classId) filter.classId = classId;
+    if (subjectId) {
+      // For teachers, ensure the requested subject is in their assigned subjects
+      if (userRole === 'TEACHER' && teacherSubjectIds.length > 0) {
+        if (!teacherSubjectIds.includes(subjectId as string)) {
+          throw new createHttpError.Forbidden("Access denied to this subject");
+        }
+        // Override the $in filter with specific subjectId
+        filter.subjectId = subjectId;
+      } else {
+        filter.subjectId = subjectId;
+      }
+    }
+    if (classId) {
+      // For teachers, ensure the requested class is in their assigned classes
+      if (userRole === 'TEACHER' && teacherClassIds.length > 0) {
+        if (!teacherClassIds.includes(classId as string)) {
+          throw new createHttpError.Forbidden("Access denied to this class");
+        }
+        // Override the $in filter with specific classId
+        filter.classId = classId;
+      } else {
+        filter.classId = classId;
+      }
+    }
 
     const questionPapers = await QuestionPaper.find(filter)
       .populate([
@@ -1097,23 +1197,37 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
       // 2. Questions of type DRAWING_DIAGRAM or MARKING_PARTS
       // 3. Questions with visualAids mentioning graphs/diagrams
       // 4. Questions that mention graph/diagram/draw/plot in the question text
+      // Debug: Log all questions and their diagram status
+      console.log('\n🔍 DEBUG: Checking all questions for diagrams...');
+      generatedQuestions.forEach((q, idx) => {
+        if (q.diagram || q.questionType === 'DRAWING_DIAGRAM' || q.questionType === 'MARKING_PARTS' || (q.visualAids && q.visualAids.length > 0)) {
+          console.log(`  Question ${idx + 1}: type=${q.questionType}, hasDiagram=${!!q.diagram}, diagramStatus=${q.diagram?.status || 'N/A'}, hasVisualAids=${!!(q.visualAids && q.visualAids.length > 0)}`);
+        }
+      });
+      
       const allDiagramQuestions = generatedQuestions.map((q, idx) => {
+        if (!q) return null;
+        
         const questionTextLower = (q.questionText || '').toLowerCase();
-        const needsDiagram = 
-          q.diagram !== undefined || // Has diagram object
-          q.questionType === 'DRAWING_DIAGRAM' || 
-          q.questionType === 'MARKING_PARTS' ||
-          (q.visualAids && q.visualAids.length > 0) ||
-          questionTextLower.includes('graph') || 
-          questionTextLower.includes('diagram') ||
-          questionTextLower.includes('draw') ||
-          questionTextLower.includes('plot') ||
-          questionTextLower.includes('sketch') ||
-          questionTextLower.includes('figure');
+        const hasDiagramObject = q.diagram !== undefined && q.diagram !== null;
+        const isDiagramQuestionType = q.questionType === 'DRAWING_DIAGRAM' || q.questionType === 'MARKING_PARTS';
+        const hasVisualAids = q.visualAids && Array.isArray(q.visualAids) && q.visualAids.length > 0;
+        const mentionsDiagram = questionTextLower.includes('graph') || 
+                                questionTextLower.includes('diagram') ||
+                                questionTextLower.includes('draw') ||
+                                questionTextLower.includes('plot') ||
+                                questionTextLower.includes('sketch') ||
+                                questionTextLower.includes('figure');
+        
+        const needsDiagram = hasDiagramObject || isDiagramQuestionType || hasVisualAids || mentionsDiagram;
+        
         return needsDiagram ? { question: q, index: idx } : null;
       }).filter((item): item is { question: typeof generatedQuestions[0]; index: number } => item !== null);
       
       console.log(`📊 Found ${allDiagramQuestions.length} questions needing diagrams and ${diagramAnalysis.diagrams.length} diagram images from pattern`);
+      if (allDiagramQuestions.length > 0) {
+        console.log(`   Questions needing diagrams: ${allDiagramQuestions.map(item => `${item.index + 1} (${item.question.questionType})`).join(', ')}`);
+      }
       
       // Convert pattern PDF diagrams to PNG if needed (should already be PNG from patternAnalysisService, but double-check)
       console.log('🔄 Checking pattern diagrams for PDF to PNG conversion...');
@@ -1122,6 +1236,12 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
         if (!patternDiagram) continue;
         
         console.log(`  Diagram ${i + 1}: path=${patternDiagram.imagePath}, hasBuffer=${!!patternDiagram.imageBuffer}, isPDF=${patternDiagram.imagePath?.endsWith('.pdf')}`);
+        
+        // Check if diagram has no imagePath at all (extraction failed)
+        if (!patternDiagram.imagePath || patternDiagram.imagePath === '') {
+          console.error(`❌ Diagram ${i + 1} has no imagePath - extraction may have failed. Description: ${patternDiagram.description || 'N/A'}`);
+          continue; // Skip this diagram
+        }
         
         if (patternDiagram.imagePath && patternDiagram.imagePath.endsWith('.pdf')) {
           console.log(`⚠️ WARNING: Found PDF diagram at ${patternDiagram.imagePath} - should have been converted already!`);
@@ -1150,47 +1270,138 @@ export async function generateCompleteAIQuestionPaper(req: Request, res: Respons
         console.error('❌ WARNING: No valid diagram images available after conversion! Diagrams will not be assigned.');
       } else {
         // Assign pattern diagrams to all questions that need them
-        allDiagramQuestions.forEach((item, questionIdx) => {
+        // Prioritize DRAWING_DIAGRAM and MARKING_PARTS questions first
+        const prioritizedQuestions = [...allDiagramQuestions].sort((a, b) => {
+          const aIsDiagramType = a.question.questionType === 'DRAWING_DIAGRAM' || a.question.questionType === 'MARKING_PARTS';
+          const bIsDiagramType = b.question.questionType === 'DRAWING_DIAGRAM' || b.question.questionType === 'MARKING_PARTS';
+          if (aIsDiagramType && !bIsDiagramType) return -1;
+          if (!aIsDiagramType && bIsDiagramType) return 1;
+          return 0;
+        });
+        
+        // Smart diagram matching: try to match diagrams based on question content
+        const usedDiagramIndices = new Set<number>();
+        
+        prioritizedQuestions.forEach((item) => {
           const question = item.question;
-          const diagramIndex = questionIdx % validDiagrams.length; // Cycle through valid pattern diagrams
-          const patternDiagram = validDiagrams[diagramIndex];
+          if (!question) {
+            console.warn(`⚠️ Skipping - question is undefined`);
+            return;
+          }
           
-          if (patternDiagram && patternDiagram.imagePath) {
-            // Verify file exists
-            if (!fs.existsSync(patternDiagram.imagePath)) {
-              console.error(`❌ Diagram file not found: ${patternDiagram.imagePath} - skipping assignment`);
-              return;
+          const questionTextLower = (question.questionText || '').toLowerCase();
+          const questionContext = questionTextLower + ' ' + (question.visualAids?.join(' ') || '');
+          
+          // Try to find a matching diagram based on content
+          let matchedDiagram: typeof validDiagrams[0] | null = null;
+          let matchedIndex = -1;
+          
+          // First pass: try to match by keywords/context
+          for (let i = 0; i < validDiagrams.length; i++) {
+            if (usedDiagramIndices.has(i)) continue;
+            
+            const diagram = validDiagrams[i];
+            if (!diagram) continue;
+            
+            const diagramDesc = (diagram.description || '').toLowerCase();
+            const diagramContext = (diagram.context || '').toLowerCase();
+            const diagramType = diagram.type || '';
+            
+            // Check for keyword matches
+            const keywords = [
+              'matrix', 'matrices', 'cryptography', 'encoding', 'decoding',
+              'linear programming', 'graph', 'plot', 'coordinate',
+              'geometry', 'triangle', 'circle', 'angle',
+              'circuit', 'resistor', 'capacitor',
+              'chart', 'bar', 'pie', 'line graph'
+            ];
+            
+            let matchScore = 0;
+            for (const keyword of keywords) {
+              const inQuestion = questionContext.includes(keyword);
+              const inDiagram = diagramDesc.includes(keyword) || diagramContext.includes(keyword);
+              
+              if (inQuestion && inDiagram) {
+                matchScore += 2; // Strong match
+              } else if (inQuestion && diagramType.includes(keyword)) {
+                matchScore += 1; // Weak match
+              }
             }
             
-            // Ensure question has a diagram object
-            if (!question) {
-              console.warn(`⚠️ Skipping - question is undefined`);
-              return;
+            // Type-based matching
+            if (question.questionType === 'DRAWING_DIAGRAM' && diagramType === 'diagram') {
+              matchScore += 1;
+            }
+            if (question.questionType === 'MARKING_PARTS' && diagramType === 'figure') {
+              matchScore += 1;
             }
             
+            // If we found a good match, use it
+            if (matchScore > 0 && (!matchedDiagram || matchScore > (matchedDiagram as any).matchScore)) {
+              matchedDiagram = diagram;
+              matchedIndex = i;
+              (matchedDiagram as any).matchScore = matchScore;
+            }
+          }
+          
+          // If no good match found, don't assign a mismatched diagram
+          // Instead, mark it as pending so a new diagram gets generated
+          if (!matchedDiagram || !(matchedDiagram as any).matchScore || (matchedDiagram as any).matchScore < 1) {
+            console.log(`⚠️ Question ${item.index + 1} (${question.questionText?.substring(0, 50)}...) has no good diagram match - will generate new diagram`);
+            // Ensure question has a diagram object marked as pending
             if (!question.diagram) {
               question.diagram = {
-                description: patternDiagram.description || 'Diagram from pattern',
-                type: patternDiagram.type as 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other',
+                description: question.visualAids?.[0] || `Diagram for: ${question.questionText?.substring(0, 100)}`,
+                type: 'diagram' as const,
+                status: 'pending' as const,
+              };
+            } else {
+              question.diagram.status = 'pending';
+            }
+            return; // Skip assignment, let it be generated
+          }
+          
+          if (matchedDiagram && matchedDiagram.imagePath) {
+            // Verify file exists
+            if (!fs.existsSync(matchedDiagram.imagePath)) {
+              console.error(`❌ Diagram file not found: ${matchedDiagram.imagePath} - skipping assignment`);
+              return;
+            }
+            
+            // Mark diagram as used
+            usedDiagramIndices.add(matchedIndex);
+            
+            // Ensure question has a diagram object
+            if (!question.diagram) {
+              question.diagram = {
+                description: matchedDiagram.description || 'Diagram from pattern',
+                type: matchedDiagram.type as 'graph' | 'geometry' | 'circuit' | 'chart' | 'diagram' | 'figure' | 'other',
                 status: 'ready' as const,
               };
-              if (patternDiagram.description) {
-                question.diagram.altText = patternDiagram.description;
+              if (matchedDiagram.description) {
+                question.diagram.altText = matchedDiagram.description;
               }
             }
             
             // Assign pattern diagram
             if (question.diagram) {
-              question.diagram.imagePath = patternDiagram.imagePath;
-              if (patternDiagram.imageBuffer) {
-                question.diagram.imageBuffer = patternDiagram.imageBuffer;
+              question.diagram.imagePath = matchedDiagram.imagePath;
+              if (matchedDiagram.imageBuffer) {
+                question.diagram.imageBuffer = matchedDiagram.imageBuffer;
               }
               question.diagram.status = 'ready';
-              console.log(`✅ Assigned pattern diagram ${diagramIndex + 1} (${patternDiagram.type}, ${patternDiagram.imagePath}) to question ${item.index + 1} (${question.questionType})`);
-              console.log(`   Diagram file exists: ${fs.existsSync(patternDiagram.imagePath)}, hasBuffer: ${!!patternDiagram.imageBuffer}`);
+              const matchInfo = (matchedDiagram as any).matchScore ? ` (match score: ${(matchedDiagram as any).matchScore})` : ' (fallback)';
+              console.log(`✅ Assigned pattern diagram ${matchedIndex + 1} (${matchedDiagram.type}) to question ${item.index + 1} (${question.questionType})${matchInfo}`);
+              console.log(`   Question: ${question.questionText?.substring(0, 60)}...`);
+              console.log(`   Diagram: ${matchedDiagram.description?.substring(0, 60)}...`);
+              console.log(`   Diagram file exists: ${fs.existsSync(matchedDiagram.imagePath)}, hasBuffer: ${!!matchedDiagram.imageBuffer}`);
             }
           } else {
             console.warn(`⚠️ Skipping question ${item.index + 1} - no valid diagram available`);
+            // Mark question diagram as pending so it gets generated
+            if (question.diagram) {
+              question.diagram.status = 'pending';
+            }
           }
         });
       }

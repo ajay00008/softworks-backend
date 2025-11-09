@@ -3359,7 +3359,7 @@ router.get(
 /**
  * @openapi
  * /api/admin/absenteeism/{id}/acknowledge:
- *   patch:
+ *   post:
  *     tags: [Admin - Absenteeism]
  *     summary: Acknowledge an absenteeism report (Admin only)
  *     security:
@@ -3386,7 +3386,7 @@ router.get(
  *       404:
  *         description: Absenteeism report not found
  */
-router.patch(
+router.post(
   "/admin/absenteeism/:id/acknowledge",
   requireAuth,
   requireRoles("ADMIN", "SUPER_ADMIN"),
@@ -3396,7 +3396,7 @@ router.patch(
 /**
  * @openapi
  * /api/admin/absenteeism/{id}/resolve:
- *   patch:
+ *   post:
  *     tags: [Admin - Absenteeism]
  *     summary: Resolve an absenteeism report
  *     security:
@@ -3423,7 +3423,7 @@ router.patch(
  *       404:
  *         description: Absenteeism report not found
  */
-router.patch(
+router.post(
   "/admin/absenteeism/:id/resolve",
   requireAuth,
   requireRoles("ADMIN", "SUPER_ADMIN"),
@@ -5266,7 +5266,7 @@ router.post(
 router.post(
   "/admin/question-papers",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   createQuestionPaper
 );
 
@@ -5322,7 +5322,7 @@ router.post(
 router.get(
   "/admin/question-papers",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   getQuestionPapers
 );
 
@@ -5349,7 +5349,7 @@ router.get(
 router.get(
   "/admin/question-papers/:id",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   getQuestionPaper
 );
 
@@ -5391,7 +5391,7 @@ router.get(
 router.put(
   "/admin/question-papers/:id",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   updateQuestionPaper
 );
 
@@ -5418,7 +5418,7 @@ router.put(
 router.delete(
   "/admin/question-papers/:id",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   deleteQuestionPaper
 );
 
@@ -5445,7 +5445,7 @@ router.delete(
 router.get(
   "/admin/question-papers/:id/questions",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   getQuestionPaperQuestions
 );
 
@@ -5509,7 +5509,7 @@ router.get(
 router.post(
   "/admin/question-papers/:id/questions",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   addQuestionToPaper
 );
 
@@ -5574,7 +5574,7 @@ router.post(
 router.put(
   "/admin/question-papers/:id/questions/:questionId",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   updateQuestionInPaper
 );
 
@@ -5606,7 +5606,7 @@ router.put(
 router.delete(
   "/admin/question-papers/:id/questions/:questionId",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   deleteQuestionFromPaper
 );
 
@@ -5662,7 +5662,7 @@ router.delete(
 router.post(
   "/admin/question-papers/:id/upload-pdf",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   uploadQuestionPaperPdf,
   uploadQuestionPaperPDF
 );
@@ -5708,7 +5708,7 @@ router.post(
 router.post(
   "/admin/question-papers/:id/generate-ai",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   generateAIQuestionPaper
 );
 
@@ -5762,7 +5762,7 @@ router.post(
 router.post(
   "/admin/question-papers/generate-complete-ai",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   generateCompleteAIQuestionPaper
 );
 
@@ -5790,7 +5790,7 @@ router.post(
 router.post(
   "/admin/question-papers/:id/regenerate-pdf",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   regenerateQuestionPaperPDF
 );
 
@@ -5822,7 +5822,7 @@ router.post(
 router.post(
   "/admin/question-papers/upload-pattern",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   uploadPatternFile,
   uploadPatternFileEndpoint
 );
@@ -5895,7 +5895,7 @@ router.post(
 router.get(
   "/admin/question-papers/:id/download",
   requireAuth,
-  requireRoles("ADMIN", "SUPER_ADMIN"),
+  requireRoles("ADMIN", "SUPER_ADMIN", "TEACHER"),
   downloadQuestionPaperPDF
 );
 
@@ -6777,7 +6777,7 @@ router.get(
 router.get(
   "/teacher/performance-graph",
   requireAuth,
-  requireRoles("TEACHER"),
+  requireRoles("TEACHER", "ADMIN", "SUPER_ADMIN"),
   getPerformanceGraphs
 );
 

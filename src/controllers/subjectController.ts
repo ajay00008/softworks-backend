@@ -3,6 +3,7 @@ import { z } from "zod";
 import createHttpError from "http-errors";
 import mongoose from "mongoose";
 import { Subject } from "../models/Subject";
+import { Syllabus } from "../models/Syllabus";
 import QuestionPaperTemplate from "../models/QuestionPaperTemplate";
 import multer from "multer";
 import path from "path";
@@ -41,6 +42,7 @@ const GetSubjectsQuerySchema = z.object({
   category: z.string().optional(),
   level: z.string().transform(Number).optional(),
   isActive: z.string().transform(Boolean).optional(),
+  classId: z.string().optional(), // For filtering syllabus info by class
 });
 
 // Multer configuration for reference book uploads
@@ -182,7 +184,7 @@ export async function createSubject(req: Request, res: Response, next: NextFunct
 // Get All Subjects
 export async function getSubjects(req: Request, res: Response, next: NextFunction) {
   try {
-    const { page, limit, search, category, level, isActive } = GetSubjectsQuerySchema.parse(req.query);
+    const { page, limit, search, category, level, isActive, classId } = GetSubjectsQuerySchema.parse(req.query);
     const auth = (req as any).auth;
     const adminId = auth.adminId;
     const role = auth.role;
@@ -243,11 +245,62 @@ export async function getSubjects(req: Request, res: Response, next: NextFunctio
       return acc;
     }, {} as Record<string, any[]>);
 
-    // Add templates to each subject
-    const subjectsWithTemplates = subjects.map(subject => ({
-      ...subject,
-      templates: templatesBySubject[subject._id.toString()] || []
-    }));
+    // Get syllabus information for each subject-class combination
+    // If classId is provided in query, only get syllabus for that class
+    const syllabusQuery: any = {
+      subjectId: { $in: subjectIds },
+      adminId,
+      isActive: true
+    };
+    if (classId) {
+      syllabusQuery.classId = classId;
+    }
+    
+    const syllabi = await Syllabus.find(syllabusQuery)
+      .select('_id subjectId classId title academicYear isActive')
+      .lean();
+    
+    // Group syllabi by subjectId and classId
+    const syllabiBySubjectClass: Record<string, Record<string, any>> = {};
+    syllabi.forEach(syllabus => {
+      const subjectId = syllabus.subjectId.toString();
+      const classIdStr = syllabus.classId.toString();
+      if (!syllabiBySubjectClass[subjectId]) {
+        syllabiBySubjectClass[subjectId] = {};
+      }
+      syllabiBySubjectClass[subjectId][classIdStr] = {
+        _id: syllabus._id,
+        exists: true,
+        title: syllabus.title,
+        academicYear: syllabus.academicYear
+      };
+    });
+    
+    // Add templates and syllabus info to each subject
+    const subjectsWithTemplates = subjects.map(subject => {
+      const subjectId = subject._id.toString();
+      const syllabusInfo: Record<string, any> = {};
+      
+      // If classId is provided, add syllabus status for that class
+      if (classId) {
+        const classIdStr = typeof classId === 'string' ? classId : classId.toString();
+        syllabusInfo[classIdStr] = syllabiBySubjectClass[subjectId]?.[classIdStr] || { exists: false };
+      } else {
+        // If no classId, add syllabus info for all classes in subject.classIds
+        if (subject.classIds && Array.isArray(subject.classIds)) {
+          subject.classIds.forEach((cid: any) => {
+            const classIdStr = typeof cid === 'string' ? cid : (cid._id?.toString() || cid.toString());
+            syllabusInfo[classIdStr] = syllabiBySubjectClass[subjectId]?.[classIdStr] || { exists: false };
+          });
+        }
+      }
+      
+      return {
+        ...subject,
+        templates: templatesBySubject[subjectId] || [],
+        syllabus: syllabusInfo
+      };
+    });
     
     res.json({
       success: true,
