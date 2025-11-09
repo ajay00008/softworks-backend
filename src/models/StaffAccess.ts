@@ -27,6 +27,7 @@ export interface IStaffAccess extends Document {
     canAccessAnalytics: boolean;
     canPrintReports: boolean;
     canSendNotifications: boolean;
+    canAccessQuestionPapers: boolean;
   };
   isActive: boolean;
   expiresAt?: Date; // Optional expiration date
@@ -123,6 +124,10 @@ const StaffAccessSchema = new Schema<IStaffAccess>(
         default: true
       },
       canSendNotifications: { 
+        type: Boolean, 
+        default: false
+      },
+      canAccessQuestionPapers: { 
         type: Boolean, 
         default: false
       }

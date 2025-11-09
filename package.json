@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --exec tsx src/server.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
+    "dev": "node init && nodemon --exec tsx src/server.ts",
+    "build": "node init && tsc -p tsconfig.json",
+    "start": "node init && node dist/server.js",
     "seed": "tsx src/scripts/seedSuperAdmin.ts",
     "seed-admin": "tsx src/scripts/seedAdmin.ts",
     "seed-student": "tsx src/scripts/seedStudent.ts",
