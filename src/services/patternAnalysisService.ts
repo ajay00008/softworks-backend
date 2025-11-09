@@ -13,6 +13,14 @@ export interface DiagramInfo {
   context?: string; // What the diagram is about
   imagePath?: string; // Path to extracted diagram image
   imageBuffer?: Buffer; // Diagram image buffer
+  // Bounding box coordinates for cropping (0-1 normalized, or pixels)
+  boundingBox?: {
+    x: number; // Left coordinate (0-1 normalized or pixels)
+    y: number; // Top coordinate (0-1 normalized or pixels)
+    width: number; // Width (0-1 normalized or pixels)
+    height: number; // Height (0-1 normalized or pixels)
+    normalized?: boolean; // If true, coordinates are 0-1, if false, they're pixels
+  };
 }
 
 export interface PatternAnalysisResult {
@@ -123,11 +131,17 @@ Look for:
 
 For each diagram/graph you find, provide:
 1. Type: diagram, graph, chart, figure, or illustration
-2. Description: Brief description of what the diagram shows
+2. Description: Brief description of what the diagram shows (ONLY the visual diagram, not surrounding text)
 3. Location: Where it appears (e.g., "Page 1, Section A, Question 5" or "After Question 3")
 4. Page Number: Which page (for PDFs) or page 1 (for images)
 5. Related Content: Any text near the diagram (question text, labels, etc.)
 6. Context: What subject/topic the diagram relates to
+7. Bounding Box: The exact coordinates of ONLY the diagram area (excluding text, equations, or question numbers). Provide as normalized coordinates (0-1) where:
+   - x: left edge of diagram (0 = left edge of page, 1 = right edge)
+   - y: top edge of diagram (0 = top of page, 1 = bottom of page)
+   - width: width of diagram (0-1)
+   - height: height of diagram (0-1)
+   IMPORTANT: Only include the visual diagram/graph itself, NOT any text, equations, or question numbers around it.
 
 Return your analysis in the following JSON format:
 {
@@ -135,11 +149,18 @@ Return your analysis in the following JSON format:
   "diagrams": [
     {
       "type": "diagram|graph|chart|figure|illustration",
-      "description": "Description of the diagram",
+      "description": "Description of the diagram (visual elements only)",
       "location": "Where it appears",
       "pageNumber": 1,
       "relatedContent": "Text near the diagram",
-      "context": "Subject/topic context"
+      "context": "Subject/topic context",
+      "boundingBox": {
+        "x": 0.1,
+        "y": 0.3,
+        "width": 0.4,
+        "height": 0.3,
+        "normalized": true
+      }
     }
   ],
   "diagramCount": number
@@ -206,9 +227,25 @@ If no diagrams are found, return:
       // Extract actual diagram images if diagrams were found
       if (analysis.hasDiagrams && analysis.diagrams.length > 0) {
         try {
+          logger.info(`Starting diagram image extraction for ${analysis.diagrams.length} diagram(s)...`);
           await this.extractDiagramImages(patternFilePath, analysis, isPDF);
+          
+          // Verify that images were actually extracted
+          const diagramsWithImages = analysis.diagrams.filter(d => d.imagePath || d.imageBuffer);
+          logger.info(`Successfully extracted ${diagramsWithImages.length} out of ${analysis.diagrams.length} diagram images`);
+          
+          if (diagramsWithImages.length === 0) {
+            logger.warn('⚠️ No diagram images were extracted despite diagrams being detected. Diagrams may not appear in generated question papers.');
+          }
         } catch (extractError) {
-          logger.warn('Failed to extract diagram images, continuing with descriptions only:', extractError);
+          const errorMsg = extractError instanceof Error ? extractError.message : String(extractError);
+          logger.error('❌ Failed to extract diagram images:', {
+            error: errorMsg,
+            stack: extractError instanceof Error ? extractError.stack : undefined,
+            patternFilePath,
+            diagramCount: analysis.diagrams.length
+          });
+          // Don't throw - continue with descriptions only, but log the error clearly
         }
       }
 
@@ -254,10 +291,26 @@ If no diagrams are found, return:
 
       const parsed = JSON.parse(jsonMatch[0]);
 
+      // Parse diagrams and ensure boundingBox is included if provided
+      const diagrams = (parsed.diagrams || []).map((d: any) => ({
+        type: d.type || 'diagram',
+        description: d.description || '',
+        location: d.location || '',
+        relatedContent: d.relatedContent,
+        context: d.context,
+        boundingBox: d.boundingBox ? {
+          x: typeof d.boundingBox.x === 'number' ? d.boundingBox.x : parseFloat(d.boundingBox.x) || 0,
+          y: typeof d.boundingBox.y === 'number' ? d.boundingBox.y : parseFloat(d.boundingBox.y) || 0,
+          width: typeof d.boundingBox.width === 'number' ? d.boundingBox.width : parseFloat(d.boundingBox.width) || 0.3,
+          height: typeof d.boundingBox.height === 'number' ? d.boundingBox.height : parseFloat(d.boundingBox.height) || 0.3,
+          normalized: d.boundingBox.normalized !== false // Default to true if not specified
+        } : undefined
+      }));
+
       return {
         hasDiagrams: parsed.hasDiagrams || false,
-        diagrams: parsed.diagrams || [],
-        diagramCount: parsed.diagramCount || (parsed.diagrams?.length || 0),
+        diagrams: diagrams,
+        diagramCount: parsed.diagramCount || diagrams.length,
         analysisComplete: true
       };
     } catch (error: unknown) {
@@ -290,10 +343,10 @@ If no diagrams are found, return:
         // For PDFs, we need to convert them to PNG images for embedding in PDFKit
         // PDFKit cannot embed PDF files directly as images
         try {
-          // CRITICAL: Import canvas FIRST to ensure Path2D is available before pdfjs-dist
-          // @napi-rs/canvas provides Path2D natively, which pdfjs-dist needs
+          // CRITICAL: Import canvas FIRST to ensure Path2D and ImageData are available before pdfjs-dist
+          // @napi-rs/canvas provides Path2D and ImageData natively, which pdfjs-dist needs
           const canvasModule = await import('@napi-rs/canvas');
-          const { createCanvas } = canvasModule;
+          const { createCanvas, ImageData } = canvasModule;
           const Path2D = (canvasModule as any).Path2D;
           
           // Make Path2D globally available BEFORE importing pdfjs-dist
@@ -307,21 +360,47 @@ If no diagrams are found, return:
             logger.warn('⚠️ Path2D not found in @napi-rs/canvas - using polyfill may cause issues');
           }
           
+          // Make ImageData globally available - pdfjs-dist needs this for rendering
+          if (ImageData && typeof (globalThis as any).ImageData === 'undefined') {
+            (globalThis as any).ImageData = ImageData;
+            logger.info('✅ ImageData from @napi-rs/canvas is now globally available');
+          } else if (ImageData) {
+            logger.info('✅ ImageData already available globally');
+          } else {
+            logger.warn('⚠️ ImageData not found in @napi-rs/canvas - creating polyfill');
+            // Create a basic ImageData polyfill if not available
+            if (typeof (globalThis as any).ImageData === 'undefined') {
+              (globalThis as any).ImageData = class ImageData {
+                data: Uint8ClampedArray;
+                width: number;
+                height: number;
+                
+                constructor(dataOrWidth: Uint8ClampedArray | number, heightOrWidth?: number, height?: number) {
+                  if (dataOrWidth instanceof Uint8ClampedArray) {
+                    this.data = dataOrWidth;
+                    this.width = heightOrWidth || 0;
+                    this.height = height || 0;
+                  } else {
+                    const width = dataOrWidth;
+                    const h = heightOrWidth || 0;
+                    this.width = width;
+                    this.height = h;
+                    this.data = new Uint8ClampedArray(width * h * 4);
+                  }
+                }
+              };
+            }
+          }
+          
           // Ensure Promise.withResolvers polyfill (for Node.js < 22)
           ensurePromiseWithResolvers();
           
-          // DEBUGGER BREAKPOINT: Before importing pdfjs-dist
-          debugger; // Breakpoint: PDF to PNG conversion attempt
-          
-          // Now import pdfjs-dist - Path2D should be available
+          // Now import pdfjs-dist - Path2D and ImageData should be available
           const pdfjsModule = await import('pdfjs-dist/build/pdf.mjs') as any;
           const pdfjsLib = pdfjsModule.default || pdfjsModule;
           
           // Load the pattern PDF
           const patternBuffer = fs.readFileSync(patternFilePath);
-          
-          // DEBUGGER BREAKPOINT: Before calling getDocument (where Promise.withResolvers error occurs)
-          debugger; // Breakpoint: About to call pdfjsLib.getDocument
           
           const loadingTask = pdfjsLib.getDocument({ 
             data: new Uint8Array(patternBuffer),
@@ -329,9 +408,6 @@ If no diagrams are found, return:
             verbosity: 0,
             disableWorker: true
           });
-          
-          // DEBUGGER BREAKPOINT: After getDocument call
-          debugger; // Breakpoint: After getDocument call, before awaiting promise
           
           const pdfDocument = await loadingTask.promise;
           const totalPages = pdfDocument.numPages;
@@ -362,22 +438,55 @@ If no diagrams are found, return:
                 throw new Error('Failed to get canvas context');
               }
               
-              // Ensure Path2D is available on the context if needed
-              // Some canvas implementations need Path2D to be available during rendering
+              // Ensure Path2D and ImageData are available on the context if needed
+              // Some canvas implementations need these to be available during rendering
+              
+              // Verify ImageData is available before rendering
+              if (typeof (globalThis as any).ImageData === 'undefined') {
+                throw new Error('ImageData is not available. Cannot render PDF page to canvas.');
+              }
               
               // Render PDF page to canvas
-              // DEBUGGER BREAKPOINT: Before rendering page to canvas
-              debugger; // Breakpoint: About to render page to canvas
-              
               await page.render({
                 canvasContext: context,
                 viewport: viewport
               }).promise;
               
-              // Convert canvas to PNG buffer
-              const imageBuffer = canvas.toBuffer('image/png');
+              // Crop to diagram area if bounding box is provided
+              let finalCanvas = canvas;
+              let finalImageBuffer: Buffer;
               
-              if (!imageBuffer || imageBuffer.length === 0) {
+              if (diagram.boundingBox && diagram.boundingBox.normalized) {
+                // Calculate pixel coordinates from normalized coordinates
+                const cropX = Math.max(0, Math.floor(diagram.boundingBox.x * viewport.width));
+                const cropY = Math.max(0, Math.floor(diagram.boundingBox.y * viewport.height));
+                const cropWidth = Math.min(viewport.width - cropX, Math.floor(diagram.boundingBox.width * viewport.width));
+                const cropHeight = Math.min(viewport.height - cropY, Math.floor(diagram.boundingBox.height * viewport.height));
+                
+                // Create a new canvas with just the diagram area
+                const croppedCanvas = createCanvas(cropWidth, cropHeight);
+                const croppedContext = croppedCanvas.getContext('2d');
+                
+                if (croppedContext) {
+                  // Extract image data from the cropped region
+                  const imageData = context.getImageData(cropX, cropY, cropWidth, cropHeight);
+                  
+                  // Put the cropped image data into the new canvas
+                  croppedContext.putImageData(imageData, 0, 0);
+                  
+                  finalCanvas = croppedCanvas;
+                  logger.info(`✅ Cropped diagram ${i + 1} to region: x=${cropX}, y=${cropY}, w=${cropWidth}, h=${cropHeight} (from normalized: x=${diagram.boundingBox.x.toFixed(2)}, y=${diagram.boundingBox.y.toFixed(2)}, w=${diagram.boundingBox.width.toFixed(2)}, h=${diagram.boundingBox.height.toFixed(2)})`);
+                } else {
+                  logger.warn(`⚠️ Failed to get cropped canvas context for diagram ${i + 1}, using full page`);
+                }
+              } else {
+                logger.info(`No bounding box provided for diagram ${i + 1}, using full page`);
+              }
+              
+              // Convert canvas to PNG buffer
+              finalImageBuffer = finalCanvas.toBuffer('image/png');
+              
+              if (!finalImageBuffer || finalImageBuffer.length === 0) {
                 throw new Error('Canvas buffer is empty after rendering');
               }
               
@@ -385,18 +494,22 @@ If no diagrams are found, return:
               const diagramPath = path.join(diagramsDir, diagramFileName);
               
               // Save as PNG
-              fs.writeFileSync(diagramPath, imageBuffer);
+              fs.writeFileSync(diagramPath, finalImageBuffer);
               
               diagram.imagePath = diagramPath;
-              diagram.imageBuffer = imageBuffer; // Also store buffer for direct use
+              diagram.imageBuffer = finalImageBuffer; // Also store buffer for direct use
               logger.info(`Extracted and converted diagram ${i + 1} (page ${pageNumber}) to PNG: ${diagramPath}`);
             } catch (diagramError) {
               const errorMsg = diagramError instanceof Error ? diagramError.message : String(diagramError);
-              logger.error(`Failed to extract diagram ${i + 1} from page ${pageNumber}: ${errorMsg}`, {
+              logger.error(`❌ Failed to extract diagram ${i + 1} from page ${pageNumber}: ${errorMsg}`, {
                 error: diagramError,
                 diagramIndex: i,
-                pageNumber
+                pageNumber,
+                diagramLocation: diagram.location
               });
+              // Set imagePath to empty string to mark as failed (but keep diagram in list)
+              diagram.imagePath = '';
+              delete diagram.imageBuffer;
               // Continue with next diagram instead of failing completely
               // This diagram will be skipped but others may succeed
             }

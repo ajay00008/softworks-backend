@@ -220,8 +220,59 @@ export class DiagramGenerationService {
           ctx.font = '16px Arial';
           ctx.fillText('y = cos(x)', 100, 80);
         }
+      } else if (desc.includes('linear programming') || desc.includes('constraint') || desc.includes('feasible')) {
+        // Draw linear programming graph with constraints
+        // Draw coordinate axes
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.5;
+        
+        // X-axis
+        ctx.beginPath();
+        ctx.moveTo(50, height - 50);
+        ctx.lineTo(width - 50, height - 50);
+        ctx.stroke();
+        
+        // Y-axis
+        ctx.beginPath();
+        ctx.moveTo(50, 50);
+        ctx.lineTo(50, height - 50);
+        ctx.stroke();
+        
+        // Draw constraint lines (example: x + y ≤ 4)
+        ctx.strokeStyle = '#0066cc';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Line x + y = 4: from (0, 4) to (4, 0) in normalized coordinates
+        const scale = Math.min((width - 100) / 10, (height - 100) / 10);
+        const originX = 50;
+        const originY = height - 50;
+        
+        // Constraint line: x + y = 4
+        ctx.moveTo(originX, originY - 4 * scale);
+        ctx.lineTo(originX + 4 * scale, originY);
+        ctx.stroke();
+        
+        // Shade feasible region (x ≥ 0, y ≥ 0, x + y ≤ 4)
+        ctx.fillStyle = 'rgba(0, 102, 204, 0.2)';
+        ctx.beginPath();
+        ctx.moveTo(originX, originY);
+        ctx.lineTo(originX + 4 * scale, originY);
+        ctx.lineTo(originX, originY - 4 * scale);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Labels
+        ctx.fillStyle = '#000000';
+        ctx.font = '12px Arial';
+        ctx.fillText('X', width - 60, height - 40);
+        ctx.fillText('Y', 30, 50);
+        ctx.fillText('O', originX - 15, originY + 15);
+        
+        // Constraint labels
+        ctx.font = '10px Arial';
+        ctx.fillText('x + y = 4', originX + 4 * scale - 40, originY - 4 * scale - 10);
       } else if (desc.includes('linear') || desc.includes('line')) {
-        // Draw linear function
+        // Draw simple linear function
         ctx.strokeStyle = '#0066cc';
         ctx.lineWidth = 2;
         ctx.beginPath();
